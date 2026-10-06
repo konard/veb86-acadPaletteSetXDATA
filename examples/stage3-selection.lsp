@@ -1,5 +1,5 @@
 ; Load with APPLOAD in a NEW AutoCAD 2021 drawing; run XDATASTAGE3SAMPLE.
-; This fixture creates two entities and sample data. The plugin itself remains read-only.
+; This fixture creates two entities and sample data. Stages 3 and 4 use this fixture for inspection and group editing.
 (defun c:XDATASTAGE3SAMPLE (/ line cable dictionary selection)
   (regapp "ESMT_LEP_v1.0")
   (regapp "SMARTLINE")
@@ -27,7 +27,7 @@
   (setq selection (ssadd line))
   (ssadd cable selection)
   (sssetfirst nil selection)
-  (princ "\nTwo sample entities selected. Open XDATAPALETTE and inspect each object.")
+  (princ "\nTwo sample entities selected. Open XDATAPALETTE to compare/edit the group and inspect each object tree.")
   (princ))
 (vl-load-com)
 (princ)

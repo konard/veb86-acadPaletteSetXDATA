@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="PaletteBackground" Color="#3D4451" />
+    <SolidColorBrush x:Key="PaletteForeground" Color="#F3F4F6" />
+    <SolidColorBrush x:Key="PaletteMuted" Color="#C2CAD5" />
+    <SolidColorBrush x:Key="PaletteBorder" Color="#68717E" />
+    <SolidColorBrush x:Key="PaletteTabBackground" Color="#303641" />
+    <SolidColorBrush x:Key="PaletteSelectedBackground" Color="#4C5666" />
+    <SolidColorBrush x:Key="PaletteHoverBackground" Color="#454F5E" />
+    <SolidColorBrush x:Key="PaletteAccent" Color="#8BBEF1" />
+</ResourceDictionary>

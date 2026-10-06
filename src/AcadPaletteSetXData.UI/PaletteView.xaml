@@ -138,7 +138,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <ContentControl Content="{Binding Content}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-                    <TextBlock Grid.Row="1" Text="Этап 4 • Enter или выход из поля — применить ко всем" FontSize="11" TextWrapping="Wrap"
+                    <TextBlock Grid.Row="1" Text="Enter или выход из поля — применить ко всем" FontSize="11" TextWrapping="Wrap"
                                Foreground="{DynamicResource PaletteMuted}" Margin="6,8" />
                 </Grid>
             </DataTemplate>

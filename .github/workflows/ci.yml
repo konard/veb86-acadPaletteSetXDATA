@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Test lifecycle and ViewModel
+      - name: Test lifecycle, property fields and material commands
         run: dotnet test tests/AcadPaletteSetXData.Core.Tests -c Release --logger "trx;LogFileName=core.trx" --results-directory artifacts/tests --blame-hang-timeout 2m
       - uses: actions/upload-artifact@v4
         if: always()
@@ -42,9 +42,9 @@ jobs:
           if ($sdkFiles) { throw "Unexpected runtime assemblies: $($sdkFiles.Name -join ', ')" }
       - name: Build WPF verification tool for both runtimes
         run: dotnet build experiments/AcadPaletteSetXData.WpfSmoke -c Release
-      - name: Verify and render the .NET 8 WPF shell
+      - name: Verify and render the .NET 8 WPF editor
         run: dotnet run --project experiments/AcadPaletteSetXData.WpfSmoke -c Release -f net8.0-windows --no-build -- artifacts/screenshots/net8
-      - name: Verify and render the .NET Framework 4.8 WPF shell
+      - name: Verify and render the .NET Framework 4.8 WPF editor
         run: ./experiments/AcadPaletteSetXData.WpfSmoke/bin/Release/net48/AcadPaletteSetXData.WpfSmoke.exe artifacts/screenshots/net48
       - uses: actions/upload-artifact@v4
         if: always()

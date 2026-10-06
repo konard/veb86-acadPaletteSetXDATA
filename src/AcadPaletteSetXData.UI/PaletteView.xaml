@@ -1,6 +1,8 @@
 <UserControl x:Class="AcadPaletteSetXData.UI.PaletteView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="clr-namespace:AcadPaletteSetXData.Core;assembly=AcadPaletteSetXData.Core"
+             xmlns:ui="clr-namespace:AcadPaletteSetXData.UI"
              Background="{DynamicResource PaletteBackground}"
              Foreground="{DynamicResource PaletteForeground}"
              FontFamily="Segoe UI" FontSize="13"
@@ -10,7 +12,21 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Dark.xaml" />
+                <ResourceDictionary Source="Themes/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <Style TargetType="Label"><Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" /></Style>
+            <DataTemplate DataType="{x:Type core:PropertyEditorViewModel}"><ui:PropertyEditorView /></DataTemplate>
+            <DataTemplate DataType="{x:Type core:PaletteTab}">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Border Background="{DynamicResource PaletteTabBackground}" Padding="10,8">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    </Border>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
+                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{DynamicResource PaletteMuted}" />
+                    </ScrollViewer>
+                </Grid>
+            </DataTemplate>
             <Style TargetType="TabItem">
                 <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
                 <Setter Property="Background" Value="{DynamicResource PaletteTabBackground}" />
@@ -82,21 +98,14 @@
         </TabControl.ItemTemplate>
         <TabControl.ContentTemplate>
             <DataTemplate>
-                <Grid Margin="16">
+                <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Border Background="{DynamicResource PaletteTabBackground}" Padding="10,8">
-                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                    </Border>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
-                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource PaletteMuted}" />
-                    </ScrollViewer>
-                    <TextBlock Grid.Row="2" Text="Каркас панели • Этап 1" FontSize="11"
-                               Foreground="{DynamicResource PaletteMuted}" Margin="0,16,0,0" />
+                    <ContentControl Content="{Binding Content}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                    <TextBlock Grid.Row="1" Text="Макет • Изменения не записываются в DWG" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource PaletteMuted}" Margin="6,8" />
                 </Grid>
             </DataTemplate>
         </TabControl.ContentTemplate>

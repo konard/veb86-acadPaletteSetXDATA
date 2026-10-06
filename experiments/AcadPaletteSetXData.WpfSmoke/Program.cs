@@ -11,6 +11,8 @@ using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Input;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using AcadPaletteSetXData.Core;
@@ -149,13 +151,14 @@ internal static class Program
                 "The add button must be reachable by vertical scrolling at minimum size.");
             Save(view, Path.Combine(output, "stage2-minimum.png"));
             VerifySelectionControls(window, output);
+            VerifyGroupControls(window, output);
             Check(bindingErrors.Messages.Count == 0, "WPF binding failures: " + string.Join("\n", bindingErrors.Messages));
             window.Close();
             view.Dispose();
             model.Theme = PaletteTheme.Light;
             Check(view.DataContext == null, "Disposal must detach the ViewModel.");
             application.Shutdown();
-            Console.WriteLine("WPF checks passed: stage-two draft controls and stage-three empty/selected/read-only states, object switching, typed XDATA/XML trees, themes, resize and disposal.");
+            Console.WriteLine("WPF checks passed: draft controls, read-only inspection, merged values, Enter/focus confirmation, group material operations, typed trees, themes, resize and disposal.");
             return 0;
         }
         catch (Exception error)
@@ -231,7 +234,7 @@ internal static class Program
             model.SelectedTabIndex = 0;
             Pump(view);
             editor = Descendants<PropertyEditorView>(view).Single();
-            Check(((TextBox)editor.FindName("NameField")).Text == "Кабель", "Object switching must replace properties, not merge them.");
+            Check(model.Properties.IsNameMixed && ((TextBox)editor.FindName("NameField")).Text == "", "Raw-tree object switching must preserve the merged property view.");
         }
         model.SelectedTabIndex = 1;
         Pump(view);
@@ -244,6 +247,114 @@ internal static class Program
         model.Selection.Apply(Array.Empty<EntityDataSnapshot>());
         Pump(view);
         Check(!editor.IsEnabled && model.Selection.Tree.Count == 0, "Deselection must disable controls and clear stale data.");
+    }
+
+    private static void VerifyGroupControls(Window window, string output)
+    {
+        var model = new PaletteViewModel();
+        var source = new MemorySelection { Snapshots = SampleSelection() };
+        using var controller = new SelectionController(source, model.Selection);
+        using var view = new PaletteView(model);
+        window.Content = view; window.Width = 520; window.Height = 760;
+        Pump(view);
+        var editor = Descendants<PropertyEditorView>(view).Single();
+        var name = (TextBox)editor.FindName("NameField");
+        Check(!name.IsReadOnly && model.Properties.IsNameMixed, "Selected properties must be editable and independently mixed.");
+        foreach (var theme in new[] { PaletteTheme.Dark, PaletteTheme.Light })
+        {
+            model.Theme = theme; Pump(view);
+            Check(name.Text == "" && EditBehavior.GetMixed(name), "Разное must be a placeholder, not the bound value.");
+            var placeholder = (TextBlock)name.Template.FindName("MixedPlaceholder", name);
+            Check(placeholder.IsVisible && placeholder.FontStyle == FontStyles.Italic, "Mixed headers must show an italic placeholder.");
+            Check(((SolidColorBrush)placeholder.Foreground).Color == ((SolidColorBrush)view.FindResource("PaletteMuted")).Color,
+                "Mixed text must follow the theme's muted color.");
+            Check(Descendants<CheckBox>(editor).Any(flag => flag.IsChecked == null && flag.IsEnabled), "Different specification flags must be indeterminate and editable.");
+            Check(Descendants<TextBox>(editor).Any(box => AutomationProperties.GetName(box) == "Марка материала" && EditBehavior.GetMixed(box)),
+                "A material missing on one entity must show a mixed brand cell.");
+            var mixedCount = Descendants<TextBox>(editor).First(box => AutomationProperties.GetName(box) == "Количество материала" && EditBehavior.GetMixed(box));
+            var placeholderProbe = new TextBlock { Text = "Разное", FontFamily = mixedCount.FontFamily, FontSize = mixedCount.FontSize, FontStyle = FontStyles.Italic };
+            placeholderProbe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Check(mixedCount.ActualWidth - mixedCount.Padding.Left - mixedCount.Padding.Right >= placeholderProbe.DesiredSize.Width,
+                "The entire mixed placeholder must fit the count cell without clipping.");
+            Save(view, Path.Combine(output, "stage4-" + theme.ToString().ToLowerInvariant() + "-mixed.png"));
+        }
+        name.Focus(); Pump(view);
+        var number = (TextBox)editor.FindName("NumberField");
+        number.Focus(); Pump(view);
+        Check(source.Writes == 0, "Visiting and leaving a mixed field must never save the placeholder.");
+        name.Focus(); name.Text = "Единое название"; Pump(view);
+        Check(source.Writes == 0, "Typing must not write before confirmation.");
+        Press(name, Key.Enter, view);
+        Check(source.Writes == 1 && !model.Properties.IsNameMixed, "Enter must commit once to all selected entities.");
+        Press(name, Key.Enter, view);
+        number.Focus(); Pump(view);
+        Check(source.Writes == 1, "Repeated Enter and subsequent focus loss must not duplicate a write.");
+        number.Text = "099"; name.Focus(); Pump(view);
+        Check(source.Writes == 2 && source.Snapshots.All(s => new XDataParser().Parse(s).Properties["Number"] == "099"),
+            "Leaving a changed field must write every object.");
+        var type = (ComboBox)editor.FindName("TypeField");
+        type.Focus(); type.Text = "Общий тип"; Pump(view); Press(type, Key.Enter, view);
+        Check(source.Writes == 3 && model.Properties.Type == "Общий тип", "Editable type must confirm through Enter.");
+        var row = model.Properties.Materials.Single(material => material.MaterialKey == "CD35");
+        var edit = Descendants<Button>(editor).Single(button => ReferenceEquals(button.DataContext, row) &&
+            AutomationProperties.GetName(button) == "Редактировать материал");
+        Invoke(edit, view);
+        var count = Descendants<TextBox>(editor).Single(box => ReferenceEquals(box.DataContext, row) && AutomationProperties.GetName(box) == "Количество материала");
+        count.Focus(); count.Text = "7"; Press(count, Key.Enter, view);
+        Check(source.Snapshots.All(s => new XDataParser().Parse(s).Materials.Single(m => m.Name == "CD35").Count == "7"),
+            "Material cells must patch all entities without replacing other material fields.");
+        row = model.Properties.Materials.Single(material => material.MaterialKey == "CD35");
+        var category = Descendants<ComboBox>(editor).Single(combo => ReferenceEquals(combo.DataContext, row));
+        category.Focus(); Pump(view);
+        var beforeCategoryWrite = source.Writes;
+        category.Text = "Новая категория"; Pump(view);
+        Check(source.Writes == beforeCategoryWrite && category.IsKeyboardFocusWithin,
+            "Typing a category must not move the focused row or save before confirmation.");
+        Press(category, Key.Enter, view);
+        Check(source.Writes == beforeCategoryWrite + 1 && source.Snapshots.All(s => new XDataParser().Parse(s).Materials.Single(m => m.Name == "CD35").Category == "Новая категория"),
+            "Category confirmation must regroup and write the full text to every object.");
+        row = model.Properties.Materials.Single(material => material.MaterialKey == "CD35");
+        VerifyGroups(editor, model.Properties);
+        Check(row.IsEditing, "Confirmed material editing must keep the row open.");
+        var flag = Descendants<CheckBox>(editor).Single(box => ReferenceEquals(box.DataContext, row));
+        flag.IsChecked = true; flag.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, flag)); Pump(view);
+        Check(source.Snapshots.All(s => new XDataParser().Parse(s).Materials.Single(m => m.Name == "CD35").IsInSpec == true),
+            "Specification click must commit the chosen state to the group.");
+        Invoke((Button)editor.FindName("AddMaterialButton"), view);
+        Check(source.Snapshots.All(s => new XDataParser().Parse(s).Materials.Any(m => m.Name == "Новый материал 1")),
+            "Add must write a stable new brand to every entity.");
+        row = model.Properties.Materials.Single(material => material.MaterialKey == "Новый материал 1");
+        var brand = Descendants<TextBox>(editor).Single(box => ReferenceEquals(box.DataContext, row) && AutomationProperties.GetName(box) == "Марка материала");
+        brand.Focus(); brand.Text = "Новая марка"; Press(brand, Key.Enter, view);
+        Check(source.Snapshots.All(s => new XDataParser().Parse(s).Materials.Any(m => m.Name == "Новая марка")), "Renaming must retain the original brand target across the group.");
+        Save(view, Path.Combine(output, "stage4-edited.png"));
+        row = model.Properties.Materials.Single(material => material.MaterialKey == "Новая марка");
+        Invoke(Descendants<Button>(editor).Single(button => ReferenceEquals(button.DataContext, row) && AutomationProperties.GetName(button) == "Удалить материал"), view);
+        Check(source.Snapshots.All(s => !new XDataParser().Parse(s).Materials.Any(m => m.Name == "Новая марка")), "Delete must remove the requested brand from every entity.");
+        Check(source.Snapshots.Select(s => new XDataParser().Parse(s).Materials.Count).SequenceEqual(new[] { 2, 1 }),
+            "Unrelated materials must survive group edits.");
+        model.Selection.Apply(Array.Empty<EntityDataSnapshot>()); Pump(view);
+        Check(!editor.IsEnabled, "Deselection must still disable editing.");
+    }
+
+    private static void Press(FrameworkElement control, Key key, FrameworkElement view)
+    {
+        var args = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(control), 0, key)
+        { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+        control.RaiseEvent(args); Pump(view);
+    }
+
+    private sealed class MemorySelection : ISelectionSource, ISelectionWriter
+    {
+        public EntityDataSnapshot[] Snapshots { get; set; } = Array.Empty<EntityDataSnapshot>();
+        public int Writes { get; private set; }
+        public event EventHandler? SelectionChanged { add { } remove { } }
+        public IReadOnlyList<EntityDataSnapshot> ReadSelection() => Snapshots;
+        public void WriteSelection(IReadOnlyList<string> handles, SelectionEdit edit)
+        {
+            Check(handles.SequenceEqual(Snapshots.Select(s => s.Handle)), "Write targets must be the whole selection.");
+            Snapshots = Snapshots.Select(snapshot => new XDataPatch().Apply(snapshot, edit)).ToArray(); Writes++;
+        }
     }
 
     private static EntityDataSnapshot[] SampleSelection()
@@ -323,11 +434,11 @@ internal static class Program
     {
         var list = (ItemsControl)editor.FindName("MaterialsList");
         var groups = ((ICollectionView)list.ItemsSource).Groups!.Cast<CollectionViewGroup>().ToList();
-        Check(groups.Count == model.Materials.Select(item => item.Category).Distinct().Count(),
+        Check(groups.Count == model.Materials.Select(item => item.GroupCategory).Distinct().Count(),
             "Materials must regroup when categories change.");
         foreach (var group in groups)
         {
-            Check(group.Items.Cast<MaterialItemViewModel>().All(item => item.Category == (string)group.Name),
+            Check(group.Items.Cast<MaterialItemViewModel>().All(item => item.GroupCategory == (string)group.Name),
                 "A group must contain only rows of its own category.");
             Check(Descendants<TextBlock>(list).Any(text => text.Text == (string)group.Name && text.FontStyle == FontStyles.Italic),
                 "Category headers must be visible and italic.");

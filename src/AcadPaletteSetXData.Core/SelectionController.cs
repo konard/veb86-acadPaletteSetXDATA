@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 
 namespace AcadPaletteSetXData.Core;
 
@@ -21,6 +22,8 @@ public sealed class SelectionController : IDisposable
     {
         this.source = source ?? throw new ArgumentNullException(nameof(source));
         this.model = model ?? throw new ArgumentNullException(nameof(model));
+        model.Editor.SetWritable(source is ISelectionWriter);
+        model.Editor.EditRequested += Write;
         source.SelectionChanged += Refresh;
         Refresh(this, EventArgs.Empty);
     }
@@ -36,10 +39,28 @@ public sealed class SelectionController : IDisposable
         }
     }
 
+    private void Write(object? sender, SelectionEdit edit)
+    {
+        if (disposed || !(source is ISelectionWriter writer)) return;
+        try
+        {
+            writer.WriteSelection(model.Entities.Select(entity => entity.Handle).ToArray(), edit);
+            Refresh(this, EventArgs.Empty);
+        }
+        catch (Exception error)
+        {
+            Trace.WriteLine(error, "XDATAPALETTE selection write");
+            try { model.Apply(source.ReadSelection(), "Ошибка записи: " + error.Message); }
+            catch { model.Apply(Array.Empty<EntityDataSnapshot>(), "Ошибка записи: " + error.Message); }
+        }
+    }
+
     public void Dispose()
     {
         if (disposed) return;
         disposed = true;
         source.SelectionChanged -= Refresh;
+        model.Editor.EditRequested -= Write;
+        model.Editor.SetWritable(false);
     }
 }

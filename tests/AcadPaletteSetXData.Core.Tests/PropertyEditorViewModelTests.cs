@@ -89,7 +89,7 @@ public sealed class PropertyEditorViewModelTests
         material.IsMixedValue = true;
         material.IsEditing = true;
         material.Name = "CD35";
-        Assert.Equal(new[] { "Category", "Name", "Count", "IsInSpec", "Comment", "IsMixedValue", "IsEditing" },
+        Assert.Equal(new[] { "Category", "GroupCategory", "Name", "Count", "IsInSpec", "Comment", "IsMixedValue", "IsEditing" },
             notifications);
         Assert.Null(material.IsInSpec);
     }

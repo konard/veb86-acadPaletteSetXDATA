@@ -105,7 +105,7 @@ public sealed class XDataParser
     {
         foreach (var node in parent.Children)
         {
-            if (node.TypeCode == 1000 && TryField(node.Value, out var key, out var value)) fields[key] = value;
+            if (node.TypeCode == 1000 && TryField(node.Value, out var key, out var value)) fields[Canonical(key)] = value;
             if (node.Children.Count != 0) CollectFields(node, fields);
         }
     }
@@ -150,8 +150,8 @@ public sealed class XDataParser
                 foreach (var material in materials.Elements().Where(element => IsMaterial(element.Name.LocalName)))
                 {
                     var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var field in material.Attributes()) fields[field.Name.LocalName] = field.Value;
-                    foreach (var field in material.Elements()) fields[field.Name.LocalName] = field.Value;
+                    foreach (var field in material.Attributes()) fields[Canonical(field.Name.LocalName)] = field.Value;
+                    foreach (var field in material.Elements()) fields[Canonical(field.Name.LocalName)] = field.Value;
                     result.Materials.Add(Material(fields));
                 }
         }
@@ -188,7 +188,7 @@ public sealed class XDataParser
         };
     }
 
-    private static string Canonical(string key)
+    internal static string Canonical(string key)
     {
         switch (key.ToLowerInvariant())
         {
@@ -205,8 +205,8 @@ public sealed class XDataParser
         }
     }
 
-    private static bool IsMaterial(string name) => name.Equals("Material", StringComparison.OrdinalIgnoreCase) || name == "Материал";
-    private static bool IsKnownApp(string name) => name.Equals("ESMT_LEP_v1.0", StringComparison.OrdinalIgnoreCase) || name.Equals("SMARTLINE", StringComparison.OrdinalIgnoreCase);
+    internal static bool IsMaterial(string name) => name.Equals("Material", StringComparison.OrdinalIgnoreCase) || name == "Материал";
+    internal static bool IsKnownApp(string name) => name.Equals("ESMT_LEP_v1.0", StringComparison.OrdinalIgnoreCase) || name.Equals("SMARTLINE", StringComparison.OrdinalIgnoreCase);
     private static string Format(object value) => value is byte[] bytes ? BitConverter.ToString(bytes).Replace("-", "") :
         value is IFormattable formatted ? formatted.ToString(null, CultureInfo.InvariantCulture) : value.ToString() ?? "";
 }

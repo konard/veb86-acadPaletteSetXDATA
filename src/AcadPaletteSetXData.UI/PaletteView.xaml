@@ -91,7 +91,7 @@
             <TextBlock Text="{Binding Selection.Status}" TextWrapping="Wrap" Margin="0,0,0,4" />
             <ComboBox x:Name="SelectedEntityField" ItemsSource="{Binding Selection.Entities}" DisplayMemberPath="DisplayName"
                       SelectedItem="{Binding Selection.SelectedEntity, Mode=TwoWay}" IsEnabled="{Binding Selection.HasSelection}"
-                      AutomationProperties.Name="Выбранный объект">
+                      AutomationProperties.Name="Объект для просмотра дерева XDATA" ToolTip="Выбор объекта меняет только дерево XDATA. Свойства редактируются для всего выделения.">
                 <ComboBox.Style><Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
                     <Setter Property="Visibility" Value="Visible" />
                     <Style.Triggers><DataTrigger Binding="{Binding Selection.Entities.Count}" Value="0">
@@ -138,7 +138,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <ContentControl Content="{Binding Content}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-                    <TextBlock Grid.Row="1" Text="Этап 3 • Просмотр XDATA без записи в DWG" FontSize="11" TextWrapping="Wrap"
+                    <TextBlock Grid.Row="1" Text="Этап 4 • Enter или выход из поля — применить ко всем" FontSize="11" TextWrapping="Wrap"
                                Foreground="{DynamicResource PaletteMuted}" Margin="6,8" />
                 </Grid>
             </DataTemplate>

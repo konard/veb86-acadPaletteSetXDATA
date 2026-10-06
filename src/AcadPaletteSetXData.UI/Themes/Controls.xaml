@@ -1,4 +1,5 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:ui="clr-namespace:AcadPaletteSetXData.UI"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Style TargetType="TextBox">
         <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
@@ -9,6 +10,22 @@
         <Setter Property="CaretBrush" Value="{DynamicResource PaletteForeground}" />
         <Setter Property="SelectionBrush" Value="{DynamicResource PaletteAccent}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                        <Grid>
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" />
+                            <TextBlock x:Name="MixedPlaceholder" Text="Разное" FontStyle="Italic" Foreground="{DynamicResource PaletteMuted}"
+                                       Margin="{TemplateBinding Padding}" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="ui:EditBehavior.Mixed" Value="True"><Setter TargetName="MixedPlaceholder" Property="Visibility" Value="Visible" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
     <Style TargetType="Button">
         <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
@@ -86,6 +103,8 @@
                                                   Margin="5,3" VerticalAlignment="Center" />
                                 <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" BorderThickness="0"
                                          Background="Transparent" IsReadOnly="{TemplateBinding IsReadOnly}" />
+                                <TextBlock x:Name="MixedPlaceholder" Text="Разное" FontStyle="Italic" Foreground="{DynamicResource PaletteMuted}"
+                                           Margin="5,3,0,3" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" />
                                 <ToggleButton Grid.Column="1" Focusable="False"
                                               IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
                                     <ToggleButton.Template>
@@ -108,6 +127,7 @@
                         </Popup>
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="ui:EditBehavior.Mixed" Value="True"><Setter TargetName="MixedPlaceholder" Property="Visibility" Value="Visible" /></Trigger>
                         <Trigger Property="IsEditable" Value="True">
                             <Setter TargetName="Selection" Property="Visibility" Value="Hidden" />
                             <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />

@@ -39,21 +39,21 @@ public sealed class SelectionControllerTests
     }
 
     [Fact]
-    public void KeepsEverySelectedEntityAndAllowsIndividualInspectionWithoutMerging()
+    public void KeepsIndividualRawTreesWhilePropertiesAlwaysRepresentTheGroup()
     {
         var model = new PaletteViewModel();
         var source = new FakeSelectionSource { Snapshot = new[] { Entity("A1", "One"), Entity("B2", "Two") } };
         using var controller = new SelectionController(source, model.Selection);
         Assert.Equal(2, model.Selection.Entities.Count);
-        Assert.Equal("One", model.Properties.Name);
+        Assert.True(model.Properties.IsNameMixed);
         model.Selection.SelectedEntity = model.Selection.Entities[1];
-        Assert.Equal("Two", model.Properties.Name);
+        Assert.True(model.Properties.IsNameMixed);
         Assert.Equal("B2", model.Selection.SelectedEntity!.Handle);
         source.Change();
         Assert.Equal("B2", model.Selection.SelectedEntity!.Handle);
         model.Theme = PaletteTheme.Light;
         model.SelectedTabIndex = 1;
-        Assert.Equal("Two", model.Properties.Name);
+        Assert.True(model.Properties.IsNameMixed);
     }
 
     [Fact]

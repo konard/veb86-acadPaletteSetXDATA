@@ -7,6 +7,7 @@ namespace AcadPaletteSetXData.Core;
 
 public sealed class SelectionViewModel : ObservableObject
 {
+    internal PropertyEditorViewModel Editor { get; }
     private readonly PropertyEditorViewModel editor;
     private ParsedEntityData? selectedEntity;
     private bool hasSelection;
@@ -15,8 +16,8 @@ public sealed class SelectionViewModel : ObservableObject
 
     public SelectionViewModel(PropertyEditorViewModel editor, bool enableDraftPreview = false)
     {
-        this.editor = editor;
-        if (!enableDraftPreview) editor.LoadSelection(null);
+        this.editor = editor; Editor = editor;
+        if (!enableDraftPreview) editor.LoadSelection(Array.Empty<ParsedEntityData>());
         else Status = "Предпросмотр локального черновика";
     }
 
@@ -34,7 +35,6 @@ public sealed class SelectionViewModel : ObservableObject
             if (ReferenceEquals(selectedEntity, value)) return;
             if (value != null && !Entities.Contains(value)) throw new ArgumentException("Объект отсутствует в выделении.", nameof(value));
             SetProperty(ref selectedEntity, value);
-            editor.LoadSelection(value);
             Tree.Clear();
             if (value != null) Tree.Add(value.Tree);
             Diagnostics = value == null ? "" : string.Join("\n", value.Warnings);
@@ -47,11 +47,11 @@ public sealed class SelectionViewModel : ObservableObject
         // Parse first, then replace the whole selection so a failure cannot expose a partial update.
         var parsed = snapshots.Select(snapshot => new XDataParser().Parse(snapshot)).ToArray();
         SelectedEntity = null;
-        editor.LoadSelection(null);
         Tree.Clear(); Entities.Clear();
         foreach (var entity in parsed) Entities.Add(entity);
         HasSelection = Entities.Count != 0;
         SelectedEntity = Entities.FirstOrDefault(entity => entity.Handle == previousHandle) ?? Entities.FirstOrDefault();
-        Status = error ?? (HasSelection ? "Выделено объектов: " + Entities.Count + " • Просмотр данных" : "Выберите объекты в чертеже");
+        editor.LoadSelection(Entities);
+        Status = error ?? (HasSelection ? "Выделено объектов: " + Entities.Count + " • Групповые свойства" : "Выберите объекты в чертеже");
     }
 }

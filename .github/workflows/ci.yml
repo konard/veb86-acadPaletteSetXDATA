@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Test lifecycle, property fields and material commands
+      - name: Test lifecycle, selection snapshots, XDATA/XML parsing and draft controls
         run: dotnet test tests/AcadPaletteSetXData.Core.Tests -c Release --logger "trx;LogFileName=core.trx" --results-directory artifacts/tests --blame-hang-timeout 2m
       - uses: actions/upload-artifact@v4
         if: always()
@@ -33,8 +33,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Build plugin for .NET Framework 4.8 and .NET 8
+      - name: Build AutoCAD 2021 (.NET Framework 4.8) and AutoCAD 2025 (.NET 8) plugin
         run: dotnet build src/AcadPaletteSetXData.AutoCAD -c Release
+      - name: Verify the optional AutoCAD 2024 API build
+        run: dotnet build src/AcadPaletteSetXData.AutoCAD -c Release -f net48 -p:AutoCadNet48ApiVersion=24.3.0 -p:OutputPath=../../artifacts/autocad2024
       - name: Verify that AutoCAD SDK assemblies are not deployed
         shell: pwsh
         run: |

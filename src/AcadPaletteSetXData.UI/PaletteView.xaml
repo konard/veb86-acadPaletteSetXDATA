@@ -16,6 +16,25 @@
             </ResourceDictionary.MergedDictionaries>
             <Style TargetType="Label"><Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" /></Style>
             <DataTemplate DataType="{x:Type core:PropertyEditorViewModel}"><ui:PropertyEditorView /></DataTemplate>
+            <HierarchicalDataTemplate DataType="{x:Type core:XDataNode}" ItemsSource="{Binding Children}">
+                <TextBlock Text="{Binding DisplayText}" ToolTip="{Binding Value}" />
+            </HierarchicalDataTemplate>
+            <DataTemplate DataType="{x:Type core:SelectionViewModel}">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <TextBlock Text="Расширенные данные" FontWeight="SemiBold" Margin="0,4,0,8" />
+                    <TextBlock Grid.Row="1" Text="{Binding Diagnostics}" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Foreground="{DynamicResource PaletteMuted}" />
+                    <TreeView Grid.Row="2" ItemsSource="{Binding Tree}" IsEnabled="{Binding HasSelection}"
+                              Background="{DynamicResource PaletteBackground}" Foreground="{DynamicResource PaletteForeground}"
+                              BorderBrush="{DynamicResource PaletteBorder}" AutomationProperties.Name="Дерево XDATA">
+                        <TreeView.Resources><Style TargetType="TreeViewItem">
+                            <Setter Property="IsExpanded" Value="True" />
+                            <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+                        </Style></TreeView.Resources>
+                    </TreeView>
+                </Grid>
+            </DataTemplate>
             <DataTemplate DataType="{x:Type core:PaletteTab}">
                 <Grid Margin="16">
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
@@ -66,7 +85,22 @@
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
-    <TabControl x:Name="Tabs" TabStripPlacement="Right"
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <StackPanel Margin="6,6,6,4">
+            <TextBlock Text="{Binding Selection.Status}" TextWrapping="Wrap" Margin="0,0,0,4" />
+            <ComboBox x:Name="SelectedEntityField" ItemsSource="{Binding Selection.Entities}" DisplayMemberPath="DisplayName"
+                      SelectedItem="{Binding Selection.SelectedEntity, Mode=TwoWay}" IsEnabled="{Binding Selection.HasSelection}"
+                      AutomationProperties.Name="Выбранный объект">
+                <ComboBox.Style><Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers><DataTrigger Binding="{Binding Selection.Entities.Count}" Value="0">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger></Style.Triggers>
+                </Style></ComboBox.Style>
+            </ComboBox>
+        </StackPanel>
+    <TabControl x:Name="Tabs" Grid.Row="1" TabStripPlacement="Right"
                 ItemsSource="{Binding Tabs}" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
                 Background="{DynamicResource PaletteBackground}"
                 Foreground="{DynamicResource PaletteForeground}"
@@ -104,10 +138,11 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <ContentControl Content="{Binding Content}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-                    <TextBlock Grid.Row="1" Text="Макет • Изменения не записываются в DWG" FontSize="11" TextWrapping="Wrap"
+                    <TextBlock Grid.Row="1" Text="Этап 3 • Просмотр XDATA без записи в DWG" FontSize="11" TextWrapping="Wrap"
                                Foreground="{DynamicResource PaletteMuted}" Margin="6,8" />
                 </Grid>
             </DataTemplate>
         </TabControl.ContentTemplate>
     </TabControl>
+    </Grid>
 </UserControl>

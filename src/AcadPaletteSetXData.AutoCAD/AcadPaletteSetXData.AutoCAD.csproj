@@ -4,6 +4,7 @@
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <PlatformTarget>x64</PlatformTarget>
+    <AutoCadNet48ApiVersion Condition="'$(AutoCadNet48ApiVersion)' == ''">24.0.0</AutoCadNet48ApiVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../AcadPaletteSetXData.Core/AcadPaletteSetXData.Core.csproj" />
@@ -11,7 +12,7 @@
   </ItemGroup>
   <!-- AutoCAD supplies these assemblies at runtime; never deploy the SDK DLLs. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
-    <PackageReference Include="AutoCAD.NET" Version="24.3.0" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="AutoCAD.NET" Version="$(AutoCadNet48ApiVersion)" PrivateAssets="all" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">

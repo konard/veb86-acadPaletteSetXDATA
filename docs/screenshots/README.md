@@ -1,5 +1,31 @@
 # Рендеры WPF-панели
 
+## Этап 3: выбор и чтение XDATA/XRecord
+
+`stage3-*.png` получены из настоящего WPF `UserControl` на Windows в режиме чтения.
+Источник: [CI, commit 685632c](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/37477965743),
+артефакт `wpf-renders/net8`. Те же проверки выполняются на .NET Framework 4.8,
+который используется целевой сборкой AutoCAD 2021. AutoCAD в CI не установлен:
+рендеры используют снимки двух примитивов, без нативной рамки PaletteSet.
+
+| Тёмная тема | Светлая тема |
+| --- | --- |
+| ![Параметры выбранного объекта](stage3-dark-properties.png) | ![Параметры, светлая тема](stage3-light-properties.png) |
+| ![Дерево XDATA](stage3-dark-tree.png) | ![Дерево XDATA, светлая тема](stage3-light-tree.png) |
+
+| Без выделения: редактор неактивен | Один объект | XML XRecord |
+| --- | --- | --- |
+| ![Пустой выбор](stage3-empty.png) | ![Один выбранный объект](stage3-single.png) | ![XRecord](stage3-xrecord.png) |
+
+Проверка подписи выбранного объекта выявила отсутствие `SelectionBoxItemTemplate`
+в общем шаблоне ComboBox. До исправления выводилось CLR-имя модели, после — тип
+примитива и handle. Smoke-тест на commit `ef10578` воспроизводит ошибку;
+проверка обеих подписей при смене объекта выполняется в обеих темах и платформах.
+
+| До исправления подписи | После |
+| --- | --- |
+| ![Неверное имя CLR](stage3-selector-before.png) | ![Тип объекта и handle](stage3-dark-properties.png) |
+
 ## Этап 2: свойства и материалы
 
 `stage2-*.png` созданы настоящим WPF `UserControl` на Windows, включая пустой

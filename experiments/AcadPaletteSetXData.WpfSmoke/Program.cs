@@ -225,6 +225,8 @@ internal static class Program
             selector.SelectedIndex = 1;
             Pump(view);
             Check(model.Selection.SelectedEntity!.Handle == "B2", "Object selection must update the ViewModel.");
+            Check(Descendants<TextBlock>(selector).Any(text => text.Text == "Polyline [B2]"),
+                "Switching objects must update the selected-object caption.");
             Check(Descendants<TextBlock>(tree).Any(text => text.Text == "Name: Кабель"), "Parsed XML must render as structured tree nodes.");
             model.SelectedTabIndex = 0;
             Pump(view);

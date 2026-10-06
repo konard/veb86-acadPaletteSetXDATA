@@ -1,0 +1,136 @@
+<UserControl x:Class="AcadPaletteSetXData.UI.PropertyEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             AutomationProperties.Name="Свойства объектов">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Themes/Controls.xaml" /></ResourceDictionary.MergedDictionaries>
+            <CollectionViewSource x:Key="GroupedMaterials" Source="{Binding Materials}" IsLiveGroupingRequested="True">
+                <CollectionViewSource.GroupDescriptions><PropertyGroupDescription PropertyName="Category" /></CollectionViewSource.GroupDescriptions>
+                <CollectionViewSource.LiveGroupingProperties><sys:String>Category</sys:String></CollectionViewSource.LiveGroupingProperties>
+            </CollectionViewSource>
+            <Style x:Key="MaterialCell" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                <Setter Property="IsReadOnly" Value="True" />
+                <Setter Property="BorderThickness" Value="0,0,1,1" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Padding" Value="4,3" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                        <Setter Property="IsReadOnly" Value="False" />
+                        <Setter Property="Background" Value="{DynamicResource PaletteSelectedBackground}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource PaletteAccent}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer x:Name="EditorScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="6">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="67" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Label Content="Тип" Target="{Binding ElementName=TypeField}" Padding="0,5,4,0" />
+                <ComboBox x:Name="TypeField" Grid.Column="1" Margin="0,0,0,4" IsEditable="True"
+                          ItemsSource="{Binding Types}" Text="{Binding Type, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          AutomationProperties.Name="Тип" />
+                <Label Grid.Row="1" Content="Номер" Target="{Binding ElementName=NumberField}" Padding="0,5,4,0" />
+                <TextBox x:Name="NumberField" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4"
+                         Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Номер" />
+                <Label Grid.Row="2" Content="Название" Target="{Binding ElementName=NameField}" Padding="0,5,4,0" />
+                <TextBox x:Name="NameField" Grid.Row="2" Grid.Column="1" Margin="0,0,0,4"
+                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Название" />
+                <Label Grid.Row="3" Content="Заголовок" Target="{Binding ElementName=TitleField}" Padding="0,5,4,0" />
+                <TextBox x:Name="TitleField" Grid.Row="3" Grid.Column="1"
+                         Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Заголовок" />
+            </Grid>
+            <Expander x:Name="ProjectSection" Header="ССЫЛКА НА ПРОЕКТ" IsExpanded="False" AutomationProperties.Name="ССЫЛКА НА ПРОЕКТ">
+                <TextBox x:Name="ProjectField" Margin="0,4,0,0" MinHeight="28"
+                         Text="{Binding ProjectReference, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="Ссылка на проект" ToolTip="Ссылка или обозначение проекта" />
+            </Expander>
+            <Expander x:Name="MaterialsSection" Header="МАТЕРИАЛЫ" IsExpanded="True" AutomationProperties.Name="МАТЕРИАЛЫ">
+                <StackPanel>
+                    <ScrollViewer x:Name="MaterialsScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <StackPanel MinWidth="375">
+                            <Grid Height="28" Background="{DynamicResource PaletteTabBackground}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="44" /><ColumnDefinition Width="86" /><ColumnDefinition Width="44" />
+                                    <ColumnDefinition Width="34" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="1" Text="МАРКА" Foreground="{DynamicResource PaletteForeground}" FontSize="11" FontWeight="SemiBold" Margin="4,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="КОЛ." Foreground="{DynamicResource PaletteForeground}" FontSize="11" FontWeight="SemiBold" Margin="4,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="Спец." Foreground="{DynamicResource PaletteForeground}" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center" ToolTip="Включить в спецификацию" />
+                                <TextBlock Grid.Column="4" Text="ПРИМЕЧАНИЕ" Foreground="{DynamicResource PaletteForeground}" FontSize="11" FontWeight="SemiBold" Margin="4,0" VerticalAlignment="Center" />
+                            </Grid>
+                            <ItemsControl x:Name="MaterialsList" ItemsSource="{Binding Source={StaticResource GroupedMaterials}}">
+                                <ItemsControl.GroupStyle>
+                                    <GroupStyle>
+                                        <GroupStyle.HeaderTemplate>
+                                            <DataTemplate><TextBlock Text="{Binding Name}" FontStyle="Italic" Margin="0,6,0,3" /></DataTemplate>
+                                        </GroupStyle.HeaderTemplate>
+                                    </GroupStyle>
+                                </ItemsControl.GroupStyle>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <ComboBox ItemsSource="{Binding DataContext.Categories, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      IsEditable="True" Text="{Binding Category, UpdateSourceTrigger=LostFocus}" Margin="44,2,0,2"
+                                                      AutomationProperties.Name="Категория материала">
+                                                <ComboBox.Style>
+                                                    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                                    </Style>
+                                                </ComboBox.Style>
+                                            </ComboBox>
+                                            <Grid MinHeight="28">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="44" /><ColumnDefinition Width="86" /><ColumnDefinition Width="44" />
+                                                    <ColumnDefinition Width="34" /><ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Width="22" Padding="0" Content="×" FontSize="18" ToolTip="Удалить материал"
+                                                            AutomationProperties.Name="Удалить материал" CommandParameter="{Binding}"
+                                                            Command="{Binding DataContext.DeleteMaterialCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                                    <Button Width="22" Padding="0" Content="✎" FontSize="16" CommandParameter="{Binding}"
+                                                            Command="{Binding DataContext.EditMaterialCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                                <Setter Property="ToolTip" Value="Редактировать материал" />
+                                                                <Setter Property="AutomationProperties.Name" Value="Редактировать материал" />
+                                                                <Style.Triggers><DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                                    <Setter Property="ToolTip" Value="Завершить редактирование" />
+                                                                    <Setter Property="AutomationProperties.Name" Value="Завершить редактирование" />
+                                                                </DataTrigger></Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </StackPanel>
+                                                <TextBox Grid.Column="1" Style="{StaticResource MaterialCell}" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Марка материала" />
+                                                <TextBox Grid.Column="2" Style="{StaticResource MaterialCell}" Text="{Binding Count, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Количество материала" />
+                                                <CheckBox Grid.Column="3" IsThreeState="True" IsChecked="{Binding IsInSpec, Mode=TwoWay}" ToolTip="Включить в спецификацию" AutomationProperties.Name="Включить в спецификацию" />
+                                                <TextBox Grid.Column="4" Style="{StaticResource MaterialCell}" Text="{Binding Comment, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Примечание материала" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <TextBlock Text="Материалы не добавлены" Foreground="{DynamicResource PaletteMuted}" Margin="4,8">
+                        <TextBlock.Style><Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers><DataTrigger Binding="{Binding Materials.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                        </Style></TextBlock.Style>
+                    </TextBlock>
+                    <Button x:Name="AddMaterialButton" Content="+ Добавить" HorizontalAlignment="Left" Margin="0,6,0,0"
+                            Command="{Binding AddMaterialCommand}" AutomationProperties.Name="Добавить материал" />
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

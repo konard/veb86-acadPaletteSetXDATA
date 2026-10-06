@@ -271,6 +271,11 @@ internal static class Program
             Check(Descendants<CheckBox>(editor).Any(flag => flag.IsChecked == null && flag.IsEnabled), "Different specification flags must be indeterminate and editable.");
             Check(Descendants<TextBox>(editor).Any(box => AutomationProperties.GetName(box) == "Марка материала" && EditBehavior.GetMixed(box)),
                 "A material missing on one entity must show a mixed brand cell.");
+            var mixedCount = Descendants<TextBox>(editor).First(box => AutomationProperties.GetName(box) == "Количество материала" && EditBehavior.GetMixed(box));
+            var placeholderProbe = new TextBlock { Text = "Разное", FontFamily = mixedCount.FontFamily, FontSize = mixedCount.FontSize, FontStyle = FontStyles.Italic };
+            placeholderProbe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Check(mixedCount.ActualWidth - mixedCount.Padding.Left - mixedCount.Padding.Right >= placeholderProbe.DesiredSize.Width,
+                "The entire mixed placeholder must fit the count cell without clipping.");
             Save(view, Path.Combine(output, "stage4-" + theme.ToString().ToLowerInvariant() + "-mixed.png"));
         }
         name.Focus(); Pump(view);
@@ -299,6 +304,17 @@ internal static class Program
         Check(source.Snapshots.All(s => new XDataParser().Parse(s).Materials.Single(m => m.Name == "CD35").Count == "7"),
             "Material cells must patch all entities without replacing other material fields.");
         row = model.Properties.Materials.Single(material => material.MaterialKey == "CD35");
+        var category = Descendants<ComboBox>(editor).Single(combo => ReferenceEquals(combo.DataContext, row));
+        category.Focus(); Pump(view);
+        var beforeCategoryWrite = source.Writes;
+        category.Text = "Новая категория"; Pump(view);
+        Check(source.Writes == beforeCategoryWrite && category.IsKeyboardFocusWithin,
+            "Typing a category must not move the focused row or save before confirmation.");
+        Press(category, Key.Enter, view);
+        Check(source.Writes == beforeCategoryWrite + 1 && source.Snapshots.All(s => new XDataParser().Parse(s).Materials.Single(m => m.Name == "CD35").Category == "Новая категория"),
+            "Category confirmation must regroup and write the full text to every object.");
+        row = model.Properties.Materials.Single(material => material.MaterialKey == "CD35");
+        VerifyGroups(editor, model.Properties);
         Check(row.IsEditing, "Confirmed material editing must keep the row open.");
         var flag = Descendants<CheckBox>(editor).Single(box => ReferenceEquals(box.DataContext, row));
         flag.IsChecked = true; flag.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, flag)); Pump(view);

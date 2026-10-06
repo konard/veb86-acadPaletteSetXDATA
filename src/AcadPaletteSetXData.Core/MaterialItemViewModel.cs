@@ -23,7 +23,9 @@ public sealed class MaterialItemViewModel : ObservableObject
     internal HashSet<string> Dirty { get; } = new HashSet<string>();
     private readonly HashSet<string> mixed = new HashSet<string>();
     public string MaterialKey { get; internal set; } = "";
-    public string GroupCategory => IsCategoryMixed ? "Разное" : Category;
+    private string? groupCategory;
+    public string GroupCategory => groupCategory ?? (IsCategoryMixed ? "Разное" : Category);
+    internal void FreezeGroupCategory() => groupCategory = GroupCategory;
     public bool IsCategoryMixed => mixed.Contains("Category");
     public bool IsNameMixed => mixed.Contains("Name");
     public bool IsCountMixed => mixed.Contains("Count");

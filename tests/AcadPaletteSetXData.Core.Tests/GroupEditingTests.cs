@@ -180,6 +180,62 @@ public sealed class GroupEditingTests
         Assert.Throws<InvalidOperationException>(() => new XDataPatch().Apply(xml, SelectionEdit.Header("Name", "new")));
     }
 
+    [Fact]
+    public void PendingCategoryEditsKeepTheirGroupUntilConfirmation()
+    {
+        var source = new MemorySelection { Snapshots = new[] { Sample("A", "One", "1"), Sample("B", "Two", "2") } };
+        var model = new PaletteViewModel();
+        using var controller = new SelectionController(source, model.Selection);
+        var row = Assert.Single(model.Properties.Materials);
+        row.IsEditing = true;
+        row.Category = "Новая категория";
+        Assert.Equal("Арматура", row.GroupCategory);
+        Assert.Equal(0, source.Writes);
+        model.Properties.CommitMaterialField(row, "Category");
+        Assert.Equal("Новая категория", Assert.Single(model.Properties.Materials).GroupCategory);
+        Assert.True(model.Properties.Materials[0].IsEditing);
+    }
+
+    [Fact]
+    public void MaterialAliasesUseTheLastOccurrenceSoTheWriterTargetsTheDisplayedBrand()
+    {
+        var snapshot = new EntityDataSnapshot("A", "Line", new[]
+        {
+            V(1001, "SMARTLINE"), V(1000, "Material"), V(1002, "{"),
+            V(1000, "Name=A"), V(1000, "Марка=B"), V(1000, "Name=C"), V(1000, "Count=1"), V(1002, "}")
+        }, Array.Empty<DataRecord>());
+        Assert.Equal("C", new XDataParser().Parse(snapshot).Materials.Single().Name);
+        var changed = new XDataPatch().Apply(snapshot, SelectionEdit.MaterialField("C", "Count", "9"));
+        Assert.Equal("9", new XDataParser().Parse(changed).Materials.Single().Count);
+        var xml = new EntityDataSnapshot("B", "Line", Array.Empty<DataValue>(), new[]
+        {
+            new DataRecord("XML", new[] { V(1, "<VisualTreeString><Materials><Material Name='A' Марка='B' Count='1'><Name>C</Name></Material></Materials></VisualTreeString>") })
+        });
+        Assert.Equal("C", new XDataParser().Parse(xml).Materials.Single().Name);
+        changed = new XDataPatch().Apply(xml, SelectionEdit.MaterialField("C", "Count", "9"));
+        Assert.Equal("9", new XDataParser().Parse(changed).Materials.Single().Count);
+    }
+
+    [Fact]
+    public void XmlChunksPreserveUnicodePairsAndStayWithinByteLimits()
+    {
+        var snapshot = new EntityDataSnapshot("A", "Line", Array.Empty<DataValue>(), new[]
+        {
+            new DataRecord("XML", new[] { V(1000, "<VisualTreeString><Properties><Name>old</Name></Properties></VisualTreeString>") })
+        });
+        var name = string.Concat(Enumerable.Repeat("Ж🙂", 80));
+        var changed = new XDataPatch().Apply(snapshot, SelectionEdit.Header("Name", name));
+        Assert.Equal(name, new XDataParser().Parse(changed).Properties["Name"]);
+        Assert.All(changed.Records[0].Values, value =>
+        {
+            var text = (string)value.Value;
+            Assert.True(System.Text.Encoding.UTF8.GetByteCount(text) <= 240);
+            Assert.False(char.IsLowSurrogate(text[0]));
+            Assert.False(char.IsHighSurrogate(text[text.Length - 1]));
+            Assert.Equal(1000, value.TypeCode);
+        });
+    }
+
     private static DataValue V(int code, object value) => new DataValue(code, value);
     private static EntityDataSnapshot Sample(string handle, string name, string? count = null, bool flag = true)
     {

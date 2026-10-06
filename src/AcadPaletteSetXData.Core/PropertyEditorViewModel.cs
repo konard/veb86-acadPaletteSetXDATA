@@ -125,6 +125,8 @@ public sealed class PropertyEditorViewModel : ObservableObject
                 property.SetValue(merged, differs ? (field == "IsInSpec" ? null : "") : property.GetValue(values[0]));
                 if (differs) merged.MarkMixed(field);
             }
+            // Keep a focused row in place while typing; regroup only after confirmation and refresh.
+            merged.FreezeGroupCategory();
             merged.IsEditing = editing.Contains(key);
             merged.Dirty.Clear(); Materials.Add(merged);
         }

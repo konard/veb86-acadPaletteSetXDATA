@@ -105,7 +105,7 @@ public sealed class XDataParser
     {
         foreach (var node in parent.Children)
         {
-            if (node.TypeCode == 1000 && TryField(node.Value, out var key, out var value)) fields[key] = value;
+            if (node.TypeCode == 1000 && TryField(node.Value, out var key, out var value)) fields[Canonical(key)] = value;
             if (node.Children.Count != 0) CollectFields(node, fields);
         }
     }
@@ -150,8 +150,8 @@ public sealed class XDataParser
                 foreach (var material in materials.Elements().Where(element => IsMaterial(element.Name.LocalName)))
                 {
                     var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var field in material.Attributes()) fields[field.Name.LocalName] = field.Value;
-                    foreach (var field in material.Elements()) fields[field.Name.LocalName] = field.Value;
+                    foreach (var field in material.Attributes()) fields[Canonical(field.Name.LocalName)] = field.Value;
+                    foreach (var field in material.Elements()) fields[Canonical(field.Name.LocalName)] = field.Value;
                     result.Materials.Add(Material(fields));
                 }
         }

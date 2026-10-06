@@ -4,7 +4,7 @@ using System.Collections.ObjectModel;
 
 namespace AcadPaletteSetXData.Core;
 
-/// <summary>Editable layout state for stage two; persistence is provided in later stages.</summary>
+/// <summary>Property projection for stage three, with an editable local draft for standalone previews.</summary>
 public sealed class PropertyEditorViewModel : ObservableObject
 {
     private string type = "";
@@ -12,13 +12,16 @@ public sealed class PropertyEditorViewModel : ObservableObject
     private string name = "";
     private string title = "";
     private string projectReference = "";
+    private bool isEnabled = true;
+    private bool isReadOnly;
+    private bool canEdit = true;
 
     public PropertyEditorViewModel()
     {
         AddMaterialCommand = new DelegateCommand(_ => Materials.Add(new MaterialItemViewModel
         {
             Category = Categories[0], IsEditing = true
-        }));
+        }), _ => CanEdit);
         EditMaterialCommand = new DelegateCommand(
             item => { var material = (MaterialItemViewModel)item!; material.IsEditing = !material.IsEditing; },
             OwnsMaterial);
@@ -48,6 +51,24 @@ public sealed class PropertyEditorViewModel : ObservableObject
     public string Name { get => name; set => SetProperty(ref name, value); }
     public string Title { get => title; set => SetProperty(ref title, value); }
     public string ProjectReference { get => projectReference; set => SetProperty(ref projectReference, value); }
+    public bool IsEnabled { get => isEnabled; private set => SetProperty(ref isEnabled, value); }
+    public bool IsReadOnly { get => isReadOnly; private set => SetProperty(ref isReadOnly, value); }
+    public bool CanEdit { get => canEdit; private set => SetProperty(ref canEdit, value); }
 
-    private bool OwnsMaterial(object? item) => item is MaterialItemViewModel material && Materials.Contains(material);
+    internal void LoadSelection(ParsedEntityData? entity)
+    {
+        IsEnabled = entity != null;
+        IsReadOnly = true;
+        CanEdit = IsEnabled && !IsReadOnly;
+        string Get(string key) => entity != null && entity.Properties.TryGetValue(key, out var value) ? value : "";
+        Type = Get("Type"); Number = Get("Number"); Name = Get("Name");
+        Title = Get("Title"); ProjectReference = Get("ProjectReference");
+        Materials.Clear();
+        if (entity != null) foreach (var material in entity.Materials) Materials.Add(material);
+        AddMaterialCommand.RaiseCanExecuteChanged();
+        EditMaterialCommand.RaiseCanExecuteChanged();
+        DeleteMaterialCommand.RaiseCanExecuteChanged();
+    }
+
+    private bool OwnsMaterial(object? item) => CanEdit && item is MaterialItemViewModel material && Materials.Contains(material);
 }

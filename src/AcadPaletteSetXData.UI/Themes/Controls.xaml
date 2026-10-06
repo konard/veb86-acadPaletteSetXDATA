@@ -80,6 +80,9 @@
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="24" />
                                 </Grid.ColumnDefinitions>
                                 <ContentPresenter x:Name="Selection" Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                  ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
                                                   Margin="5,3" VerticalAlignment="Center" />
                                 <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" BorderThickness="0"
                                          Background="Transparent" IsReadOnly="{TemplateBinding IsReadOnly}" />

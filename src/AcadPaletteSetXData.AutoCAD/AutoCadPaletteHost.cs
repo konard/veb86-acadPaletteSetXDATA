@@ -13,6 +13,8 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
     private readonly PaletteViewModel viewModel = new PaletteViewModel();
     private readonly PaletteView view;
     private readonly PaletteSet palette;
+    private readonly AutoCadSelectionSource selectionSource;
+    private readonly SelectionController selectionController;
 
     public AutoCadPaletteHost()
     {
@@ -28,9 +30,12 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
             palette.KeepFocus = false;
             // One native page: WPF owns the vertical right-side navigation.
             palette.AddVisual("XDATA", view, true);
+            selectionSource = new AutoCadSelectionSource();
+            selectionController = new SelectionController(selectionSource, viewModel.Selection);
         }
         catch
         {
+            selectionSource?.Dispose();
             palette.Dispose();
             view.Dispose();
             throw;
@@ -47,6 +52,8 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
 
     public void Dispose()
     {
+        selectionController.Dispose();
+        selectionSource.Dispose();
         palette.Dispose();
         view.Dispose();
     }

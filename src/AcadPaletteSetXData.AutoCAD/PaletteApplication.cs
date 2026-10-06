@@ -17,7 +17,7 @@ public sealed class PaletteApplication : IExtensionApplication
         // NETLOAD registers the command without opening a palette or requiring a document.
     }
 
-    [CommandMethod("XDATAPALETTE", CommandFlags.Session)]
+    [CommandMethod("XDATAPALETTE", CommandFlags.Session | CommandFlags.UsePickSet)]
     public static void TogglePalette()
     {
         try

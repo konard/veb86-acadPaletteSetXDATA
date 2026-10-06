@@ -4,3 +4,4 @@ artifacts/
 ci-logs/
 .vs/
 *.user
+experiments/logs/

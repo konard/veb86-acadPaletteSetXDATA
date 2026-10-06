@@ -30,7 +30,7 @@ internal static class Program
             var bindingErrors = new BindingErrorListener();
             PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);
             PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Warning;
-            var model = new PaletteViewModel();
+            var model = new PaletteViewModel(enableDraftPreview: true);
             using var view = new PaletteView(model);
             var window = new Window
             {
@@ -148,13 +148,14 @@ internal static class Program
             Check(addLocation.Y >= 0 && addLocation.Y + add.ActualHeight < view.ActualHeight,
                 "The add button must be reachable by vertical scrolling at minimum size.");
             Save(view, Path.Combine(output, "stage2-minimum.png"));
+            VerifySelectionControls(window, output);
             Check(bindingErrors.Messages.Count == 0, "WPF binding failures: " + string.Join("\n", bindingErrors.Messages));
             window.Close();
             view.Dispose();
             model.Theme = PaletteTheme.Light;
             Check(view.DataContext == null, "Disposal must detach the ViewModel.");
             application.Shutdown();
-            Console.WriteLine("WPF checks passed: fields, dropdown, project, live category groups, add/edit/delete, specification, right tabs, both themes, resize, disposal; nine PNG renders.");
+            Console.WriteLine("WPF checks passed: stage-two draft controls and stage-three empty/selected/read-only states, object switching, typed XDATA/XML trees, themes, resize and disposal.");
             return 0;
         }
         catch (Exception error)
@@ -179,6 +180,91 @@ internal static class Program
             {
                 Category = editor.Categories[Math.Min(index, 2)], Name = marks[index], Count = counts[index]
             });
+    }
+
+    private static void VerifySelectionControls(Window window, string output)
+    {
+        var model = new PaletteViewModel();
+        using var view = new PaletteView(model);
+        window.Content = view;
+        window.Width = 520; window.Height = 760;
+        Pump(view);
+        var editor = Descendants<PropertyEditorView>(view).Single();
+        Check(!editor.IsEnabled && model.Properties.IsReadOnly, "Empty selection must disable the editor.");
+        Save(view, Path.Combine(output, "stage3-empty.png"));
+        var sample = SampleSelection();
+        model.Selection.Apply(sample.Take(1).ToArray());
+        Pump(view);
+        Check(editor.IsEnabled, "Selecting an object must enable property inspection.");
+        Check(((TextBox)editor.FindName("NameField")).Text == "АО21", "Selected XDATA must populate the real property field.");
+        Check(((TextBox)editor.FindName("NameField")).IsReadOnly, "Selection properties must be read-only in stage three.");
+        Check(!((ComboBox)editor.FindName("TypeField")).IsEnabled, "Read-only type must reject dropdown changes.");
+        Check(!((Button)editor.FindName("AddMaterialButton")).IsEnabled, "Adding must be disabled for selected DWG objects.");
+        Check(Descendants<CheckBox>(editor).All(flag => !flag.IsEnabled), "Specification flags must be read-only.");
+        VerifyGroups(editor, model.Properties);
+        Save(view, Path.Combine(output, "stage3-single.png"));
+
+        model.Selection.Apply(sample);
+        var selector = (ComboBox)view.FindName("SelectedEntityField");
+        foreach (var theme in new[] { PaletteTheme.Dark, PaletteTheme.Light })
+        {
+            model.Theme = theme;
+            selector.SelectedIndex = 0;
+            model.SelectedTabIndex = 0;
+            Pump(view);
+            Check(selector.Items.Count == 2 && model.Selection.SelectedEntity!.Handle == "A1", "Every selected entity must be inspectable.");
+            Check(Descendants<TextBlock>(selector).Any(text => text.Text == "BlockReference [A1]"),
+                "The selected-object caption must display the entity type and handle, not a CLR type name.");
+            Save(view, Path.Combine(output, $"stage3-{theme.ToString().ToLowerInvariant()}-properties.png"));
+            model.SelectedTabIndex = 1;
+            Pump(view);
+            var tree = Descendants<TreeView>(view).Single();
+            Check(tree.Items.Count == 1 && tree.IsEnabled, "The selected entity must expose a navigable XDATA tree.");
+            Check(Descendants<TextBlock>(tree).Any(text => text.Text.Contains("ESMT_LEP_v1.0")), "RegApp branches must be visible.");
+            Save(view, Path.Combine(output, $"stage3-{theme.ToString().ToLowerInvariant()}-tree.png"));
+            selector.SelectedIndex = 1;
+            Pump(view);
+            Check(model.Selection.SelectedEntity!.Handle == "B2", "Object selection must update the ViewModel.");
+            Check(Descendants<TextBlock>(selector).Any(text => text.Text == "Polyline [B2]"),
+                "Switching objects must update the selected-object caption.");
+            Check(Descendants<TextBlock>(tree).Any(text => text.Text == "Name: Кабель"), "Parsed XML must render as structured tree nodes.");
+            model.SelectedTabIndex = 0;
+            Pump(view);
+            editor = Descendants<PropertyEditorView>(view).Single();
+            Check(((TextBox)editor.FindName("NameField")).Text == "Кабель", "Object switching must replace properties, not merge them.");
+        }
+        model.SelectedTabIndex = 1;
+        Pump(view);
+        Save(view, Path.Combine(output, "stage3-xrecord.png"));
+        model.Selection.Apply(new[] { new EntityDataSnapshot("C3", "Line", Array.Empty<DataValue>(), Array.Empty<DataRecord>()) });
+        model.SelectedTabIndex = 0;
+        Pump(view);
+        editor = Descendants<PropertyEditorView>(view).Single();
+        Check(editor.IsEnabled && ((TextBox)editor.FindName("NameField")).Text == "", "An entity without XDATA must clear the previous values.");
+        model.Selection.Apply(Array.Empty<EntityDataSnapshot>());
+        Pump(view);
+        Check(!editor.IsEnabled && model.Selection.Tree.Count == 0, "Deselection must disable controls and clear stale data.");
+    }
+
+    private static EntityDataSnapshot[] SampleSelection()
+    {
+        DataValue V(int code, object value) => new DataValue(code, value);
+        return new[]
+        {
+            new EntityDataSnapshot("A1", "BlockReference", new[]
+            {
+                V(1001, "ESMT_LEP_v1.0"), V(1000, "Type=Опора 0,4 кВ"), V(1000, "Number=021"), V(1000, "Name=АО21"),
+                V(1000, "Title=Опора"), V(1000, "ProjectReference=Проект 021 / лист 1"),
+                V(1000, "Material"), V(1002, "{"), V(1000, "Category=Железобетонные элементы"),
+                V(1000, "Name=СВ110-5"), V(1000, "Count=1"), V(1000, "IsInSpec=1"), V(1000, "Comment=Основной"), V(1002, "}"),
+                V(1000, "Material"), V(1002, "{"), V(1000, "Category=Линейная арматура"),
+                V(1000, "Name=CD35"), V(1000, "Count=2"), V(1000, "IsInSpec=0"), V(1002, "}")
+            }, Array.Empty<DataRecord>()),
+            new EntityDataSnapshot("B2", "Polyline", new[] { V(1001, "SMARTLINE"), V(1000, "Number=022") }, new[]
+            {
+                new DataRecord("SMARTLINE/Properties", new[] { V(1, "<VisualTreeString><Properties><Type>Кабель</Type><Name>Кабель</Name></Properties><Materials><Material Category='Линейная арматура' Name='CD35' Count='2' IsInSpec='true'/></Materials></VisualTreeString>") })
+            })
+        };
     }
 
     private static void VerifyDraftControls(PropertyEditorView editor, PropertyEditorViewModel model, PaletteView view)

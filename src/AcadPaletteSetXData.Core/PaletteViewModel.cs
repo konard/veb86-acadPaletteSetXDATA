@@ -10,19 +10,20 @@ public sealed class PaletteViewModel : INotifyPropertyChanged
     private PaletteTheme theme;
     private int selectedTabIndex;
 
-    public PaletteViewModel()
+    public PaletteViewModel(bool enableDraftPreview = false)
     {
+        Selection = new SelectionViewModel(Properties, enableDraftPreview);
         Tabs = Array.AsReadOnly(new[]
         {
             new PaletteTab("Свойства", "Свойства объектов", "", Properties),
-            new PaletteTab("XDATA", "Расширенные данные",
-                "Здесь будут отображаться расширенные данные XDATA выбранных объектов."),
+            new PaletteTab("XDATA", "Расширенные данные", "", Selection),
             new PaletteTab("Команды", "Управление панелью",
                 "Введите XDATAPALETTE в командной строке AutoCAD, чтобы показать или скрыть панель.")
         });
     }
 
     public PropertyEditorViewModel Properties { get; } = new PropertyEditorViewModel();
+    public SelectionViewModel Selection { get; }
     public IReadOnlyList<PaletteTab> Tabs { get; }
 
     public PaletteTheme Theme

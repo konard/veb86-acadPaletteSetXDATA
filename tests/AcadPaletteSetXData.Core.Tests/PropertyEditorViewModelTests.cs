@@ -10,7 +10,7 @@ public sealed class PropertyEditorViewModelTests
     [Fact]
     public void StartsWithAnEmptyDraftAndExposesTheSpecifiedCategories()
     {
-        var model = new PaletteViewModel();
+        var model = new PaletteViewModel(enableDraftPreview: true);
         var editor = model.Properties;
         Assert.Same(editor, model.Tabs[0].Content);
         Assert.Empty(editor.Materials);
@@ -97,7 +97,7 @@ public sealed class PropertyEditorViewModelTests
     [Fact]
     public void DraftSurvivesThemeChangesAndTabSwitches()
     {
-        var model = new PaletteViewModel();
+        var model = new PaletteViewModel(enableDraftPreview: true);
         model.Properties.Name = "АО21";
         model.Properties.AddMaterialCommand.Execute(null);
         var material = Assert.Single(model.Properties.Materials);

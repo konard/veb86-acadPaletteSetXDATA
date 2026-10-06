@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Test selection, mixed values, group patches, lifecycle and parsing
+      - name: Test transactional writer, selection, mixed values, lifecycle and parsing
         run: dotnet test tests/AcadPaletteSetXData.Core.Tests -c Release --logger "trx;LogFileName=core.trx" --results-directory artifacts/tests --blame-hang-timeout 2m
       - uses: actions/upload-artifact@v4
         if: always()

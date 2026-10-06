@@ -49,7 +49,7 @@ public sealed class XDataPatch
             if (edit.Kind == SelectionEditKind.Header)
             {
                 foreach (var properties in xml.Root.Elements().Where(e => e.Name.LocalName == "Properties"))
-                    if (PatchXmlField(properties, edit.Field, edit.Value)) changed = found = true;
+                    if (PatchXmlField(properties, edit.Field, edit.Value, ref changed)) found = true;
             }
             else if (edit.Kind != SelectionEditKind.AddMaterial)
             {
@@ -57,9 +57,10 @@ public sealed class XDataPatch
                     .SelectMany(e => e.Elements()).Where(e => XDataParser.IsMaterial(e.Name.LocalName)).ToArray())
                 {
                     if (XmlField(material, "Name") != edit.MaterialKey) continue;
-                    found = changed = true;
-                    if (edit.Kind == SelectionEditKind.DeleteMaterial) material.Remove();
-                    else if (!PatchXmlField(material, edit.Field, edit.Value)) material.SetAttributeValue(edit.Field, edit.Value);
+                    found = true;
+                    if (edit.Kind == SelectionEditKind.DeleteMaterial) { material.Remove(); changed = true; }
+                    else if (!PatchXmlField(material, edit.Field, edit.Value, ref changed))
+                    { material.SetAttributeValue(edit.Field, edit.Value); changed = true; }
                 }
             }
             if (changed) changedXml.Add(index);
@@ -156,11 +157,13 @@ public sealed class XDataPatch
     { var text = (string)old.Value; return new DataValue(old.TypeCode, text.Substring(0, text.IndexOf('=') + 1) + value); }
     private static KeyValuePair<string, string> Split(string text)
     { var at = text.IndexOf('='); return new KeyValuePair<string, string>(at > 0 ? XDataParser.Canonical(text.Substring(0, at).Trim()) : "", at > 0 ? text.Substring(at + 1) : ""); }
-    private static bool PatchXmlField(XElement node, string field, string value)
+    private static bool PatchXmlField(XElement node, string field, string value, ref bool changed)
     {
         var found = false;
-        foreach (var attribute in node.Attributes().Where(a => XDataParser.Canonical(a.Name.LocalName) == field)) { attribute.Value = value; found = true; }
-        foreach (var element in node.Elements().Where(e => XDataParser.Canonical(e.Name.LocalName) == field)) { element.Value = value; found = true; }
+        foreach (var attribute in node.Attributes().Where(a => XDataParser.Canonical(a.Name.LocalName) == field))
+        { if (attribute.Value != value) { attribute.Value = value; changed = true; } found = true; }
+        foreach (var element in node.Elements().Where(e => XDataParser.Canonical(e.Name.LocalName) == field))
+        { if (element.Value != value) { element.Value = value; changed = true; } found = true; }
         return found;
     }
     private static string XmlField(XElement node, string field) => node.Attributes().Where(a => XDataParser.Canonical(a.Name.LocalName) == field).Select(a => a.Value)

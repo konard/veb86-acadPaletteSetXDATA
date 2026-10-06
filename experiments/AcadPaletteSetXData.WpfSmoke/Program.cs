@@ -79,6 +79,12 @@ internal static class Program
                         Check(((SolidColorBrush)name.Foreground).Color.ToString() ==
                               (theme == PaletteTheme.Dark ? "#FFF3F4F6" : "#FF202832"),
                             "Editor text must follow the theme.");
+                        foreach (var label in new[] { "МАРКА", "КОЛ.", "Спец.", "ПРИМЕЧАНИЕ" })
+                        {
+                            var heading = Descendants<TextBlock>(editor).Single(text => text.Text == label);
+                            Check(((SolidColorBrush)heading.Foreground).Color == ((SolidColorBrush)name.Foreground).Color,
+                                "Material column headings must remain readable in both themes: " + label);
+                        }
                         var type = (ComboBox)editor.FindName("TypeField");
                         type.IsDropDownOpen = true;
                         Pump(view);
@@ -135,6 +141,12 @@ internal static class Program
             scroll.ScrollToRightEnd();
             Pump(view);
             Check(scroll.HorizontalOffset > 0, "The last material column must be reachable.");
+            ((ScrollViewer)editor.FindName("EditorScroll")).ScrollToBottom();
+            Pump(view);
+            var add = (Button)editor.FindName("AddMaterialButton");
+            var addLocation = add.TranslatePoint(new Point(), view);
+            Check(addLocation.Y >= 0 && addLocation.Y + add.ActualHeight < view.ActualHeight,
+                "The add button must be reachable by vertical scrolling at minimum size.");
             Save(view, Path.Combine(output, "stage2-minimum.png"));
             Check(bindingErrors.Messages.Count == 0, "WPF binding failures: " + string.Join("\n", bindingErrors.Messages));
             window.Close();
@@ -273,6 +285,7 @@ internal static class Program
 
     private static void Save(FrameworkElement view, string path)
     {
+        Pump(view);
         var bitmap = new RenderTargetBitmap((int)view.ActualWidth, (int)view.ActualHeight,
             96, 96, PixelFormats.Pbgra32);
         bitmap.Render(view);

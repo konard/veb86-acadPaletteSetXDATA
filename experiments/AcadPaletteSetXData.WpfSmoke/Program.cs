@@ -213,6 +213,8 @@ internal static class Program
             model.SelectedTabIndex = 0;
             Pump(view);
             Check(selector.Items.Count == 2 && model.Selection.SelectedEntity!.Handle == "A1", "Every selected entity must be inspectable.");
+            Check(Descendants<TextBlock>(selector).Any(text => text.Text == "BlockReference [A1]"),
+                "The selected-object caption must display the entity type and handle, not a CLR type name.");
             Save(view, Path.Combine(output, $"stage3-{theme.ToString().ToLowerInvariant()}-properties.png"));
             model.SelectedTabIndex = 1;
             Pump(view);

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using AcadPaletteSetXData.WpfSmoke;
 
 // Read the shipped assembly without loading Autodesk or WPF into the test process.
 if (args.Length != 1) throw new ArgumentException("Pass the path to acadPaletteSetXDATA.dll.");
@@ -12,6 +13,7 @@ using var pe = new PEReader(stream);
 var metadata = pe.GetMetadataReader();
 var assembly = metadata.GetAssemblyDefinition();
 Check(metadata.GetString(assembly.Name) == "acadPaletteSetXDATA", "Incorrect release assembly identity.");
+AutoCadMetadataStub.Install();
 
 string AttributeName(CustomAttribute attribute)
 {
@@ -33,6 +35,13 @@ foreach (var name in new[] { "ExtensionApplication", "CommandClass" })
         AttributeName(metadata.GetCustomAttribute(item)) == "Autodesk.AutoCAD.Runtime." + name + "Attribute");
     Check(!handle.IsNil, "Release DLL is missing AutoCAD " + name + " registration.");
     var attribute = metadata.GetCustomAttribute(handle);
+    var constructor = metadata.GetMemberReference((MemberReferenceHandle)attribute.Constructor);
+    var attributeType = metadata.GetTypeReference((TypeReferenceHandle)constructor.Parent);
+    var apiAssembly = metadata.GetAssemblyReference((AssemblyReferenceHandle)attributeType.ResolutionScope);
+    Console.WriteLine("Verified " + name + " registration via " + metadata.GetString(apiAssembly.Name) + ".");
+    var hostMetadata = Assembly.Load(new AssemblyName(metadata.GetString(apiAssembly.Name)) { Version = apiAssembly.Version });
+    Check(hostMetadata.GetType(AttributeName(attribute))?.IsSubclassOf(typeof(Attribute)) == true,
+        "Standalone WPF host must resolve the release DLL's " + name + " attribute type.");
     var blob = metadata.GetBlobReader(attribute.Value);
     Check(blob.ReadUInt16() == 1 && blob.ReadSerializedString()!.StartsWith(applicationType, StringComparison.Ordinal),
         name + " must point to PaletteApplication in the release DLL.");

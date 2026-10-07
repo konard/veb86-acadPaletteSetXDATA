@@ -5,10 +5,17 @@
 проверяет результат и публикует GitHub Release с **acadPaletteSetXDATA.zip**.
 ZIP содержит ровно один файл `acadPaletteSetXDATA.dll` в корне.
 
-`src/acadPaletteSetXDATA` — отдельная минимальная сборочная основа из задачи #11.
-Она проверяет ссылки на три сборки AutoCAD API при компиляции;
-команд AutoCAD в ней нет. Существующий плагин панели `AcadPaletteSetXData`
-собирается и проверяется прежним `ci.yml`, его три DLL не входят в этот ZIP.
+`src/acadPaletteSetXDATA` компилирует общие исходники Core, AutoCAD и UI,
+включая XAML и словари тем, в одну сборку. В ней зарегистрированы
+`ExtensionApplication`, `CommandClass` и команда `XDATAPALETTE`.
+После распаковки ZIP добавьте папку в `TRUSTEDPATHS` и выполните `NETLOAD`
+для **`acadPaletteSetXDATA.dll`** в AutoCAD 2021. Командная строка подтверждает
+загрузку и подсказывает команду; `XDATAPALETTE` показывает/скрывает панель.
+Плагин создаёт панель только при вызове команды. Если при загрузке нет активной
+DWG, сообщение выводится один раз после появления чертежа.
+
+Отдельные проекты Core/UI/AutoCAD остаются доступны для разработки и дополнительных
+версий AutoCAD; их сборки проверяются `ci.yml`. Они не требуются рядом с DLL из ZIP.
 
 API получается из официального NuGet-пакета [AutoCAD.NET 24.0.0](https://www.nuget.org/packages/AutoCAD.NET/24.0.0)
 с точной версией `[24.0.0]`. `PrivateAssets="all"` и `ExcludeAssets="runtime"`
@@ -45,7 +52,12 @@ Pull request тоже собирает DLL и ZIP, запускает прове
 Ошибка restore выдаёт отдельное понятное сообщение о необходимых пакетах и
 подключении к NuGet вместе с исходным логом. Ошибка сборки или проверки
 завершает build job; зависимый release job не запускается.
-Упаковка проверяет управляемую x64-сборку и сохраняет только нужную DLL.
+Проверки читают метаданные именно выпускаемой DLL: регистрацию приложения/команды,
+наличие реализации панели и WPF-ресурсов, отсутствие зависимости от отдельных DLL
+плагина. Windows запускает полный WPF smoke-сценарий с этой сборкой и сохраняет
+рендеры в `release-wpf-renders`. Упаковка проверяет управляемую x64-сборку
+и сохраняет только нужную DLL. Нативный `NETLOAD` требует установленного AutoCAD;
+[сценарий ручной проверки](autocad-verification.md).
 
 Публикация использует `GITHUB_TOKEN` с `contents: write` только в release job.
 [GitHub CLI создаёт draft и загружает ZIP](https://cli.github.com/manual/gh_release_create);
@@ -69,7 +81,7 @@ pwsh -NoProfile -File scripts/New-AcadPaletteSetXDataPackage.ps1 -BuildDirectory
 
 Проверка задачи #13 до переименования завершалась ошибкой
 `The required acadPaletteSetXDATA build target is missing.`
-Теперь она проверяет точное имя управляемой сборки `acadPaletteSetXDATA`
+Теперь она проверяет регистрацию `XDATAPALETTE` в выпускаемой DLL и точное имя сборки `acadPaletteSetXDATA`
 (простое переименование чужой DLL не проходит), отсутствующую/повреждённую DLL, отказ при попадании
 каждой из трёх DLL Autodesk, x64/.NET Framework 4.8, содержимое ZIP и идентичность DLL, порядок
 создания draft/загрузки/публикации, сбои GitHub CLI и повторные попытки.
@@ -78,3 +90,8 @@ pwsh -NoProfile -File scripts/New-AcadPaletteSetXDataPackage.ps1 -BuildDirectory
 GitHub CLI в тестах подменён; тесты не создают настоящие Release.
 На Windows CI выполняются те же проверки с .NET SDK 8. Локальные логи
 сохраняются в `experiments/logs/` (исключены из Git).
+
+Регрессия задачи #15 воспроизводится проверкой метаданных прежней DLL:
+`Release DLL is missing AutoCAD ExtensionApplication registration.`
+Прежний ZIP содержал только сборочную основу без команды. Теперь выпускается
+полная реализация плагина, а не отдельный набор DLL с другим именем точки загрузки.

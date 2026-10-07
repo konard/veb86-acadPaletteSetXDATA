@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>acadPaletteSetXDATA</AssemblyName>
     <RootNamespace>acadPaletteSetXDATA</RootNamespace>
     <PlatformTarget>x64</PlatformTarget>
@@ -10,7 +12,14 @@
     <FileVersion>0.0.0.0</FileVersion>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
-  <!-- Build-only foundation: no AutoCAD commands at this stage. -->
+  <!-- Compile the existing plugin into the single DLL distributed by Releases. -->
+  <ItemGroup>
+    <Compile Include="../AcadPaletteSetXData.Core/*.cs" Link="Core/%(Filename)%(Extension)" />
+    <Compile Include="../AcadPaletteSetXData.AutoCAD/*.cs" Link="AutoCAD/%(Filename)%(Extension)" />
+    <Compile Include="../AcadPaletteSetXData.UI/*.cs" Link="UI/%(Filename)%(Extension)" />
+    <Page Include="../AcadPaletteSetXData.UI/*.xaml" Link="%(Filename)%(Extension)" />
+    <Page Include="../AcadPaletteSetXData.UI/Themes/*.xaml" Link="Themes/%(Filename)%(Extension)" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AutoCAD.NET" Version="[24.0.0]" PrivateAssets="all" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />

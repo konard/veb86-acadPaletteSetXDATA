@@ -23,6 +23,8 @@ function Assert-Failure([scriptblock] $Action, [string] $Pattern) {
 try {
     Assert (Test-Path "$root/.github/workflows/build-release.yml") 'The automatic release workflow is missing.'
     Assert (Test-Path "$root/src/acadPaletteSetXDATA/acadPaletteSetXDATA.csproj") 'The required acadPaletteSetXDATA build target is missing.'
+    & dotnet run --project "$root/experiments/AcadPaletteSetXData.RegistrationSmoke" -c Release -- "$BuildDirectory/acadPaletteSetXDATA.dll"
+    Assert ($LASTEXITCODE -eq 0) 'The shipped DLL must register XDATAPALETTE and contain the complete plugin.'
     New-Item $temporary -ItemType Directory | Out-Null
     $inputDirectory = Join-Path $temporary 'input'
     New-Item $inputDirectory -ItemType Directory | Out-Null

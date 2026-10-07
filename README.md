@@ -58,11 +58,11 @@ WPF-содержимое следует `COLORTHEME`: `0` — тёмная те�
 
 ## Сборка
 
-Для задачи #11 добавлен отдельный автоматический цикл **AutoCADHttp.dll →
-AutoCADHttp.zip → GitHub Release** после каждого push в `main` и при ручном
+Для задачи #11 добавлен отдельный автоматический цикл **acadPaletteSetXDATA.dll →
+acadPaletteSetXDATA.zip → GitHub Release** после каждого push в `main` и при ручном
 запуске Actions. Версия формируется автоматически; ZIP содержит единственную
 DLL для AutoCAD 2021 / .NET Framework 4.8 / x64 без DLL Autodesk.
-`AutoCADHttp` — сборочная основа без HTTP-сервера и команд AutoCAD;
+`acadPaletteSetXDATA` — сборочная основа без команд AutoCAD;
 плагин панели использует описанный ниже комплект из трёх DLL.
 [Запуск, проверки, ошибки и повторная публикация](docs/build-release.md).
 

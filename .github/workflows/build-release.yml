@@ -1,4 +1,4 @@
-name: Build and release AutoCADHttp
+name: Build and release acadPaletteSetXDATA
 
 on:
   push:
@@ -24,20 +24,20 @@ jobs:
       - name: Restore AutoCAD 2021 API from NuGet
         shell: pwsh
         run: |
-          dotnet restore src/AutoCADHttp/AutoCADHttp.csproj --source https://api.nuget.org/v3/index.json
+          dotnet restore src/acadPaletteSetXDATA/acadPaletteSetXDATA.csproj --source https://api.nuget.org/v3/index.json
           if ($LASTEXITCODE -ne 0) {
             Write-Output '::error::NuGet restore failed. AutoCAD.NET 24.0.0 and .NET Framework 4.8 reference assemblies are required; check package availability and NuGet connectivity in the restore log above.'
             exit $LASTEXITCODE
           }
       - name: Build Release / x64
         shell: pwsh
-        run: dotnet build src/AutoCADHttp/AutoCADHttp.csproj --no-restore -c Release -p:PlatformTarget=x64 -p:Version=0.0.${{ github.run_number }}
+        run: dotnet build src/acadPaletteSetXDATA/acadPaletteSetXDATA.csproj --no-restore -c Release -p:PlatformTarget=x64 -p:Version=0.0.${{ github.run_number }}
       - name: Verify packaging and publication failure handling
         shell: pwsh
-        run: ./experiments/Test-AutoCADHttpRelease.ps1
-      - name: Package only AutoCADHttp.dll
+        run: ./experiments/Test-AcadPaletteSetXDataRelease.ps1
+      - name: Package only acadPaletteSetXDATA.dll
         shell: pwsh
-        run: ./scripts/New-AutoCADHttpPackage.ps1 -BuildDirectory src/AutoCADHttp/bin/Release/net48 -ZipPath artifacts/release/AutoCADHttp.zip
+        run: ./scripts/New-AcadPaletteSetXDataPackage.ps1 -BuildDirectory src/acadPaletteSetXDATA/bin/Release/net48 -ZipPath artifacts/release/acadPaletteSetXDATA.zip
       - name: Write release metadata
         shell: pwsh
         env:
@@ -53,12 +53,12 @@ jobs:
           Target platform: AutoCAD 2021 / .NET Framework 4.8
           AutoCAD .NET API: 24.0.0 (NuGet, compile only)
 
-          AutoCADHttp.zip contains AutoCADHttp.dll only.
-          This build foundation contains no HTTP server or AutoCAD commands.
+          acadPaletteSetXDATA.zip contains acadPaletteSetXDATA.dll only.
+          This build foundation contains no AutoCAD commands.
           "@ | Set-Content artifacts/release/release-notes.md -Encoding utf8
       - uses: actions/upload-artifact@v4
         with:
-          name: AutoCADHttp-release
+          name: acadPaletteSetXDATA-release
           path: artifacts/release/
           if-no-files-found: error
 
@@ -78,7 +78,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          name: AutoCADHttp-release
+          name: acadPaletteSetXDATA-release
           path: artifacts/release
       - name: Create draft, upload ZIP and publish completed release
         shell: pwsh
@@ -88,4 +88,4 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
-          ./scripts/Publish-AutoCADHttpRelease.ps1 -Repository $env:RELEASE_REPOSITORY -Version "v0.0.$env:RUN_NUMBER" -CommitSha $env:COMMIT_SHA -ZipPath artifacts/release/AutoCADHttp.zip -NotesPath artifacts/release/release-notes.md
+          ./scripts/Publish-AcadPaletteSetXDataRelease.ps1 -Repository $env:RELEASE_REPOSITORY -Version "v0.0.$env:RUN_NUMBER" -CommitSha $env:COMMIT_SHA -ZipPath artifacts/release/acadPaletteSetXDATA.zip -NotesPath artifacts/release/release-notes.md

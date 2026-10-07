@@ -1,5 +1,23 @@
 # Рендеры WPF-панели
 
+## Задача #15: панель из единственной Release DLL
+
+`issue15-release-dark.png` / `issue15-release-light.png` получены из WPF-панели,
+скомпилированной внутри `acadPaletteSetXDATA.dll`, на Windows **net48**.
+Источник: [Release CI, commit 9123f5c](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/37636859030),
+артефакт `release-wpf-renders`. Полный smoke-сценарий проверяет шаблоны моделей,
+темы, вкладки, дерево и редактирование с теми же общими исходниками, что и отдельная UI DLL.
+Собранный ZIP содержит только `acadPaletteSetXDATA.dll`; регистрация `XDATAPALETTE`
+проверяется по её метаданным.
+
+| Тёмная тема из Release DLL | Светлая тема из Release DLL |
+| --- | --- |
+| ![Release, тёмная тема](issue15-release-dark.png) | ![Release, светлая тема](issue15-release-light.png) |
+
+Источник данных — снимки двух объектов. AutoCAD в CI не установлен: нативная рамка
+PaletteSet, сообщение `NETLOAD` и запуск команды в AutoCAD проверяются отдельно по
+[сценарию](../autocad-verification.md).
+
 ## Этап 5: запись общего поля с сохранением уникальных данных
 
 `stage5-before.png` / `stage5-after.png` получены из настоящего WPF `UserControl`

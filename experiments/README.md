@@ -85,5 +85,8 @@ dotnet build experiments/AcadPaletteSetXData.WpfSmoke -c Release -p:UseReleaseAs
 ```
 
 Эта проверка выявляет ссылки XAML/тем на отсутствующие отдельные сборки плагина.
+Для standalone-запуска release DLL инструмент предоставляет в памяти два типа
+атрибутов AutoCAD: .NET Framework разрешает их при чтении WPF-ресурсов, даже когда
+команды не вызываются. Код AutoCAD не эмулируется; SDK DLL и подмена не входят в ZIP.
 Автоматически запускается в `build-release.yml`; нативный `NETLOAD` и рамка палитры
 проверяются в установленном AutoCAD по `docs/autocad-verification.md`.

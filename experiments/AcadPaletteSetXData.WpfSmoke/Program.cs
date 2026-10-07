@@ -28,6 +28,8 @@ internal static class Program
     {
         try
         {
+            if (typeof(PaletteView).Assembly.GetName().Name == "acadPaletteSetXDATA")
+                AutoCadMetadataStub.Install();
             var application = new Application();
             var bindingErrors = new BindingErrorListener();
             PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);

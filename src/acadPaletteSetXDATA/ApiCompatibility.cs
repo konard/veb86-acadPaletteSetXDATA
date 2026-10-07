@@ -1,9 +1,9 @@
 using System;
 
-namespace AutoCADHttp
+namespace acadPaletteSetXDATA
 {
     // These references make compilation verify all three Autodesk API assemblies.
-    // They do not register an application, commands, or an HTTP server.
+    // They do not register an application or commands.
     internal static class ApiCompatibility
     {
         internal static Type CoreApi => typeof(Autodesk.AutoCAD.ApplicationServices.Core.Application);

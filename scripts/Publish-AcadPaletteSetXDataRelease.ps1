@@ -19,7 +19,7 @@ if ($LASTEXITCODE -eq 0) {
     if ($existing.targetCommitish -ne $CommitSha) { throw "$Version already belongs to a different commit." }
     if (-not $existing.isDraft) {
         $assets = @($existing.assets)
-        if ($assets.Count -ne 1 -or $assets[0].name -ne 'AutoCADHttp.zip' -or $assets[0].size -ne (Get-Item $ZipPath).Length) {
+        if ($assets.Count -ne 1 -or $assets[0].name -cne 'acadPaletteSetXDATA.zip' -or $assets[0].size -ne (Get-Item $ZipPath).Length) {
             throw "$Version is published but its release assets are incomplete or unexpected."
         }
         Write-Host "$Version is already published for $CommitSha."
@@ -27,7 +27,7 @@ if ($LASTEXITCODE -eq 0) {
     }
     # Resume a draft left by a failed upload on an earlier attempt of the same run.
     & gh release upload $Version $ZipPath --repo $Repository --clobber
-    if ($LASTEXITCODE -ne 0) { throw "Failed to upload AutoCADHttp.zip to draft $Version. Nothing was published." }
+    if ($LASTEXITCODE -ne 0) { throw "Failed to upload acadPaletteSetXDATA.zip to draft $Version. Nothing was published." }
 } else {
     # gh uploads the asset while the release is still a draft. An upload failure
     # leaves an unpublished draft, which the next attempt can resume.

@@ -1,8 +1,8 @@
 # WPF-проверка этапов 2–5
 
 Отдельная проверка сборки и публикации задачи #11:
-`pwsh -NoProfile -File experiments/Test-AutoCADHttpRelease.ps1` после сборки
-`src/AutoCADHttp` в Release. Она проверяет ZIP и поведение публикации с mock
+`pwsh -NoProfile -File experiments/Test-AcadPaletteSetXDataRelease.ps1` после сборки
+`src/acadPaletteSetXDATA` в Release. Она проверяет ZIP и поведение публикации с mock
 GitHub CLI без создания Release; команды и описание — в
 [docs/build-release.md](../docs/build-release.md).
 

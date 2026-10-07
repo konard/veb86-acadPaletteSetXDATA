@@ -19,7 +19,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "experiments", "experiments"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AcadPaletteSetXData.WpfSmoke", "experiments\AcadPaletteSetXData.WpfSmoke\AcadPaletteSetXData.WpfSmoke.csproj", "{0DBDF47E-3273-4623-AF66-59A02FB26F2D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoCADHttp", "src\AutoCADHttp\AutoCADHttp.csproj", "{6987B806-9798-44C7-B9DE-E021627757D1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "acadPaletteSetXDATA", "src\acadPaletteSetXDATA\acadPaletteSetXDATA.csproj", "{6987B806-9798-44C7-B9DE-E021627757D1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

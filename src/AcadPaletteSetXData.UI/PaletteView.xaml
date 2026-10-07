@@ -1,7 +1,6 @@
 <UserControl x:Class="AcadPaletteSetXData.UI.PaletteView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:core="clr-namespace:AcadPaletteSetXData.Core;assembly=AcadPaletteSetXData.Core"
              xmlns:ui="clr-namespace:AcadPaletteSetXData.UI"
              Background="{DynamicResource PaletteBackground}"
              Foreground="{DynamicResource PaletteForeground}"
@@ -15,11 +14,11 @@
                 <ResourceDictionary Source="Themes/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <Style TargetType="Label"><Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" /></Style>
-            <DataTemplate DataType="{x:Type core:PropertyEditorViewModel}"><ui:PropertyEditorView /></DataTemplate>
-            <HierarchicalDataTemplate DataType="{x:Type core:XDataNode}" ItemsSource="{Binding Children}">
+            <DataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Properties}}"><ui:PropertyEditorView /></DataTemplate>
+            <HierarchicalDataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Node}}" ItemsSource="{Binding Children}">
                 <TextBlock Text="{Binding DisplayText}" ToolTip="{Binding Value}" />
             </HierarchicalDataTemplate>
-            <DataTemplate DataType="{x:Type core:SelectionViewModel}">
+            <DataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Selection}}">
                 <Grid Margin="6">
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <TextBlock Text="Расширенные данные" FontWeight="SemiBold" Margin="0,4,0,8" />
@@ -35,7 +34,7 @@
                     </TreeView>
                 </Grid>
             </DataTemplate>
-            <DataTemplate DataType="{x:Type core:PaletteTab}">
+            <DataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Tab}}">
                 <Grid Margin="16">
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <Border Background="{DynamicResource PaletteTabBackground}" Padding="10,8">

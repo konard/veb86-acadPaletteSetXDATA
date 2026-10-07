@@ -31,9 +31,10 @@ public partial class PaletteView : UserControl, IDisposable
     private void ApplyTheme()
     {
         var name = viewModel.Theme == PaletteTheme.Light ? "Light" : "Dark";
+        var assembly = typeof(PaletteView).Assembly.GetName().Name;
         Resources.MergedDictionaries[0] = new ResourceDictionary
         {
-            Source = new Uri($"/AcadPaletteSetXData.UI;component/Themes/{name}.xaml", UriKind.Relative)
+            Source = new Uri($"/{assembly};component/Themes/{name}.xaml", UriKind.Relative)
         };
     }
 

@@ -14,7 +14,23 @@ public sealed class PaletteApplication : IExtensionApplication
 
     public void Initialize()
     {
-        // NETLOAD registers the command without opening a palette or requiring a document.
+        // Keep startup independent of palette creation; defer output if no drawing is open.
+        AcApplication.Idle -= OnIdle;
+        if (!WriteLoadMessage()) AcApplication.Idle += OnIdle;
+    }
+
+    private static bool WriteLoadMessage()
+    {
+        var document = AcApplication.DocumentManager.MdiActiveDocument;
+        if (document == null) return false;
+        document.Editor.WriteMessage(
+            "\nacadPaletteSetXDATA загружено. Команда XDATAPALETTE — показать/скрыть панель XDATA.\n");
+        return true;
+    }
+
+    private static void OnIdle(object? sender, System.EventArgs args)
+    {
+        if (WriteLoadMessage()) AcApplication.Idle -= OnIdle;
     }
 
     [CommandMethod("XDATAPALETTE", CommandFlags.Session | CommandFlags.UsePickSet)]
@@ -39,6 +55,7 @@ public sealed class PaletteApplication : IExtensionApplication
 
     public void Terminate()
     {
+        AcApplication.Idle -= OnIdle;
         controller?.Dispose();
         themeSource?.Dispose();
         controller = null;

@@ -35,6 +35,12 @@ jobs:
       - name: Verify packaging and publication failure handling
         shell: pwsh
         run: ./experiments/Test-AcadPaletteSetXDataRelease.ps1
+      - name: Verify the WPF editor from the single release DLL
+        shell: pwsh
+        run: |
+          dotnet build experiments/AcadPaletteSetXData.WpfSmoke -c Release -p:UseReleaseAssembly=true -p:Version=0.0.${{ github.run_number }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./experiments/AcadPaletteSetXData.WpfSmoke/bin/ReleaseAssembly/Release/net48/AcadPaletteSetXData.WpfSmoke.exe artifacts/screenshots/release
       - name: Package only acadPaletteSetXDATA.dll
         shell: pwsh
         run: ./scripts/New-AcadPaletteSetXDataPackage.ps1 -BuildDirectory src/acadPaletteSetXDATA/bin/Release/net48 -ZipPath artifacts/release/acadPaletteSetXDATA.zip
@@ -54,13 +60,19 @@ jobs:
           AutoCAD .NET API: 24.0.0 (NuGet, compile only)
 
           acadPaletteSetXDATA.zip contains acadPaletteSetXDATA.dll only.
-          This build foundation contains no AutoCAD commands.
+          Extract to a trusted folder and NETLOAD acadPaletteSetXDATA.dll in AutoCAD 2021.
+          A load confirmation appears in the command line. XDATAPALETTE shows/hides the XDATA palette.
           "@ | Set-Content artifacts/release/release-notes.md -Encoding utf8
       - uses: actions/upload-artifact@v4
         with:
           name: acadPaletteSetXDATA-release
           path: artifacts/release/
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-wpf-renders
+          path: artifacts/screenshots/release
 
   release:
     name: Publish GitHub Release

@@ -62,8 +62,9 @@ WPF-содержимое следует `COLORTHEME`: `0` — тёмная те�
 acadPaletteSetXDATA.zip → GitHub Release** после каждого push в `main` и при ручном
 запуске Actions. Версия формируется автоматически; ZIP содержит единственную
 DLL для AutoCAD 2021 / .NET Framework 4.8 / x64 без DLL Autodesk.
-`acadPaletteSetXDATA` — сборочная основа без команд AutoCAD;
-плагин панели использует описанный ниже комплект из трёх DLL.
+`acadPaletteSetXDATA.dll` содержит весь плагин: регистрацию `XDATAPALETTE`,
+логику XDATA и WPF-панель с темами. Исходники общие с комплектом из трёх DLL
+для разработки и дополнительных версий AutoCAD.
 [Запуск, проверки, ошибки и повторная публикация](docs/build-release.md).
 
 Нужны .NET SDK 8 или новее; для запуска — Windows и соответствующая версия AutoCAD.
@@ -95,10 +96,19 @@ dotnet build src/AcadPaletteSetXData.AutoCAD -c Release -f net48 -p:AutoCadNet48
 ## Загрузка
 
 1. Добавьте папку плагина в доверенные расположения AutoCAD (`TRUSTEDPATHS`).
-2. В AutoCAD 2021 выполните `NETLOAD` для `AcadPaletteSetXData.AutoCAD.dll` из `net48`.
+2. Распакуйте `acadPaletteSetXDATA.zip` из GitHub Release и в AutoCAD 2021 выполните
+   `NETLOAD` для **`acadPaletteSetXDATA.dll`**. Дополнительные DLL плагина не нужны.
+   В командной строке появится:
+   `acadPaletteSetXDATA загружено. Команда XDATAPALETTE — показать/скрыть панель XDATA.`
+   При загрузке без открытого чертежа сообщение появится после открытия первой DWG.
+   Панель при загрузке не открывается.
 3. Введите `XDATAPALETTE`. Повторный вызов скрывает панель.
 4. Для закрепления перетащите заголовок к краю окна или воспользуйтесь меню панели.
    Кнопка автоскрытия сворачивает панель, кнопка закрытия скрывает её.
+
+Для отдельной сборки из исходников загрузите `AcadPaletteSetXData.AutoCAD.dll`
+из папки с тремя DLL нужной платформы. Проверяйте этот вариант и DLL из Release
+в разных сеансах AutoCAD: они регистрируют одну и ту же команду.
 
 ## Архитектура и проверка
 

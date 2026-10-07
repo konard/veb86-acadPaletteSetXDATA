@@ -57,3 +57,36 @@ AutoCAD/DWG не эмулируются. Исходный провал новы�
 воспроизводил лишнюю пересериализацию и запись, теперь исходный XRecord сохраняется.
 Core-тесты покрывают предварительную проверку группы и сбои записи/Commit;
 живой Undo/Redo проверяется отдельно по [сценарию](../docs/xdata-writing.md).
+
+## Регистрация команды и сообщение загрузки (#15)
+
+```sh
+dotnet test tests/AcadPaletteSetXData.AutoCAD.Tests -c Release --blame-hang-timeout 2m
+dotnet run --project experiments/AcadPaletteSetXData.RegistrationSmoke -c Release -- src/acadPaletteSetXDATA/bin/Release/net48/acadPaletteSetXDATA.dll
+```
+
+Unit-тесты компилируют настоящий `PaletteApplication` с подменой только границы
+AutoCAD/хоста. Проверяются сообщение и подсказка команды, отсутствие создания панели
+при загрузке, отложенный однократный вывод без активной DWG и отписка при завершении.
+Проверка метаданных читает реальную DLL через `PEReader`, не загружая Autodesk/WPF:
+атрибуты приложения и команды, публичный обработчик `XDATAPALETTE`, общая реализация
+и встроенные WPF-ресурсы. Она входит в автоматическую проверку Release.
+
+На прежней DLL проверка регистрации завершается ошибкой
+`Release DLL is missing AutoCAD ExtensionApplication registration.`
+Тесты загрузки ранее не находили сообщение и подписку для отложенного вывода.
+Логи воспроизведения и проверок сохраняются локально в `experiments/logs/issue15-*.log`.
+
+На Windows полный сценарий WPF можно запустить с единственной DLL из Release:
+
+```powershell
+dotnet build experiments/AcadPaletteSetXData.WpfSmoke -c Release -p:UseReleaseAssembly=true
+./experiments/AcadPaletteSetXData.WpfSmoke/bin/ReleaseAssembly/Release/net48/AcadPaletteSetXData.WpfSmoke.exe artifacts/screenshots/release
+```
+
+Эта проверка выявляет ссылки XAML/тем на отсутствующие отдельные сборки плагина.
+Для standalone-запуска release DLL инструмент предоставляет в памяти два типа
+атрибутов AutoCAD: .NET Framework разрешает их при чтении WPF-ресурсов, даже когда
+команды не вызываются. Код AutoCAD не эмулируется; SDK DLL и подмена не входят в ZIP.
+Автоматически запускается в `build-release.yml`; нативный `NETLOAD` и рамка палитры
+проверяются в установленном AutoCAD по `docs/autocad-verification.md`.

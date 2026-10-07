@@ -1,5 +1,11 @@
 # WPF-проверка этапов 2–5
 
+Отдельная проверка сборки и публикации задачи #11:
+`pwsh -NoProfile -File experiments/Test-AutoCADHttpRelease.ps1` после сборки
+`src/AutoCADHttp` в Release. Она проверяет ZIP и поведение публикации с mock
+GitHub CLI без создания Release; команды и описание — в
+[docs/build-release.md](../docs/build-release.md).
+
 `AcadPaletteSetXData.WpfSmoke` — воспроизводимый пример UI без установленного AutoCAD.
 Нужны Windows и .NET SDK 8; проверяются `net48` и `net8.0-windows`.
 Команды сборки и запуска приведены в основном [README](../README.md).

@@ -1,0 +1,91 @@
+name: Build and release AutoCADHttp
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: AutoCAD 2021 release package
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore AutoCAD 2021 API from NuGet
+        shell: pwsh
+        run: |
+          dotnet restore src/AutoCADHttp/AutoCADHttp.csproj --source https://api.nuget.org/v3/index.json
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output '::error::NuGet restore failed. AutoCAD.NET 24.0.0 and .NET Framework 4.8 reference assemblies are required; check package availability and NuGet connectivity in the restore log above.'
+            exit $LASTEXITCODE
+          }
+      - name: Build Release / x64
+        shell: pwsh
+        run: dotnet build src/AutoCADHttp/AutoCADHttp.csproj --no-restore -c Release -p:PlatformTarget=x64 -p:Version=0.0.${{ github.run_number }}
+      - name: Verify packaging and publication failure handling
+        shell: pwsh
+        run: ./experiments/Test-AutoCADHttpRelease.ps1
+      - name: Package only AutoCADHttp.dll
+        shell: pwsh
+        run: ./scripts/New-AutoCADHttpPackage.ps1 -BuildDirectory src/AutoCADHttp/bin/Release/net48 -ZipPath artifacts/release/AutoCADHttp.zip
+      - name: Write release metadata
+        shell: pwsh
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          $buildDate = [DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss UTC')
+          @"
+          Version: v0.0.$env:RUN_NUMBER
+          Commit SHA: $env:COMMIT_SHA
+          Build date: $buildDate
+          Configuration: Release / x64
+          Target platform: AutoCAD 2021 / .NET Framework 4.8
+          AutoCAD .NET API: 24.0.0 (NuGet, compile only)
+
+          AutoCADHttp.zip contains AutoCADHttp.dll only.
+          This build foundation contains no HTTP server or AutoCAD commands.
+          "@ | Set-Content artifacts/release/release-notes.md -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutoCADHttp-release
+          path: artifacts/release/
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: AutoCADHttp-release
+          path: artifacts/release
+      - name: Create draft, upload ZIP and publish completed release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          ./scripts/Publish-AutoCADHttpRelease.ps1 -Repository $env:RELEASE_REPOSITORY -Version "v0.0.$env:RUN_NUMBER" -CommitSha $env:COMMIT_SHA -ZipPath artifacts/release/AutoCADHttp.zip -NotesPath artifacts/release/release-notes.md

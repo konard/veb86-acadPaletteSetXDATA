@@ -152,13 +152,14 @@ internal static class Program
             Save(view, Path.Combine(output, "stage2-minimum.png"));
             VerifySelectionControls(window, output);
             VerifyGroupControls(window, output);
+            VerifyWriterControls(window, output);
             Check(bindingErrors.Messages.Count == 0, "WPF binding failures: " + string.Join("\n", bindingErrors.Messages));
             window.Close();
             view.Dispose();
             model.Theme = PaletteTheme.Light;
             Check(view.DataContext == null, "Disposal must detach the ViewModel.");
             application.Shutdown();
-            Console.WriteLine("WPF checks passed: draft controls, read-only inspection, merged values, Enter/focus confirmation, group material operations, typed trees, themes, resize and disposal.");
+            Console.WriteLine("WPF checks passed: draft controls, read-only inspection, merged values, Enter/focus confirmation, transactional writer, preserved unique values, group material operations, typed trees, themes, resize and disposal.");
             return 0;
         }
         catch (Exception error)
@@ -344,6 +345,33 @@ internal static class Program
         control.RaiseEvent(args); Pump(view);
     }
 
+    private static void VerifyWriterControls(Window window, string output)
+    {
+        var model = new PaletteViewModel();
+        var source = new MemorySelection { Snapshots = SampleSelection().Select(snapshot =>
+            new XDataPatch().Apply(snapshot, SelectionEdit.Header("Type", "Кабель"))).ToArray() };
+        using var controller = new SelectionController(source, model.Selection);
+        using var view = new PaletteView(model);
+        window.Content = view; model.SelectedTabIndex = 0; Pump(view);
+        var editor = Descendants<PropertyEditorView>(view).Single();
+        Check(!model.Properties.IsTypeMixed && model.Properties.IsNameMixed, "A shared type and unique names must be shown independently.");
+        Save(view, Path.Combine(output, "stage5-before.png"));
+        var original = source.Snapshots.Select(snapshot => new XDataParser().Parse(snapshot)).ToArray();
+        var type = (ComboBox)editor.FindName("TypeField");
+        type.Focus(); type.Text = "Устройство"; Pump(view); Press(type, Key.Enter, view);
+        Check(source.Writes == 1 && model.Properties.Type == "Устройство", "The common type edit must commit one transaction.");
+        for (var index = 0; index < source.Snapshots.Length; index++)
+        {
+            var after = new XDataParser().Parse(source.Snapshots[index]);
+            Check(after.Properties["Name"] == original[index].Properties["Name"] &&
+                  after.Properties["Number"] == original[index].Properties["Number"], "Editing a shared field must preserve unique names and numbers.");
+            Check(after.Materials.Select(row => row.Count + "/" + row.IsInSpec).SequenceEqual(
+                  original[index].Materials.Select(row => row.Count + "/" + row.IsInSpec)), "Unique material values must survive the writer.");
+        }
+        Check(model.Properties.IsNameMixed && model.Properties.IsNumberMixed, "Unedited mixed fields must remain mixed after refresh.");
+        Save(view, Path.Combine(output, "stage5-after.png"));
+    }
+
     private sealed class MemorySelection : ISelectionSource, ISelectionWriter
     {
         public EntityDataSnapshot[] Snapshots { get; set; } = Array.Empty<EntityDataSnapshot>();
@@ -353,7 +381,18 @@ internal static class Program
         public void WriteSelection(IReadOnlyList<string> handles, SelectionEdit edit)
         {
             Check(handles.SequenceEqual(Snapshots.Select(s => s.Handle)), "Write targets must be the whole selection.");
-            Snapshots = Snapshots.Select(snapshot => new XDataPatch().Apply(snapshot, edit)).ToArray(); Writes++;
+            new XDataWriter(_ => new MemoryTransaction(this)).WriteSelection(handles, edit);
+        }
+
+        private sealed class MemoryTransaction : IXDataWriteTransaction
+        {
+            private readonly MemorySelection source;
+            private readonly EntityDataSnapshot[] staged;
+            public MemoryTransaction(MemorySelection source) { this.source = source; Snapshots = source.Snapshots; staged = source.Snapshots.ToArray(); }
+            public IReadOnlyList<EntityDataSnapshot> Snapshots { get; }
+            public void Write(EntityDataSnapshot snapshot) => staged[Array.FindIndex(staged, s => s.Handle == snapshot.Handle)] = snapshot;
+            public void Commit() { source.Snapshots = staged; source.Writes++; }
+            public void Dispose() { }
         }
     }
 

@@ -60,6 +60,8 @@ Undo/Redo остаётся `StartOpenCloseTransaction`/ForRead. Подробно
 [Document.LockDocument](https://help.autodesk.com/cloudhelp/2022/ENU/OARX-ManagedRefGuide/files/OARX-ManagedRefGuide-Autodesk_AutoCAD_ApplicationServices_Document_LockDocument_DocumentLockMode_string_string__MarshalAsUnmanagedType_U1__bool.html).
 Проверка реального Undo/Redo в AutoCAD 2021 обязательна по ручному сценарию:
 Windows WPF CI и Linux unit-тесты не запускают AutoCAD.
+Этап 5 выделяет отдельный `XDataWriter`, не записывает неизменённые снимки и
+использует ObjectId XRecord при обновлении. Подробнее — [запись DWG](xdata-writing.md).
 
 ## Воспроизводимая проверка
 

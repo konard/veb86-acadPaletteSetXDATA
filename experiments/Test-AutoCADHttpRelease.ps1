@@ -130,6 +130,9 @@ try {
     Assert ($LASTEXITCODE -ne 0) 'Unavailable AutoCAD API packages must fail restore.'
     Assert ((Get-Content $restoreLog -Raw) -match 'AutoCAD.NET') 'Restore failure must identify the required AutoCAD API package.'
 
+    # GitHub's pwsh wrapper propagates LASTEXITCODE. The restore above is an
+    # expected failure, so it must not make a successful test step fail.
+    $global:LASTEXITCODE = 0
     Write-Host "Passed $script:checks release checks."
 } finally {
     if (Test-Path $temporary) { Remove-Item $temporary -Recurse -Force }

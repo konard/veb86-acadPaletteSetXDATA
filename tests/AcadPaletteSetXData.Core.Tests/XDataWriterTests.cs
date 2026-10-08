@@ -48,7 +48,7 @@ public sealed class XDataWriterTests
     [Fact]
     public void InvalidSecondObjectIsRejectedBeforeWritingAnyObject()
     {
-        var bad = new EntityDataSnapshot("B", "Line", new[] { V(1001, "SMARTLINE"), V(1002, "{") }, Array.Empty<DataRecord>());
+        var bad = new EntityDataSnapshot("B", "Line", new[] { V(1001, "BobrovXDATA"), V(1002, "{") }, Array.Empty<DataRecord>());
         var database = new MemoryDatabase(Xdata("A"), bad);
         var original = database.Snapshots;
         Assert.Throws<InvalidOperationException>(() => new XDataWriter(database.Begin)
@@ -133,13 +133,13 @@ public sealed class XDataWriterTests
     private static EntityDataSnapshot Xdata(string handle) => new EntityDataSnapshot(handle, "Line", new[]
     {
         V(1001, "OTHER"), V(1004, new byte[] { 7, 8 }), V(1000, "Name=untouched"),
-        V(1001, "SMARTLINE"), V(1000, "Type=Cable"), V(1000, "Name=First"), V(1000, "Number=021"),
+        V(1001, "BobrovXDATA"), V(1000, "Type=Cable"), V(1000, "Name=First"), V(1000, "Number=021"),
         V(1000, "Material"), V(1002, "{"), V(1000, "Name=CD35"), V(1000, "Count=1"), V(1000, "IsInSpec=true"),
         V(1000, "Comment=First comment"), V(1002, "}")
     }, new[] { Opaque() });
     private static EntityDataSnapshot Xml(string handle) => new EntityDataSnapshot(handle, "Polyline", Array.Empty<DataValue>(), new[]
     {
-        new DataRecord("Nested/SMARTLINE", new[] { V(1, "<VisualTreeString>\n <Properties Type='Cable' Number='022' Name='Second' Custom='keep'/>\n <Materials><Material Name='CD35' Count='2' IsInSpec='false' Comment='Second comment' Extra='keep'/></Materials><Unknown flag='yes'/></VisualTreeString>") }),
+        new DataRecord("Nested/BobrovXDATA", new[] { V(1, "<VisualTreeString>\n <Properties Type='Cable' Number='022' Name='Second' Custom='keep'/>\n <Materials><Material Name='CD35' Count='2' IsInSpec='false' Comment='Second comment' Extra='keep'/></Materials><Unknown flag='yes'/></VisualTreeString>") }),
         Opaque()
     });
     private static string XmlText(EntityDataSnapshot snapshot) => string.Concat(snapshot.Records[0].Values.Select(v => (string)v.Value));

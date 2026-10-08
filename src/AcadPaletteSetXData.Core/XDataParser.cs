@@ -206,7 +206,7 @@ public sealed class XDataParser
     }
 
     internal static bool IsMaterial(string name) => name.Equals("Material", StringComparison.OrdinalIgnoreCase) || name == "Материал";
-    internal static bool IsKnownApp(string name) => name.Equals("ESMT_LEP_v1.0", StringComparison.OrdinalIgnoreCase) || name.Equals("SMARTLINE", StringComparison.OrdinalIgnoreCase);
+    internal static bool IsKnownApp(string name) => name.Equals("ESMT_LEP_v1.0", StringComparison.OrdinalIgnoreCase) || name.Equals("BobrovXDATA", StringComparison.OrdinalIgnoreCase);
     private static string Format(object value) => value is byte[] bytes ? BitConverter.ToString(bytes).Replace("-", "") :
         value is IFormattable formatted ? formatted.ToString(null, CultureInfo.InvariantCulture) : value.ToString() ?? "";
 }

@@ -83,8 +83,8 @@ public sealed class GroupEditingTests
         var original = new EntityDataSnapshot("A", "Line", new[]
         {
             V(1001, "OTHER"), V(1000, "Name=untouched"), V(1070, (short)42),
-            V(1001, "SMARTLINE"), V(1000, "Название=old"), V(1000, "Number=unique")
-        }, new[] { new DataRecord("Nested/SMARTLINE", new[] { V(1, "<VisualTreeString><Properties Name='override' Custom='keep'><Название>override2</Название></Properties><Unknown flag='yes'/><Materials><Material Name='CD35' Count='1' Extra='keep'/></Materials></VisualTreeString>") }) });
+            V(1001, "BobrovXDATA"), V(1000, "Название=old"), V(1000, "Number=unique")
+        }, new[] { new DataRecord("Nested/BobrovXDATA", new[] { V(1, "<VisualTreeString><Properties Name='override' Custom='keep'><Название>override2</Название></Properties><Unknown flag='yes'/><Materials><Material Name='CD35' Count='1' Extra='keep'/></Materials></VisualTreeString>") }) });
         var changed = new XDataPatch().Apply(original, SelectionEdit.Header("Name", "new=value"));
         Assert.Equal("new=value", new XDataParser().Parse(changed).Properties["Name"]);
         Assert.Equal("unique", new XDataParser().Parse(changed).Properties["Number"]);
@@ -165,7 +165,7 @@ public sealed class GroupEditingTests
         var record = new DataRecord("Opaque", new[] { V(90, 42) });
         var snapshot = new EntityDataSnapshot("A", "Line", Array.Empty<DataValue>(), new[] { record });
         var changed = new XDataPatch().Apply(snapshot, SelectionEdit.Header("ProjectReference", "a=b"));
-        Assert.Equal("SMARTLINE", changed.XData[0].Value);
+        Assert.Equal("BobrovXDATA", changed.XData[0].Value);
         Assert.Equal("a=b", new XDataParser().Parse(changed).Properties["ProjectReference"]);
         Assert.Same(record, changed.Records[0]);
     }
@@ -173,7 +173,7 @@ public sealed class GroupEditingTests
     [Fact]
     public void InvalidFormatsAndDtdRejectPatchesWithoutChangingInputs()
     {
-        var bad = new EntityDataSnapshot("A", "Line", new[] { V(1001, "SMARTLINE"), V(1002, "{") }, Array.Empty<DataRecord>());
+        var bad = new EntityDataSnapshot("A", "Line", new[] { V(1001, "BobrovXDATA"), V(1002, "{") }, Array.Empty<DataRecord>());
         Assert.Throws<InvalidOperationException>(() => new XDataPatch().Apply(bad, SelectionEdit.Header("Name", "new")));
         Assert.Equal(2, bad.XData.Count);
         var xml = new EntityDataSnapshot("A", "Line", Array.Empty<DataValue>(), new[] { new DataRecord("XML", new[] { V(1, "<!DOCTYPE x><VisualTreeString/>") }) });
@@ -201,7 +201,7 @@ public sealed class GroupEditingTests
     {
         var snapshot = new EntityDataSnapshot("A", "Line", new[]
         {
-            V(1001, "SMARTLINE"), V(1000, "Material"), V(1002, "{"),
+            V(1001, "BobrovXDATA"), V(1000, "Material"), V(1002, "{"),
             V(1000, "Name=A"), V(1000, "Марка=B"), V(1000, "Name=C"), V(1000, "Count=1"), V(1002, "}")
         }, Array.Empty<DataRecord>());
         Assert.Equal("C", new XDataParser().Parse(snapshot).Materials.Single().Name);
@@ -239,7 +239,7 @@ public sealed class GroupEditingTests
     private static DataValue V(int code, object value) => new DataValue(code, value);
     private static EntityDataSnapshot Sample(string handle, string name, string? count = null, bool flag = true)
     {
-        var data = new List<DataValue> { V(1001, "SMARTLINE"), V(1000, "Type=Кабель"), V(1000, "Name=" + name) };
+        var data = new List<DataValue> { V(1001, "BobrovXDATA"), V(1000, "Type=Кабель"), V(1000, "Name=" + name) };
         if (count != null) data.AddRange(new[] { V(1000, "Material"), V(1002, "{"), V(1000, "Category=Арматура"), V(1000, "Name=CD35"), V(1000, "Count=" + count), V(1000, "IsInSpec=" + flag), V(1000, "Comment=shared"), V(1002, "}") });
         return new EntityDataSnapshot(handle, "Line", data, Array.Empty<DataRecord>());
     }

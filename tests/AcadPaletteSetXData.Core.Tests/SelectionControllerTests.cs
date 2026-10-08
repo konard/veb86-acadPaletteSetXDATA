@@ -89,7 +89,7 @@ public sealed class SelectionControllerTests
     }
 
     private static EntityDataSnapshot Entity(string handle, string name) =>
-        new EntityDataSnapshot(handle, "Line", new[] { new DataValue(1001, "SMARTLINE"), new DataValue(1000, "Name=" + name) },
+        new EntityDataSnapshot(handle, "Line", new[] { new DataValue(1001, "BobrovXDATA"), new DataValue(1000, "Name=" + name) },
             Array.Empty<DataRecord>());
 
     private sealed class FakeSelectionSource : ISelectionSource

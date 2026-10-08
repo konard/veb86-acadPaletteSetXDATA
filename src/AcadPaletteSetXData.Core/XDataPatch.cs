@@ -72,7 +72,7 @@ public sealed class XDataPatch
             if (edit.Kind == SelectionEditKind.MaterialField)
                 typeof(MaterialItemViewModel).GetProperty(edit.Field)!.SetValue(material,
                     edit.Field == "IsInSpec" ? ParseFlag(edit.Value) : (object)edit.Value);
-            // Prefer an existing VisualTreeString; otherwise use the last recognized RegApp, or SMARTLINE.
+            // Prefer an existing VisualTreeString; otherwise use the last recognized RegApp, or BobrovXDATA.
             if (xmls.Count != 0)
             {
                 var index = xmls.Keys.Last(); var root = xmls[index].Root!;
@@ -86,7 +86,7 @@ public sealed class XDataPatch
             else
             {
                 var app = apps.LastOrDefault(a => a[0].TypeCode == 1001 && XDataParser.IsKnownApp((string)a[0].Value));
-                if (app == null) { app = new List<DataValue> { new DataValue(1001, "SMARTLINE") }; apps.Add(app); }
+                if (app == null) { app = new List<DataValue> { new DataValue(1001, "BobrovXDATA") }; apps.Add(app); }
                 if (edit.Kind == SelectionEditKind.Header) app.Add(new DataValue(1000, edit.Field + "=" + edit.Value));
                 else
                 {

@@ -37,13 +37,26 @@ public sealed class XDataParserTests
     }
 
     [Fact]
+    public void ProjectsFieldsFromBobrovXDataRegApp()
+    {
+        var result = Parse(new[]
+        {
+            V(1001, "UNKNOWN"), V(1000, "Name=Foreign"),
+            V(1001, "BobrovXDATA"), V(1000, "Number=022")
+        });
+        Assert.Equal("022", result.Properties["Number"]);
+        Assert.False(result.Properties.ContainsKey("Name"));
+        Assert.Equal(new[] { "UNKNOWN", "BobrovXDATA" }, result.Tree.Children.Single().Children.Select(node => node.Name));
+    }
+
+    [Fact]
     public void ReadsChunkedXmlXRecordAndPreservesAllUnknownElementsAndTypedValues()
     {
         const string xml = "<VisualTreeString><Properties><Name>Кабель</Name><Custom>keep</Custom></Properties>" +
             "<Materials><Material Category='Линейная арматура' Name='CD35' Count='2' IsInSpec='true' Comment='Тест'/></Materials></VisualTreeString>";
         var result = new XDataParser().Parse(new EntityDataSnapshot("B2", "Polyline", Array.Empty<DataValue>(), new[]
         {
-            new DataRecord("SMARTLINE/Properties", new[] { V(1, xml.Substring(0, 80)), V(1, xml.Substring(80)) }),
+            new DataRecord("BobrovXDATA/Properties", new[] { V(1, xml.Substring(0, 80)), V(1, xml.Substring(80)) }),
             new DataRecord("Foreign", new[] { V(90, 42), V(310, new byte[] { 0, 255 }) })
         }));
         Assert.Equal("Кабель", result.Properties["Name"]);
@@ -57,7 +70,7 @@ public sealed class XDataParserTests
     [Fact]
     public void MalformedListsRecoverAtNextApplicationAndDoNotLeakProperties()
     {
-        var result = Parse(new[] { V(1001, "SMARTLINE"), V(1002, "}"), V(1000, "Material"),
+        var result = Parse(new[] { V(1001, "BobrovXDATA"), V(1002, "}"), V(1000, "Material"),
             V(1002, "{"), V(1000, "Name=unfinished"), V(1001, "ESMT_LEP_v1.0"), V(1000, "Name=valid") });
         Assert.Equal("valid", result.Properties["Name"]);
         Assert.Equal(2, result.Warnings.Count);
@@ -82,7 +95,7 @@ public sealed class XDataParserTests
     [Fact]
     public void ExcessiveNestingAndOversizedXmlAreBoundedAndReported()
     {
-        var values = new[] { V(1001, "SMARTLINE") }.Concat(Enumerable.Repeat(V(1002, "{"), 80));
+        var values = new[] { V(1001, "BobrovXDATA") }.Concat(Enumerable.Repeat(V(1002, "{"), 80));
         var result = new XDataParser().Parse(new EntityDataSnapshot("A1", "Line", values.ToArray(), new[]
         {
             new DataRecord("huge", new[] { V(1, "<VisualTreeString>" + new string('x', XDataParser.MaxXmlCharacters) + "</VisualTreeString>") })

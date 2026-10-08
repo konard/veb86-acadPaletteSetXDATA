@@ -2,7 +2,7 @@
 ; This fixture creates two entities and sample data. Stages 3 and 4 use this fixture for inspection and group editing.
 (defun c:XDATASTAGE3SAMPLE (/ line cable dictionary selection)
   (regapp "ESMT_LEP_v1.0")
-  (regapp "SMARTLINE")
+  (regapp "BobrovXDATA")
   (setq line
     (entmakex
       '((0 . "LINE") (10 0.0 0.0 0.0) (11 10.0 0.0 0.0)
@@ -16,9 +16,9 @@
     (entmakex
       '((0 . "LWPOLYLINE") (100 . "AcDbEntity") (100 . "AcDbPolyline")
         (90 . 3) (70 . 0) (10 0.0 5.0) (10 5.0 7.0) (10 10.0 5.0)
-        (-3 ("SMARTLINE" (1000 . "Number=022"))))))
+        (-3 ("BobrovXDATA" (1000 . "Number=022"))))))
   (setq dictionary (vlax-vla-object->ename (vla-GetExtensionDictionary (vlax-ename->vla-object cable))))
-  (dictadd dictionary "SMARTLINE"
+  (dictadd dictionary "BobrovXDATA"
     (entmakex
       '((0 . "XRECORD") (100 . "AcDbXrecord") (280 . 1)
         (1 . "<VisualTreeString><Properties><Type>Cable</Type><Name>Cable B</Name></Properties>")

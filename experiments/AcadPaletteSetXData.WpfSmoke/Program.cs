@@ -412,9 +412,9 @@ internal static class Program
                 V(1000, "Material"), V(1002, "{"), V(1000, "Category=Линейная арматура"),
                 V(1000, "Name=CD35"), V(1000, "Count=2"), V(1000, "IsInSpec=0"), V(1002, "}")
             }, Array.Empty<DataRecord>()),
-            new EntityDataSnapshot("B2", "Polyline", new[] { V(1001, "SMARTLINE"), V(1000, "Number=022") }, new[]
+            new EntityDataSnapshot("B2", "Polyline", new[] { V(1001, "BobrovXDATA"), V(1000, "Number=022") }, new[]
             {
-                new DataRecord("SMARTLINE/Properties", new[] { V(1, "<VisualTreeString><Properties><Type>Кабель</Type><Name>Кабель</Name></Properties><Materials><Material Category='Линейная арматура' Name='CD35' Count='2' IsInSpec='true'/></Materials></VisualTreeString>") })
+                new DataRecord("BobrovXDATA/Properties", new[] { V(1, "<VisualTreeString><Properties><Type>Кабель</Type><Name>Кабель</Name></Properties><Materials><Material Category='Линейная арматура' Name='CD35' Count='2' IsInSpec='true'/></Materials></VisualTreeString>") })
             })
         };
     }

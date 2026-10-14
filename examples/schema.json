@@ -1,0 +1,277 @@
+{
+  "format": "BobrovXDATA.schema",
+  "version": 1,
+  "parameters": [
+    { "id": "Device_Type", "type": "String", "caption": "Тип устройства", "group": "Общие" },
+    { "id": "Device_Class", "type": "String", "caption": "Класс устройства", "group": "Общие" },
+    {
+      "id": "NMO_Name",
+      "type": "String",
+      "caption": "Наименование",
+      "description": "Наименование по проекту",
+      "group": "Общие",
+      "editor": { "maxLength": 120 }
+    },
+    {
+      "id": "GC_HeadDevice",
+      "type": "String",
+      "caption": "Головное устройство",
+      "group": "Обозначение"
+    },
+    { "id": "GC_HDGroup", "type": "String", "caption": "Группа", "group": "Обозначение" },
+    {
+      "id": "GC_Name",
+      "type": "CalculatedString",
+      "caption": "Обозначение",
+      "description": "вычисляемое",
+      "group": "Обозначение",
+      "format": "@@[GC_HeadDevice].@@[GC_HDGroup]"
+    },
+    {
+      "id": "Power",
+      "type": "Double",
+      "caption": "Мощность",
+      "group": "Электрика",
+      "default": 0,
+      "editor": { "unit": "кВт", "precision": 2, "min": 0 }
+    },
+    {
+      "id": "Current",
+      "type": "Double",
+      "caption": "Ток",
+      "group": "Электрика",
+      "editor": { "unit": "А", "precision": 1, "min": 0 }
+    },
+    {
+      "id": "Voltage",
+      "type": "Enum",
+      "caption": "Напряжение",
+      "group": "Электрика",
+      "default": "_AC_220V_50Hz",
+      "enum": "Voltage"
+    },
+    {
+      "id": "Phase",
+      "type": "Enum",
+      "caption": "Фаза",
+      "group": "Электрика",
+      "default": "A",
+      "enum": "Phase"
+    },
+    {
+      "id": "Poles",
+      "type": "Integer",
+      "caption": "Число полюсов",
+      "group": "Электрика",
+      "default": 1,
+      "editor": { "min": 1, "max": 4 }
+    },
+    {
+      "id": "Cable_Mark",
+      "type": "String",
+      "caption": "Марка кабеля",
+      "group": "Кабель",
+      "editor": { "maxLength": 64 }
+    },
+    {
+      "id": "Cable_Cores",
+      "type": "Integer",
+      "caption": "Число жил",
+      "group": "Кабель",
+      "default": 3,
+      "editor": { "min": 1, "max": 61 }
+    },
+    {
+      "id": "Cable_Section",
+      "type": "Double",
+      "caption": "Сечение жилы",
+      "group": "Кабель",
+      "editor": { "unit": "мм²", "precision": 1, "min": 0 }
+    },
+    {
+      "id": "Cable_Length",
+      "type": "Double",
+      "caption": "Длина",
+      "group": "Кабель",
+      "editor": { "unit": "м", "precision": 1, "min": 0 }
+    },
+    {
+      "id": "Tray_Width",
+      "type": "Integer",
+      "caption": "Ширина",
+      "group": "Лоток",
+      "editor": { "unit": "мм", "min": 0 }
+    },
+    {
+      "id": "Tray_Height",
+      "type": "Integer",
+      "caption": "Высота",
+      "group": "Лоток",
+      "editor": { "unit": "мм", "min": 0 }
+    },
+    {
+      "id": "Tray_Covered",
+      "type": "Boolean",
+      "caption": "С крышкой",
+      "group": "Лоток",
+      "default": false
+    },
+    {
+      "id": "Motor_Speed",
+      "type": "Integer",
+      "caption": "Частота вращения",
+      "group": "Двигатель",
+      "editor": { "unit": "об/мин", "min": 0 }
+    },
+    {
+      "id": "Motor_Efficiency",
+      "type": "Double",
+      "caption": "КПД",
+      "group": "Двигатель",
+      "editor": { "precision": 2, "min": 0, "max": 1 }
+    },
+    {
+      "id": "Mat_Category",
+      "type": "Enum",
+      "caption": "Категория",
+      "group": "Материалы",
+      "enum": "MaterialCategory"
+    },
+    {
+      "id": "Mat_Mark",
+      "type": "String",
+      "caption": "Марка",
+      "group": "Материалы",
+      "editor": { "vstColumn": 1 }
+    },
+    {
+      "id": "Mat_Count",
+      "type": "Double",
+      "caption": "Кол.",
+      "group": "Материалы",
+      "default": 1,
+      "editor": { "min": 0, "vstColumn": 2 }
+    },
+    {
+      "id": "Mat_InSpec",
+      "type": "Boolean",
+      "caption": "В спецификацию",
+      "group": "Материалы",
+      "default": true,
+      "editor": { "vstColumn": 3 }
+    },
+    {
+      "id": "Mat_Comment",
+      "type": "String",
+      "caption": "Примечание",
+      "group": "Материалы",
+      "editor": { "vstColumn": 4 }
+    },
+    {
+      "id": "Materials",
+      "type": "Table",
+      "caption": "Материалы",
+      "group": "Материалы",
+      "columns": [ "Mat_Category", "Mat_Mark", "Mat_Count", "Mat_InSpec", "Mat_Comment" ],
+      "groupBy": "Mat_Category",
+      "key": "Mat_Mark"
+    }
+  ],
+  "enums": [
+    {
+      "id": "Voltage",
+      "caption": "Напряжение",
+      "items": [
+        { "key": "_AC_220V_50Hz", "caption": "220 В" },
+        { "key": "_AC_380V_50Hz", "caption": "380 В" },
+        { "key": "_DC_24V", "caption": "=24 В" }
+      ]
+    },
+    {
+      "id": "Phase",
+      "caption": "Фаза",
+      "items": [
+        { "key": "A", "caption": "A (L1)" },
+        { "key": "B", "caption": "B (L2)" },
+        { "key": "C", "caption": "C (L3)" },
+        { "key": "ABC", "caption": "ABC (3 фазы)" }
+      ]
+    },
+    {
+      "id": "MaterialCategory",
+      "caption": "Категория материала",
+      "items": [
+        { "key": "LineFittings", "caption": "Линейная арматура" },
+        { "key": "Concrete", "caption": "Железобетонные элементы" },
+        { "key": "Fasteners", "caption": "Крепёж" }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "DEVICE",
+      "caption": "Устройство",
+      "entityTypes": [ "BlockReference" ],
+      "parameters": [
+        "Device_Type",
+        "Device_Class",
+        "NMO_Name",
+        "GC_HeadDevice",
+        "GC_HDGroup",
+        "GC_Name",
+        "Power",
+        "Current",
+        "Voltage",
+        "Phase",
+        "Materials"
+      ]
+    },
+    {
+      "id": "CABLE",
+      "caption": "Кабель",
+      "entityTypes": [ "Polyline", "Line" ],
+      "parameters": [
+        "Cable_Mark",
+        "Cable_Cores",
+        "Cable_Section",
+        "Cable_Length",
+        "Voltage",
+        "GC_HeadDevice",
+        "GC_HDGroup",
+        "GC_Name",
+        "Materials"
+      ]
+    },
+    {
+      "id": "TRAY",
+      "caption": "Лоток",
+      "entityTypes": [ "Polyline", "Line" ],
+      "parameters": [
+        { "id": "Tray_Width", "default": 100 },
+        { "id": "Tray_Height", "default": 50 },
+        "Tray_Covered",
+        "Materials"
+      ]
+    },
+    {
+      "id": "MOTOR",
+      "caption": "Электродвигатель",
+      "entityTypes": [ "BlockReference" ],
+      "parameters": [
+        { "id": "Device_Type", "default": "Электродвигатель" },
+        "NMO_Name",
+        "GC_HeadDevice",
+        "GC_HDGroup",
+        "GC_Name",
+        "Power",
+        "Current",
+        { "id": "Voltage", "default": "_AC_380V_50Hz" },
+        { "id": "Phase", "default": "ABC" },
+        { "id": "Poles", "default": 3 },
+        "Motor_Speed",
+        "Motor_Efficiency",
+        "Materials"
+      ]
+    }
+  ]
+}

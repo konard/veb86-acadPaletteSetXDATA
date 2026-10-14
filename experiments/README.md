@@ -90,3 +90,16 @@ dotnet build experiments/AcadPaletteSetXData.WpfSmoke -c Release -p:UseReleaseAs
 команды не вызываются. Код AutoCAD не эмулируется; SDK DLL и подмена не входят в ZIP.
 Автоматически запускается в `build-release.yml`; нативный `NETLOAD` и рамка палитры
 проверяются в установленном AutoCAD по `docs/autocad-verification.md`.
+
+## Проверка схемы параметров BobrovXDATA (#19)
+
+```sh
+dotnet test tests/AcadPaletteSetXData.Core.Tests -c Release
+dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/schema.json
+dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- --format my-schema.json
+```
+
+`SchemaCheck` читает `schema.json` моделью Core, выводит замечания в виде
+«объект — поле — причина» и возвращает 1 при ошибках; `--format` переписывает
+файл в канонической форме, сохраняя неизвестные поля. CI проверяет `examples/schema.json`.
+Форматы и коды проверки описаны в [docs/parameter-schema.md](../docs/parameter-schema.md).

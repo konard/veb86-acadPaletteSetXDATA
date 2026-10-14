@@ -154,9 +154,11 @@ internal sealed class AutoCadSchemaNodTransaction : ISchemaNodTransaction
             if (transaction.GetObject(id, OpenMode.ForRead) is DBDictionary) return id;
             throw new InvalidOperationException(key + " в " + DrawingNames.NodRoot + " не является словарём (DBDictionary).");
         }
-        parent.UpgradeOpen();
+        // GetObject instead of UpgradeOpen: the parent may already be open for write in this transaction
+        // (VELEC just created, or a second section created), and UpgradeOpen would throw eWasOpenForWrite.
+        var writable = (DBDictionary)transaction.GetObject(parentId, OpenMode.ForWrite);
         var created = new DBDictionary();
-        var createdId = parent.SetAt(key, created);
+        var createdId = writable.SetAt(key, created);
         transaction.AddNewlyCreatedDBObject(created, true);
         return createdId;
     }

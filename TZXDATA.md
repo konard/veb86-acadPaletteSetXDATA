@@ -480,7 +480,9 @@ schema.json  ◀── VELEC_SCHEMA_EXPORT ──  NOD «VELEC»                
 - Пример `examples/schema.json` (DEVICE, CABLE, TRAY, MOTOR; Voltage, Phase; материалы).
 - **Приёмка:** round-trip JSON → модель → JSON без потерь; тесты всех ошибок проверки.
 
-### Этап 2. Хранение схемы в NOD и команды импорта/экспорта
+### Этап 2. Хранение схемы в NOD и команды импорта/экспорта — **выполнен в задаче #21**
+
+Описание реализации: [docs/schema-nod.md](docs/schema-nod.md).
 
 - Сериализация модели в `VELEC/INFO|PARAMETERS|ENUMS|TEMPLATES` (через абстракцию записей,
   как `EntityDataSnapshot`, чтобы тестировать без AutoCAD).

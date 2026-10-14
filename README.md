@@ -15,6 +15,9 @@ WPF-содержимое следует `COLORTHEME`: `0` — тёмная те�
 во вкладке «Свойства») — описана в [TZXDATA](TZXDATA.md).
 Этап 1 выполнен: модель схемы, чтение/запись `schema.json` и проверки —
 [docs/parameter-schema.md](docs/parameter-schema.md), пример — [examples/schema.json](examples/schema.json).
+Этап 2 выполнен: схема хранится в `NOD/VELEC` и переживает сохранение в DWG и DXF,
+команды `VELEC_SCHEMA_IMPORT` (Объединить/Заменить, отчёт, отмена одним `U`) и
+`VELEC_SCHEMA_EXPORT`, кэш схемы на документ — [docs/schema-nod.md](docs/schema-nod.md).
 
 Во вкладке «Свойства» используется макет этапа 2:
 
@@ -108,6 +111,8 @@ dotnet build src/AcadPaletteSetXData.AutoCAD -c Release -f net48 -p:AutoCadNet48
    При загрузке без открытого чертежа сообщение появится после открытия первой DWG.
    Панель при загрузке не открывается.
 3. Введите `XDATAPALETTE`. Повторный вызов скрывает панель.
+   Схема параметров импортируется в чертёж командой `VELEC_SCHEMA_IMPORT`
+   и выгружается в JSON командой `VELEC_SCHEMA_EXPORT`.
 4. Для закрепления перетащите заголовок к краю окна или воспользуйтесь меню панели.
    Кнопка автоскрытия сворачивает панель, кнопка закрытия скрывает её.
 
@@ -121,19 +126,23 @@ dotnet build src/AcadPaletteSetXData.AutoCAD -c Release -f net48 -p:AutoCadNet48
   ViewModel выбора/свойств, слияние и операции одного поля, патчер XDATA/XML,
   `XDataWriter` с предварительной проверкой всей группы, команды черновика и контроллеры подписок; не зависит от AutoCAD/WPF.
   Модель схемы параметров BobrovXDATA, собственный JSON-ридер/райтер без внешних DLL
-  и проверка схемы (`ParameterSchemaJson`, `SchemaValidator`).
+  и проверка схемы (`ParameterSchemaJson`, `SchemaValidator`); записи схемы в NOD,
+  план импорта с отчётом и кэш схемы (`SchemaNod`, `SchemaImport`, `SchemaNodWriter`, `SchemaCache`).
 - `UI`: WPF `UserControl`, привязки MVVM, группировка через `CollectionViewSource`,
   шаблоны строк/контролов, вертикальные вкладки и словари тем.
 - `AutoCAD`: регистрация команды и приложения, адаптер `PaletteSet`, события
   изменения `COLORTHEME`, выбора и документов; чтение через `LockDocument` и
   `StartOpenCloseTransaction` с `OpenMode.ForRead`; запись группы через именованную блокировку
   и `AutoCadXDataWriteTransaction`/`StartTransaction` с Commit, освобождение всех `ResultBuffer`.
+  Команды схемы пишут `NOD/VELEC` через `AutoCadSchemaNodTransaction` (одна блокировка
+  и транзакция — один шаг Undo); кэш схемы на документ сбрасывается по событиям базы и Undo.
   Панель создаётся при первом вызове команды; при завершении
   приложения освобождается и отписывается от событий.
 - `tests`: проверки выбора/очистки/ошибок/отписки, XDATA/XML и пределов парсера,
   жизненного цикла и темы, полей черновика, уведомлений и
   добавления/редактирования/удаления нужной строки, сохранения состояния при смене вкладок,
-  round-trip `schema.json` без потерь и каждого кода проверки схемы.
+  round-trip `schema.json` без потерь и каждого кода проверки схемы, round-trip схемы
+  через записи NOD и текст DXF, импорт «Объединить»/«Заменить», отчёт и запись только изменений.
 
 Проверки интерфейса запускаются на Windows, без AutoCAD, для обеих платформ:
 

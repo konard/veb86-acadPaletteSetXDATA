@@ -470,7 +470,10 @@ schema.json  ◀── VELEC_SCHEMA_EXPORT ──  NOD «VELEC»                
 - `SMARTLINE` → `BobrovXDATA` в коде, тестах, примерах, документации; тест на разбор `BobrovXDATA`.
 - **Приёмка:** `grep SMARTLINE` по коду пуст; все unit-тесты проходят.
 
-### Этап 1. Модель схемы и JSON (Core)
+### Этап 1. Модель схемы и JSON (Core) — **выполнен в задаче #19**
+
+Описание реализации и кодов проверки: [docs/parameter-schema.md](docs/parameter-schema.md).
+
 
 - Классы параметра/ENUM/шаблона, типы `String`…`Table`, проверки раздела 4.5.
 - Чтение/запись `schema.json` без внешних DLL (`net48` и `net8`), сохранение неизвестных полей.

@@ -90,6 +90,76 @@ public sealed class SchemaNodTests
     }
 
     [Fact]
+    public void SchemaSurvivesADxfTextRoundTrip()
+    {
+        // TZXDATA stage 2 acceptance without AutoCAD: records → DXF group lines → records → the same schema.
+        var schema = ParameterSchemaJson.LoadFile(ExamplePath).Schema!;
+        schema.Parameters[0].Description = " C:\\путь\\U+0041 ^J \\M+1A2B 😀\nстрока " + string.Concat(Enumerable.Repeat("длинный текст ", 40));
+        schema.Extra.Add("x-число", JsonValue.Parse("0.30000000000000004"));
+        var records = SchemaNod.ToRecords(schema, Stamp);
+        var reopened = FromDxf(ToDxf(records));
+        var read = SchemaNod.FromRecords(reopened);
+        Assert.Empty(read.Issues);
+        Assert.Equal(ParameterSchemaJson.Write(schema), ParameterSchemaJson.Write(read.Schema!));
+        Assert.Equal(SchemaNod.ComputeHash(schema), read.Info!.Hash);
+    }
+
+    /// <summary>Writes values the way ASCII DXF does: one line per value, reals with 16 significant digits.</summary>
+    private static string ToDxf(IReadOnlyList<DataRecord> records)
+    {
+        var text = new StringBuilder();
+        foreach (var record in records)
+        {
+            text.Append("XRECORD\n").Append(record.Name).Append('\n');
+            foreach (var value in record.Values)
+            {
+                var line = value.Value switch
+                {
+                    double number => number.ToString("G16", System.Globalization.CultureInfo.InvariantCulture),
+                    bool flag => flag ? "1" : "0",
+                    IFormattable formattable => formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
+                    _ => (string)value.Value,
+                };
+                Assert.DoesNotContain('\n', line);
+                text.Append(value.TypeCode).Append('\n').Append(line).Append('\n');
+            }
+        }
+        return text.ToString();
+    }
+
+    /// <summary>Reads lines back like a lenient DXF reader: trims values, decodes <c>\U+XXXX</c> and <c>^</c> sequences.</summary>
+    private static List<DataRecord> FromDxf(string dxf)
+    {
+        var lines = dxf.Split('\n');
+        var records = new List<DataRecord>();
+        List<DataValue>? values = null;
+        string? name = null;
+        for (var i = 0; i + 1 < lines.Length; i += 2)
+        {
+            if (lines[i] == "XRECORD")
+            {
+                if (name != null) records.Add(new DataRecord(name, values!));
+                name = lines[i + 1]; values = new List<DataValue>();
+                continue;
+            }
+            var code = int.Parse(lines[i], System.Globalization.CultureInfo.InvariantCulture);
+            var raw = System.Text.RegularExpressions.Regex.Replace(lines[i + 1].Trim(), @"\\U\+([0-9A-Fa-f]{4})",
+                match => ((char)Convert.ToInt32(match.Groups[1].Value, 16)).ToString());
+            raw = System.Text.RegularExpressions.Regex.Replace(raw, @"\^(.)", match => match.Groups[1].Value == " " ? "^" : ((char)(match.Groups[1].Value[0] - '@')).ToString());
+            object parsed = code switch
+            {
+                40 => double.Parse(raw, System.Globalization.CultureInfo.InvariantCulture),
+                90 => int.Parse(raw, System.Globalization.CultureInfo.InvariantCulture),
+                290 => short.Parse(raw, System.Globalization.CultureInfo.InvariantCulture),
+                _ => raw,
+            };
+            values!.Add(new DataValue(code, parsed));
+        }
+        if (name != null) records.Add(new DataRecord(name, values!));
+        return records;
+    }
+
+    [Fact]
     public void LongTextIsSplitWithoutBreakingSurrogatePairsOrTrimmableSpaces()
     {
         var text = string.Concat(Enumerable.Repeat("Описание 😀 параметра ", 60));

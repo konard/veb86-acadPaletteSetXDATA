@@ -20,7 +20,7 @@ internal static class AutoCadDataReader
             warning.Count == 0 ? null : string.Join("\n", warning));
     }
 
-    private static IReadOnlyList<DataValue> Copy(ResultBuffer? buffer, IList<string> warnings)
+    internal static IReadOnlyList<DataValue> Copy(ResultBuffer? buffer, IList<string> warnings)
     {
         var values = new List<DataValue>();
         if (buffer == null) return values;
@@ -32,7 +32,7 @@ internal static class AutoCadDataReader
         return values;
     }
 
-    private static void ReadDictionary(Transaction transaction, ObjectId id, string prefix, IList<DataRecord> records,
+    internal static void ReadDictionary(Transaction transaction, ObjectId id, string prefix, IList<DataRecord> records,
         IList<string> warnings, int depth, ISet<ObjectId> visited, IDictionary<DataRecord, ObjectId>? recordIds)
     {
         if (depth > 32 || visited.Count >= 4096 || !visited.Add(id))

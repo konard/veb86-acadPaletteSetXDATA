@@ -57,15 +57,15 @@ public static class SchemaNodWriter
         foreach (var record in target)
         {
             if (record.Name == SchemaNod.InfoName) continue;
-            if (!existing.TryGetValue(record.Name, out var old) || !SameValues(old.Values, record.Values) || old.Name != record.Name)
+            if (!existing.TryGetValue(record.Name, out var old) || !SameValues(old.Values, record.Values) || !SameKey(old.Name, record.Name))
                 written.Add(record.Name);
         }
         var targetNames = new HashSet<string>(target.Select(record => record.Name), StringComparer.OrdinalIgnoreCase);
         foreach (var record in transaction.Records)
             if (SchemaNod.SplitPath(record.Name) != null && !targetNames.Contains(record.Name) && !erased.Contains(record.Name, StringComparer.OrdinalIgnoreCase))
                 erased.Add(record.Name);
-        // A record whose key differs only in case is erased first and written with the canonical Id.
-        foreach (var name in written.Where(name => existing.TryGetValue(name, out var old) && old.Name != name).ToList())
+        // A record whose Id differs only in case is erased first and written with the canonical Id.
+        foreach (var name in written.Where(name => existing.TryGetValue(name, out var old) && !SameKey(old.Name, name)).ToList())
             erased.Add(existing[name].Name);
 
         var infoRecord = target[0];
@@ -79,6 +79,13 @@ public static class SchemaNodWriter
         transaction.Commit();
         return new SchemaNodWriteResult(written, erased);
     }
+
+    /// <summary>
+    /// Same dictionary key of the record: the Id is compared exactly, the section without case, because AutoCAD
+    /// reuses a section dictionary such as <c>Parameters</c> created by another tool.
+    /// </summary>
+    private static bool SameKey(string old, string target) =>
+        SchemaNod.SplitPath(old) is { } a && SchemaNod.SplitPath(target) is { } b ? a.Id == b.Id : old == target;
 
     /// <summary>INFO differs in more than its import stamp (time, source, mode).</summary>
     private static bool SameInfo(DataRecord old, DataRecord target) =>

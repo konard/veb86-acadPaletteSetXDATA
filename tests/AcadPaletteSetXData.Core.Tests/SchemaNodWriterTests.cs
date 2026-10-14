@@ -86,6 +86,24 @@ public sealed class SchemaNodWriterTests
     }
 
     [Fact]
+    public void ASectionKeyInAnotherCaseIsNotRewritten()
+    {
+        // A section dictionary created by another tool as "Parameters": AutoCAD reuses it for "PARAMETERS/...",
+        // so only the case of the Id itself may cause a rewrite; otherwise every import would change the drawing.
+        var drawing = new FakeDrawing();
+        var schema = ParameterSchemaJson.LoadFile(ExamplePath).Schema!;
+        drawing.Import(schema, SchemaImportMode.Replace);
+        for (var i = 0; i < drawing.Store.Count; i++)
+            if (drawing.Store[i].Name.StartsWith("PARAMETERS/", StringComparison.Ordinal))
+                drawing.Store[i] = new DataRecord("Parameters/" + drawing.Store[i].Name.Substring("PARAMETERS/".Length), drawing.Store[i].Values);
+
+        var result = drawing.Import(ParameterSchemaJson.Clone(schema), SchemaImportMode.Replace);
+        Assert.False(result.Changed);
+        Assert.Equal(1, drawing.Commits);
+        Assert.Empty(drawing.Read().Issues);
+    }
+
+    [Fact]
     public void ASchemaWithErrorsIsNotWritten()
     {
         var drawing = new FakeDrawing();

@@ -86,7 +86,7 @@ public sealed class XDataPatch
             else
             {
                 var app = apps.LastOrDefault(a => a[0].TypeCode == 1001 && XDataParser.IsKnownApp((string)a[0].Value));
-                if (app == null) { app = new List<DataValue> { new DataValue(1001, "BobrovXDATA") }; apps.Add(app); }
+                if (app == null) { app = new List<DataValue> { new DataValue(1001, DrawingNames.RegApp) }; apps.Add(app); }
                 if (edit.Kind == SelectionEditKind.Header) app.Add(new DataValue(1000, edit.Field + "=" + edit.Value));
                 else
                 {
@@ -102,19 +102,7 @@ public sealed class XDataPatch
             var text = xmls[index].ToString(SaveOptions.DisableFormatting);
             var code = records[index].Values[0].TypeCode;
             // Keep XML values below AutoCAD's string chunk limits.
-            var chunks = new List<DataValue>();
-            for (var offset = 0; offset < text.Length;)
-            {
-                var end = offset; var bytes = 0;
-                while (end < text.Length)
-                {
-                    var width = char.IsHighSurrogate(text[end]) && end + 1 < text.Length && char.IsLowSurrogate(text[end + 1]) ? 2 : 1;
-                    var size = Encoding.UTF8.GetByteCount(text.Substring(end, width));
-                    if (bytes + size > 240) break;
-                    bytes += size; end += width;
-                }
-                chunks.Add(new DataValue(code, text.Substring(offset, end - offset))); offset = end;
-            }
+            var chunks = DwgText.Split(text).Select(chunk => new DataValue(code, chunk)).ToList();
             records[index] = new DataRecord(records[index].Name, chunks);
         }
         var result = new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, data, records);

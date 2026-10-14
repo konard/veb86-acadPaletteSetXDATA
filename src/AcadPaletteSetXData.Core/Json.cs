@@ -16,6 +16,12 @@ public abstract class JsonValue
 
     public string ToJson() { var builder = new StringBuilder(); JsonWriter.Write(this, builder, 0); return builder.ToString(); }
 
+    /// <summary>
+    /// One line without insignificant whitespace. Besides control characters it escapes <c>\</c> and <c>^</c>
+    /// as <c>\u005c</c>/<c>\u005e</c>, so DXF never sees <c>\U+XXXX</c> or caret sequences and the text survives DWG/DXF.
+    /// </summary>
+    public string ToCompactJson() { var builder = new StringBuilder(); JsonWriter.WriteCompact(this, builder); return builder.ToString(); }
+
     public override string ToString() => ToJson();
 
     /// <summary>Structural equality; numbers compare by value, so <c>2.5</c> equals <c>2.50</c>.</summary>
@@ -132,6 +138,16 @@ public sealed class JsonObject : JsonValue, IReadOnlyCollection<KeyValuePair<str
         if (name is null) throw new ArgumentNullException(nameof(name));
         if (ContainsKey(name)) throw new ArgumentException("Повторяющееся поле JSON: " + name, nameof(name));
         properties.Add(new KeyValuePair<string, JsonValue>(name, value ?? throw new ArgumentNullException(nameof(value))));
+    }
+
+    /// <summary>Replaces the value in place, keeping the property position, or appends a new property.</summary>
+    public void Set(string name, JsonValue value)
+    {
+        if (name is null) throw new ArgumentNullException(nameof(name));
+        if (value is null) throw new ArgumentNullException(nameof(value));
+        var index = properties.FindIndex(property => property.Key == name);
+        if (index < 0) properties.Add(new KeyValuePair<string, JsonValue>(name, value));
+        else properties[index] = new KeyValuePair<string, JsonValue>(name, value);
     }
 
     public IEnumerator<KeyValuePair<string, JsonValue>> GetEnumerator() => properties.GetEnumerator();
@@ -395,6 +411,37 @@ internal static class JsonWriter
         }
     }
 
+    public static void WriteCompact(JsonValue value, StringBuilder builder)
+    {
+        switch (value)
+        {
+            case JsonString text: WriteString(text.Value, builder, dxfSafe: true); break;
+            case JsonArray array:
+                builder.Append('[');
+                for (var i = 0; i < array.Count; i++)
+                {
+                    if (i != 0) builder.Append(',');
+                    WriteCompact(array[i], builder);
+                }
+                builder.Append(']');
+                break;
+            case JsonObject obj:
+                builder.Append('{');
+                var first = true;
+                foreach (var property in obj)
+                {
+                    if (!first) builder.Append(',');
+                    first = false;
+                    WriteString(property.Key, builder, dxfSafe: true);
+                    builder.Append(':');
+                    WriteCompact(property.Value, builder);
+                }
+                builder.Append('}');
+                break;
+            default: Write(value, builder, 0); break;
+        }
+    }
+
     private static bool TryInline(JsonValue container, IEnumerable<JsonValue> children, int indent, StringBuilder builder)
     {
         if (children.Any(child => child is JsonArray || child is JsonObject)) return false;
@@ -425,7 +472,7 @@ internal static class JsonWriter
 
     private static void NewLine(StringBuilder builder, int indent) => builder.Append('\n').Append(' ', indent * 2);
 
-    private static void WriteString(string value, StringBuilder builder)
+    private static void WriteString(string value, StringBuilder builder, bool dxfSafe = false)
     {
         builder.Append('"');
         for (var i = 0; i < value.Length; i++)
@@ -434,7 +481,8 @@ internal static class JsonWriter
             switch (c)
             {
                 case '"': builder.Append("\\\""); break;
-                case '\\': builder.Append("\\\\"); break;
+                case '\\': builder.Append(dxfSafe ? "\\u005c" : "\\\\"); break;
+                case '^' when dxfSafe: builder.Append("\\u005e"); break;
                 case '\n': builder.Append("\\n"); break;
                 case '\r': builder.Append("\\r"); break;
                 case '\t': builder.Append("\\t"); break;

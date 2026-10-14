@@ -28,7 +28,9 @@ public enum SchemaIssueCode
     InvalidFormat,
     CyclicFormat,
     InvalidColumn,
-    InvalidValue
+    InvalidValue,
+    /// <summary>Schema records in the drawing (NOD) are damaged, incomplete or of a newer storage format.</summary>
+    InvalidStorage
 }
 
 /// <summary>One problem as «объект — поле — причина» (TZXDATA 4.5).</summary>

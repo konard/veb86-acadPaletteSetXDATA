@@ -17,8 +17,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Test transactional writer, selection, mixed values, lifecycle and parsing
+      - name: Test transactional writer, selection, mixed values, lifecycle, parsing and parameter schema
         run: dotnet test tests/AcadPaletteSetXData.Core.Tests -c Release --logger "trx;LogFileName=core.trx" --results-directory artifacts/tests --blame-hang-timeout 2m
+      - name: Validate the example parameter schema
+        run: dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/schema.json
       - name: Test plugin load announcement and deferred startup
         run: dotnet test tests/AcadPaletteSetXData.AutoCAD.Tests -c Release --logger "trx;LogFileName=autocad.trx" --results-directory artifacts/tests --blame-hang-timeout 2m
       - uses: actions/upload-artifact@v4

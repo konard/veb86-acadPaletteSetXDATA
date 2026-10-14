@@ -103,3 +103,8 @@ dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- -
 «объект — поле — причина» и возвращает 1 при ошибках; `--format` переписывает
 файл в канонической форме, сохраняя неизвестные поля. CI проверяет `examples/schema.json`.
 Форматы и коды проверки описаны в [docs/parameter-schema.md](../docs/parameter-schema.md).
+
+`DxfCodeProbe` (TZXDATA, этап 2) читает метаданные `AcDbMgd.dll` без загрузки сборки и
+печатает члены `DxfCode` в диапазоне 280–299: `Bool = 290` — отдельный код рядом с
+`Int8 = 280`, поэтому логические поля схемы пишутся в Xrecord как `bool` с кодом 290.
+`dotnet run --project experiments/DxfCodeProbe -- <путь к AcDbMgd.dll из NuGet AutoCAD.NET.Model>`.

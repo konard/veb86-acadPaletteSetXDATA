@@ -162,7 +162,7 @@ public sealed class SchemaValidatorTests
     public void EveryValidationCodeIsCovered()
     {
         var covered = Cases.Select(item => (string)item[0]).Concat(new[] { "UnsupportedFormat", "UnsupportedVersion" });
-        var readerCodes = new[] { SchemaIssueCode.InvalidJson, SchemaIssueCode.InvalidFieldType, SchemaIssueCode.FieldNameCase };
+        var readerCodes = new[] { SchemaIssueCode.InvalidJson, SchemaIssueCode.InvalidFieldType, SchemaIssueCode.FieldNameCase, SchemaIssueCode.InvalidStorage };
         var validatorCodes = System.Enum.GetValues(typeof(SchemaIssueCode)).Cast<SchemaIssueCode>().Except(readerCodes).Select(code => code.ToString());
         Assert.Empty(validatorCodes.Except(covered));
     }

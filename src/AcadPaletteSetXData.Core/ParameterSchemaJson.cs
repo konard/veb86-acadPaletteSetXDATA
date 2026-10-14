@@ -63,6 +63,13 @@ public static class ParameterSchemaJson
             issues.Add(new SchemaIssue(SchemaIssueCode.InvalidJson, SchemaIssue.SchemaObject, "", "корень JSON должен быть объектом"));
             return new SchemaLoadResult(null, issues);
         }
+        return Read(obj);
+    }
+
+    /// <summary>Maps an already parsed root object (for example, one assembled from NOD records).</summary>
+    public static SchemaLoadResult Read(JsonObject obj)
+    {
+        var issues = new List<SchemaIssue>();
         var reader = new FieldReader(issues);
         var schema = new ParameterSchema { Format = null, Version = null };
         reader.Fields(obj, schema, SchemaIssue.SchemaObject, RootFields, (name, value) =>
@@ -82,6 +89,9 @@ public static class ParameterSchemaJson
 
     public static string Write(ParameterSchema schema) => ToJson(schema).ToJson() + "\n";
 
+    /// <summary>Independent copy, including unknown and invalid fields.</summary>
+    public static ParameterSchema Clone(ParameterSchema schema) => Read(ToJson(schema)).Schema!;
+
     public static JsonObject ToJson(ParameterSchema schema)
     {
         var result = new JsonObject();
@@ -93,7 +103,7 @@ public static class ParameterSchemaJson
         return AddExtra(result, schema);
     }
 
-    private static JsonObject ToJson(SchemaParameter parameter)
+    public static JsonObject ToJson(SchemaParameter parameter)
     {
         var result = new JsonObject();
         Put(result, "id", parameter.Id);
@@ -127,7 +137,7 @@ public static class ParameterSchemaJson
         return AddExtra(result, editor);
     }
 
-    private static JsonObject ToJson(SchemaEnum item)
+    public static JsonObject ToJson(SchemaEnum item)
     {
         var result = new JsonObject();
         Put(result, "id", item.Id);
@@ -142,7 +152,7 @@ public static class ParameterSchemaJson
         return AddExtra(result, item);
     }
 
-    private static JsonObject ToJson(SchemaTemplate template)
+    public static JsonObject ToJson(SchemaTemplate template)
     {
         var result = new JsonObject();
         Put(result, "id", template.Id);

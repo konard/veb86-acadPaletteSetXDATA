@@ -29,40 +29,58 @@ string AttributeName(CustomAttribute attribute)
 }
 
 const string applicationType = "AcadPaletteSetXData.AutoCAD.PaletteApplication";
-foreach (var name in new[] { "ExtensionApplication", "CommandClass" })
+const string schemaCommandsType = "AcadPaletteSetXData.AutoCAD.SchemaCommands";
+foreach (var (name, targets) in new[]
 {
-    var handle = assembly.GetCustomAttributes().SingleOrDefault(item =>
-        AttributeName(metadata.GetCustomAttribute(item)) == "Autodesk.AutoCAD.Runtime." + name + "Attribute");
-    Check(!handle.IsNil, "Release DLL is missing AutoCAD " + name + " registration.");
-    var attribute = metadata.GetCustomAttribute(handle);
-    var constructor = metadata.GetMemberReference((MemberReferenceHandle)attribute.Constructor);
-    var attributeType = metadata.GetTypeReference((TypeReferenceHandle)constructor.Parent);
-    var apiAssembly = metadata.GetAssemblyReference((AssemblyReferenceHandle)attributeType.ResolutionScope);
-    Console.WriteLine("Verified " + name + " registration via " + metadata.GetString(apiAssembly.Name) + ".");
-    var hostMetadata = Assembly.Load(new AssemblyName(metadata.GetString(apiAssembly.Name)) { Version = apiAssembly.Version });
-    Check(hostMetadata.GetType(AttributeName(attribute))?.IsSubclassOf(typeof(Attribute)) == true,
-        "Standalone WPF host must resolve the release DLL's " + name + " attribute type.");
-    var blob = metadata.GetBlobReader(attribute.Value);
-    Check(blob.ReadUInt16() == 1 && blob.ReadSerializedString()!.StartsWith(applicationType, StringComparison.Ordinal),
-        name + " must point to PaletteApplication in the release DLL.");
+    ("ExtensionApplication", new[] { applicationType }),
+    ("CommandClass", new[] { applicationType, schemaCommandsType }),
+})
+{
+    var attributes = assembly.GetCustomAttributes().Select(metadata.GetCustomAttribute)
+        .Where(item => AttributeName(item) == "Autodesk.AutoCAD.Runtime." + name + "Attribute").ToList();
+    Check(attributes.Count == targets.Length, "Release DLL must have " + targets.Length + " AutoCAD " + name + " registration(s).");
+    var registered = attributes.Select(attribute =>
+    {
+        var constructor = metadata.GetMemberReference((MemberReferenceHandle)attribute.Constructor);
+        var attributeType = metadata.GetTypeReference((TypeReferenceHandle)constructor.Parent);
+        var apiAssembly = metadata.GetAssemblyReference((AssemblyReferenceHandle)attributeType.ResolutionScope);
+        Console.WriteLine("Verified " + name + " registration via " + metadata.GetString(apiAssembly.Name) + ".");
+        var hostMetadata = Assembly.Load(new AssemblyName(metadata.GetString(apiAssembly.Name)) { Version = apiAssembly.Version });
+        Check(hostMetadata.GetType(AttributeName(attribute))?.IsSubclassOf(typeof(Attribute)) == true,
+            "Standalone WPF host must resolve the release DLL's " + name + " attribute type.");
+        var blob = metadata.GetBlobReader(attribute.Value);
+        Check(blob.ReadUInt16() == 1, name + " attribute blob is malformed.");
+        return blob.ReadSerializedString()!;
+    }).ToList();
+    foreach (var target in targets)
+        Check(registered.Any(type => type == target || type.StartsWith(target + ",", StringComparison.Ordinal)),
+            name + " must point to " + target + " in the release DLL.");
 }
 
-var application = metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Single(type =>
-    metadata.GetString(type.Namespace) + "." + metadata.GetString(type.Name) == applicationType);
-var toggle = application.GetMethods().Select(metadata.GetMethodDefinition)
-    .Single(method => metadata.GetString(method.Name) == "TogglePalette");
-Check((toggle.Attributes & (MethodAttributes.Public | MethodAttributes.Static)) ==
-    (MethodAttributes.Public | MethodAttributes.Static), "Command handler must be public and static.");
-var command = toggle.GetCustomAttributes().Select(metadata.GetCustomAttribute).Single(item =>
-    AttributeName(item) == "Autodesk.AutoCAD.Runtime.CommandMethodAttribute");
-var commandBlob = metadata.GetBlobReader(command.Value);
-Check(commandBlob.ReadUInt16() == 1 && commandBlob.ReadSerializedString() == "XDATAPALETTE",
-    "XDATAPALETTE must be registered on the shipped command handler.");
+void CheckCommand(string typeName, string methodName, string commandName)
+{
+    var type = metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Single(item =>
+        metadata.GetString(item.Namespace) + "." + metadata.GetString(item.Name) == typeName);
+    var method = type.GetMethods().Select(metadata.GetMethodDefinition)
+        .Single(item => metadata.GetString(item.Name) == methodName);
+    Check((method.Attributes & (MethodAttributes.Public | MethodAttributes.Static)) ==
+        (MethodAttributes.Public | MethodAttributes.Static), "Command handler must be public and static.");
+    var command = method.GetCustomAttributes().Select(metadata.GetCustomAttribute).Single(item =>
+        AttributeName(item) == "Autodesk.AutoCAD.Runtime.CommandMethodAttribute");
+    var commandBlob = metadata.GetBlobReader(command.Value);
+    Check(commandBlob.ReadUInt16() == 1 && commandBlob.ReadSerializedString() == commandName,
+        commandName + " must be registered on the shipped command handler.");
+    Console.WriteLine("Verified command " + commandName + ".");
+}
+
+CheckCommand(applicationType, "TogglePalette", "XDATAPALETTE");
+CheckCommand(schemaCommandsType, "Import", "VELEC_SCHEMA_IMPORT");
+CheckCommand(schemaCommandsType, "Export", "VELEC_SCHEMA_EXPORT");
 
 foreach (var reference in metadata.AssemblyReferences.Select(metadata.GetAssemblyReference))
     Check(!metadata.GetString(reference.Name).StartsWith("AcadPaletteSetXData.", StringComparison.Ordinal),
         "Single-DLL release must not depend on a separate plugin assembly.");
-foreach (var typeName in new[] { "PaletteView", "PropertyEditorView", "XDataWriter", "AutoCadPaletteHost" })
+foreach (var typeName in new[] { "PaletteView", "PropertyEditorView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction" })
     Check(metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
         "Release must contain " + typeName + ".");
 Check(metadata.ManifestResources.Select(metadata.GetManifestResource)

@@ -162,6 +162,16 @@ public sealed class CalculatedStringTests
     }
 
     [Fact]
+    public void TraceDescribesTheFormulasOfTheObject()
+    {
+        Assert.Equal("A: Name = «ЩУ1.3»; Full = «Щит ЩУ1.3 (220 В)»", Calculate(V2("A", Pair("HD", "ЩУ1"), Pair("Group", "3"))).Describe());
+        Assert.Equal("B: Name = «ЩУ1.3» *; Full = «Щит ЩУ1.3 (220 В)»",
+            Calculate(V2("B", Pair("HD", "ЩУ1"), Pair("Group", "3"), Pair("Name", "старое"))).Describe());
+        Assert.Equal("C: формул нет", Calculate(V2("C", Pair("Other", "x"))).Describe());
+        Assert.Equal("D: U = «@@[Missing] и s» !", Calculate(V2("D", Pair("S", "s")), Snapshot(Broken)).Describe());
+    }
+
+    [Fact]
     public void MultipleSelectionShowsVariousWhenResultsDiffer()
     {
         var a = Calculate(V2("A", Pair("HD", "ЩУ1"), Pair("Group", "3")));

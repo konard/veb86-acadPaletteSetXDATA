@@ -205,8 +205,11 @@ public sealed class CalculatedValue
     public string? Stored { get; }
     public bool IsError => Formula.IsError;
     public string? Error => Formula.IsError ? Formula.Error : null;
-    /// <summary>A <c>Persist</c> value whose stored text differs from the computed one.</summary>
-    public bool IsStale => Formula.Persist && !Formula.IsError && Stored != Text;
+    /// <summary>
+    /// A stored <c>Persist</c> value whose text differs from the computed one; a missing value is not stale, it is written
+    /// with the next change of a source or by <see cref="SelectionEdit.RecalculatePersisted"/>.
+    /// </summary>
+    public bool IsStale => Formula.Persist && !Formula.IsError && Stored != null && Stored != Text;
 }
 
 /// <summary>
@@ -247,6 +250,29 @@ public sealed class ObjectCalculation
 
     public CalculatedValue? Find(string id) => results.TryGetValue(id, out var value) ? value : null;
     public string? Text(string id) => Find(id)?.Text;
+
+    /// <summary>The parameter is stored on the object or listed in its template.</summary>
+    public bool IsUsed(string id) =>
+        Source.Find(id) != null || Template != null && Schema.Templates.TryGetValue(Template, out var template) &&
+        template.Parameters.Any(item => ParameterSchema.SameId(item.Id, id));
+
+    /// <summary>
+    /// One line for the trace: the formulas that are used by the object or reference its values,
+    /// e.g. <c>A1: GC_Name = «ЩУ1.3»</c>; erroneous ones are marked with <c>!</c>, stale <c>Persist</c> with <c>*</c>.
+    /// </summary>
+    public string Describe()
+    {
+        // Results are in the evaluation order, so a formula over a shown formula follows it.
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var shown = new List<string>();
+        foreach (var result in Results)
+        {
+            if (!IsUsed(result.Id) && !result.Formula.References.Any(id => ids.Contains(id) || IsUsed(id) || changes.ContainsKey(id))) continue;
+            ids.Add(result.Id);
+            shown.Add(result.Id + " = «" + result.Text + "»" + (result.IsError ? " !" : result.IsStale ? " *" : ""));
+        }
+        return Handle + ": " + (shown.Count == 0 ? "формул нет" : string.Join("; ", shown));
+    }
 
     /// <summary>
     /// Changes a parameter of the object (null removes it) and recalculates its dependents; returns them in the

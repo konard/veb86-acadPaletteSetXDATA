@@ -91,10 +91,9 @@ public sealed class SelectionViewModel : ObservableObject
     /// <summary>Formulas stored on the object or listed in its template: errors and stale <c>Persist</c> values.</summary>
     internal static IEnumerable<string> FormulaWarnings(ObjectCalculation calculation)
     {
-        var template = calculation.Template != null && calculation.Schema.Templates.TryGetValue(calculation.Template, out var found) ? found : null;
         foreach (var result in calculation.Results)
         {
-            if (calculation.Source.Find(result.Id) is null && template?.Parameters.Any(item => ParameterSchema.SameId(item.Id, result.Id)) != true) continue;
+            if (!calculation.IsUsed(result.Id)) continue;
             if (result.IsError) yield return result.Id + ": " + result.Error + ".";
             else if (result.IsStale)
                 yield return result.Id + ": записано \"" + result.Stored + "\", вычислено \"" + result.Text + "\"; значение Persist обновится при изменении исходных параметров.";

@@ -14,7 +14,9 @@ public enum SelectionEditKind
     // XDATA v1 and XML VisualTreeString (stage 4 of the first specification).
     Header, MaterialField, AddMaterial, DeleteMaterial,
     // XDATA v2 (TZXDATA 6): one parameter, or one row of a Table.
-    Parameter, RemoveParameter, TableCell, AddTableRow, DeleteTableRow, Template, NewDeviceId
+    Parameter, RemoveParameter, TableCell, AddTableRow, DeleteTableRow, Template, NewDeviceId,
+    // TZXDATA 7.4: rewrite the Persist results of CalculatedString (the recalculation of VELEC_CHECK).
+    RecalculatePersisted
 }
 
 /// <summary>A confirmed change, never a serialization of the merged UI.</summary>
@@ -59,6 +61,11 @@ public sealed class SelectionEdit : EventArgs
     public static SelectionEdit SetTemplate(string template) => new SelectionEdit(SelectionEditKind.Template, template ?? "", template ?? "");
     /// <summary>Gives every object its own new <c>DEVICE_ID</c>.</summary>
     public static SelectionEdit NewDeviceId() => new SelectionEdit(SelectionEditKind.NewDeviceId, XDataV2.DeviceIdKey);
+    /// <summary>
+    /// Writes the current results of <c>Persist</c> formulas that are stored or belong to the template of an object
+    /// (TZXDATA 7.4); objects without XDATA v2 are left as they are.
+    /// </summary>
+    public static SelectionEdit RecalculatePersisted() => new SelectionEdit(SelectionEditKind.RecalculatePersisted);
 
     private static string Text(object? value) => value is null ? "" : XDataV2.FormatValue(value);
 }

@@ -23,7 +23,10 @@ public sealed class XDataParser
             var xdata = new XDataNode("XDATA");
             result.Tree.Add(xdata);
             ParseValues(snapshot.XData, xdata, result, true);
-            foreach (var app in xdata.Children.Where(node => IsKnownApp(node.Name))) ProjectList(app, result);
+            // v2 pairs are read by XDataV2: a String value "Name=…" must not become a v1 header field.
+            var v2 = XDataV2.FormatOf(snapshot.XData) is XDataFormat.V2 or XDataFormat.Newer;
+            foreach (var app in xdata.Children.Where(node => IsKnownApp(node.Name) &&
+                !(v2 && node.Name.Equals(DrawingNames.RegApp, StringComparison.OrdinalIgnoreCase)))) ProjectList(app, result);
         }
         if (snapshot.Records.Count != 0)
         {

@@ -31,7 +31,7 @@ public sealed class SelectionController : IDisposable
     private void Refresh(object? sender, EventArgs args)
     {
         if (disposed) return;
-        try { model.Apply(source.ReadSelection()); }
+        try { model.Apply(source.ReadSelection(), cache: (source as IObjectValuesSource)?.Values); }
         catch (Exception error)
         {
             Trace.WriteLine(error, "XDATAPALETTE selection read");

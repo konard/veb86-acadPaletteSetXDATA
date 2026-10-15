@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -8,8 +9,8 @@ namespace AcadPaletteSetXData.Core;
 public enum ParameterKind { String, Double, Integer, Boolean, Enum, CalculatedString, Table }
 
 /// <summary>
-/// A parameter type (TZXDATA 11). Stage 1 needs schema checks only; XDATA parsing, formatting
-/// and the VST editor factory are added to this interface by the later stages.
+/// A parameter type (TZXDATA 11): schema checks (stage 1) and the XDATA v2 value (stage 3).
+/// Formatting and the VST editor factory are added to this interface by the later stages.
 /// </summary>
 public interface IParameterType
 {
@@ -19,6 +20,17 @@ public interface IParameterType
     bool IsScalar { get; }
     /// <summary>Returns the reason why <paramref name="value"/> is not a valid value of the parameter, or null.</summary>
     string? CheckValue(JsonValue value, SchemaParameter parameter, ParameterSchema schema);
+    /// <summary>Group code of a stored scalar value (TZXDATA 6.3); 0 for <c>Table</c>.</summary>
+    int XDataCode { get; }
+    /// <summary>Reads a stored scalar value; false when its code or value does not fit the type (TZXDATA 6.5).</summary>
+    bool TryRead(DataValue stored, out object value);
+    /// <summary>
+    /// Converts an edited value (typed, or text in the invariant culture) to the type of the parameter.
+    /// Returns the reason why it cannot be converted, or null.
+    /// </summary>
+    string? Convert(object value, out object converted);
+    /// <summary>The stored form of a value returned by <see cref="TryRead"/> or <see cref="Convert"/>.</summary>
+    DataValue ToXData(object value);
 }
 
 /// <summary>Registry of parameter types; names are case-insensitive. Unknown types are reported, not dropped.</summary>
@@ -67,6 +79,10 @@ public sealed class ParameterTypeRegistry
             var maxLength = parameter.Editor?.MaxLength;
             return maxLength.HasValue && text.Value.Length > maxLength.Value ? "строка длиннее maxLength = " + maxLength.Value : null;
         }
+        public int XDataCode => 1000;
+        public bool TryRead(DataValue stored, out object value) => ReadText(stored, out value);
+        public string? Convert(object value, out object converted) => ConvertText(value, out converted);
+        public DataValue ToXData(object value) => new DataValue(1000, (string)value);
     }
 
     private sealed class NumberType : IParameterType
@@ -87,6 +103,42 @@ public sealed class ParameterTypeRegistry
             if (editor?.Max is double max && result > max) return "значение больше max";
             return null;
         }
+        public int XDataCode => Kind == ParameterKind.Integer ? 1071 : 1040;
+        public bool TryRead(DataValue stored, out object value)
+        {
+            value = stored.Value;
+            if (stored.TypeCode != XDataCode) return false;
+            if (Kind == ParameterKind.Integer) return stored.Value is int;
+            return stored.Value is double number && !double.IsNaN(number) && !double.IsInfinity(number);
+        }
+        public string? Convert(object value, out object converted)
+        {
+            converted = value;
+            switch (value)
+            {
+                case int number when Kind == ParameterKind.Integer: converted = number; return null;
+                case short number: return Convert((int)number, out converted);
+                case long number:
+                    if (Kind == ParameterKind.Integer && (number < int.MinValue || number > int.MaxValue)) return "ожидается 32-битное целое число";
+                    converted = Kind == ParameterKind.Integer ? (object)(int)number : number; return null;
+                case int number: converted = (double)number; return null;
+                case double number:
+                    if (double.IsNaN(number) || double.IsInfinity(number)) return "ожидается конечное число";
+                    if (Kind == ParameterKind.Double) { converted = number; return null; }
+                    if (Math.Floor(number) != number || number < int.MinValue || number > int.MaxValue) return "ожидается 32-битное целое число";
+                    converted = (int)number; return null;
+                case string text:
+                    // A comma is accepted as the decimal separator of the Russian culture.
+                    var trimmed = text.Trim();
+                    if (Kind == ParameterKind.Integer)
+                        return int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var integer)
+                            ? Convert(integer, out converted) : "ожидается 32-битное целое число";
+                    return double.TryParse(trimmed.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var real)
+                        ? Convert(real, out converted) : "ожидается число";
+                default: return Kind == ParameterKind.Integer ? "ожидается целое число" : "ожидается число";
+            }
+        }
+        public DataValue ToXData(object value) => Kind == ParameterKind.Integer ? new DataValue(1071, (int)value) : new DataValue(1040, (double)value);
     }
 
     private sealed class BooleanType : IParameterType
@@ -96,6 +148,32 @@ public sealed class ParameterTypeRegistry
         public bool IsScalar => true;
         public string? CheckValue(JsonValue value, SchemaParameter parameter, ParameterSchema schema) =>
             value is JsonBoolean ? null : "ожидается true или false";
+        public int XDataCode => 1070;
+        public bool TryRead(DataValue stored, out object value)
+        {
+            // 1070 is a 16-bit integer; only 0 and 1 are a Boolean (TZXDATA 6.3).
+            value = stored.Value;
+            if (stored.TypeCode != 1070 || !(stored.Value is short flag) || (flag != 0 && flag != 1)) return false;
+            value = flag == 1;
+            return true;
+        }
+        public string? Convert(object value, out object converted)
+        {
+            converted = value;
+            switch (value)
+            {
+                case bool flag: converted = flag; return null;
+                case short number when number == 0 || number == 1: converted = number == 1; return null;
+                case int number when number == 0 || number == 1: converted = number == 1; return null;
+                case string text:
+                    var trimmed = text.Trim();
+                    if (trimmed == "1" || trimmed.Equals("true", StringComparison.OrdinalIgnoreCase) || trimmed == "Да") { converted = true; return null; }
+                    if (trimmed == "0" || trimmed.Equals("false", StringComparison.OrdinalIgnoreCase) || trimmed == "Нет") { converted = false; return null; }
+                    return "ожидается true или false";
+                default: return "ожидается true или false";
+            }
+        }
+        public DataValue ToXData(object value) => new DataValue(1070, (short)((bool)value ? 1 : 0));
     }
 
     private sealed class EnumType : IParameterType
@@ -112,6 +190,10 @@ public sealed class ParameterTypeRegistry
             if (reference is null || parameter.Editor?.AllowCustom == true) return null;
             return reference.FindItem(key.Value) is null ? "ключ \"" + key.Value + "\" отсутствует в справочнике " + reference.Id : null;
         }
+        public int XDataCode => 1000;
+        public bool TryRead(DataValue stored, out object value) => ReadText(stored, out value);
+        public string? Convert(object value, out object converted) => ConvertText(value, out converted);
+        public DataValue ToXData(object value) => new DataValue(1000, (string)value);
     }
 
     private sealed class CalculatedStringType : IParameterType
@@ -124,6 +206,10 @@ public sealed class ParameterTypeRegistry
             if (!(value is JsonString text)) return "ожидается строка";
             return Utf8Length(text.Value) > MaxStringBytes ? "строка длиннее " + MaxStringBytes + " байт UTF-8" : null;
         }
+        public int XDataCode => 1000;
+        public bool TryRead(DataValue stored, out object value) => ReadText(stored, out value);
+        public string? Convert(object value, out object converted) => ConvertText(value, out converted);
+        public DataValue ToXData(object value) => new DataValue(1000, (string)value);
     }
 
     private sealed class TableType : IParameterType
@@ -133,6 +219,22 @@ public sealed class ParameterTypeRegistry
         public bool IsScalar => false;
         public string? CheckValue(JsonValue value, SchemaParameter parameter, ParameterSchema schema) =>
             "значение по умолчанию для Table не поддерживается";
+        public int XDataCode => 0;
+        public bool TryRead(DataValue stored, out object value) { value = stored.Value; return false; }
+        public string? Convert(object value, out object converted) { converted = value; return "значение Table задаётся строками"; }
+        public DataValue ToXData(object value) => throw new InvalidOperationException("Table хранится списком строк.");
+    }
+
+    private static bool ReadText(DataValue stored, out object value)
+    {
+        value = stored.Value;
+        return stored.TypeCode == 1000 && stored.Value is string;
+    }
+
+    private static string? ConvertText(object value, out object converted)
+    {
+        converted = value is IFormattable formatted ? formatted.ToString(null, CultureInfo.InvariantCulture) : value as string ?? "";
+        return value is string || value is IFormattable ? null : "ожидается строка";
     }
 }
 

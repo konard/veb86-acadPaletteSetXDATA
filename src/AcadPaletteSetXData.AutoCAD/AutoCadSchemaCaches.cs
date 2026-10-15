@@ -8,18 +8,23 @@ using AcApplication = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 namespace AcadPaletteSetXData.AutoCAD;
 
 /// <summary>
-/// One <see cref="SchemaCache"/> per document (TZXDATA 10.1). The cache is dropped when an object of
+/// One <see cref="SchemaCache"/> and one <see cref="ObjectValuesCache"/> per document (TZXDATA 10.1, 10.2). The schema cache is dropped when an object of
 /// <c>NOD/VELEC</c> (or NOD itself) is modified, erased or restored, after Undo/Redo and when the
-/// document is closed. Set <c>XDATAPALETTE_TRACE=1</c> to log loads and invalidations.
+/// document is closed; the value cache is cleared with it. Set <c>XDATAPALETTE_TRACE=1</c> to log loads and invalidations.
 /// </summary>
 internal static class AutoCadSchemaCaches
 {
     private static readonly Dictionary<Document, Entry> entries = new Dictionary<Document, Entry>();
     private static bool subscribed;
 
-    public static SchemaCache For(Document document)
+    public static SchemaCache For(Document document) => EntryFor(document).Cache;
+
+    /// <summary>Value cache of the document (TZXDATA 10.2); it is dropped together with the schema cache.</summary>
+    public static ObjectValuesCache ValuesFor(Document document) => EntryFor(document).Values;
+
+    private static Entry EntryFor(Document document)
     {
-        if (entries.TryGetValue(document, out var entry)) return entry.Cache;
+        if (entries.TryGetValue(document, out var entry)) return entry;
         if (!subscribed)
         {
             AcApplication.DocumentManager.DocumentToBeDestroyed += OnDocumentToBeDestroyed;
@@ -27,7 +32,7 @@ internal static class AutoCadSchemaCaches
         }
         entry = new Entry(document);
         entries.Add(document, entry);
-        return entry.Cache;
+        return entry;
     }
 
     private static void OnDocumentToBeDestroyed(object? sender, DocumentCollectionEventArgs args)
@@ -51,6 +56,7 @@ internal static class AutoCadSchemaCaches
             this.document = document;
             database = document.Database;
             Cache = new SchemaCache(Load);
+            Values = new ObjectValuesCache(Cache);
             database.ObjectModified += OnObjectChanged;
             database.ObjectErased += OnObjectErased;
             database.ObjectReappended += OnObjectChanged;
@@ -60,6 +66,7 @@ internal static class AutoCadSchemaCaches
         }
 
         public SchemaCache Cache { get; }
+        public ObjectValuesCache Values { get; }
 
         private SchemaNodReadResult Load()
         {

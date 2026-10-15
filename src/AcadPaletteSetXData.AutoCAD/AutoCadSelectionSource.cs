@@ -10,7 +10,7 @@ using AcApplication = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 namespace AcadPaletteSetXData.AutoCAD;
 
 /// <summary>Coalesces PICKFIRST events and reads detached snapshots on AutoCAD's idle thread.</summary>
-internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWriter, IDisposable
+internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWriter, IObjectValuesSource, IDisposable
 {
     private readonly DocumentCollection documents = AcApplication.DocumentManager;
     private readonly bool traceEnabled = Environment.GetEnvironmentVariable("XDATAPALETTE_TRACE") == "1";
@@ -28,6 +28,9 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
     }
 
     public event EventHandler? SelectionChanged;
+
+    /// <summary>Value cache of the document read last; XDATA v2 of unchanged objects is not parsed again.</summary>
+    public ObjectValuesCache? Values => disposed || lastReadDocument == null ? null : AutoCadSchemaCaches.ValuesFor(lastReadDocument);
 
     private void Bind(Document? next)
     {
@@ -96,8 +99,16 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
                 }
             }
             // ForRead only. Disposing the transaction closes objects without modifying the DWG.
+            // The schema is loaded and XDATA v2 is parsed into the value cache under the same lock;
+            // the selection model then reuses these entries without parsing again.
+            AutoCadSchemaCaches.ValuesFor(active).Get(snapshots);
         }
-        if (traceEnabled) active.Editor.WriteMessage("\n[XDATAPALETTE] Прочитано объектов: {0}; {1} мс.\n", snapshots.Count, timer.ElapsedMilliseconds);
+        if (traceEnabled)
+        {
+            var values = AutoCadSchemaCaches.ValuesFor(active);
+            active.Editor.WriteMessage("\n[XDATAPALETTE] Прочитано объектов: {0}; {1} мс; кэш значений: {2}, разборов XDATA: {3}.\n",
+                snapshots.Count, timer.ElapsedMilliseconds, values.Count, values.ParseCount);
+        }
         return snapshots;
     }
 
@@ -110,7 +121,7 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
         var timer = Stopwatch.StartNew();
         try
         {
-            new XDataWriter(targets => new AutoCadXDataWriteTransaction(active, targets)).WriteSelection(handles, edit);
+            new XDataWriter(targets => new AutoCadXDataWriteTransaction(active, targets), AutoCadSchemaCaches.ValuesFor(active)).WriteSelection(handles, edit);
         }
         finally { pending = true; }
         if (traceEnabled) active.Editor.WriteMessage("\n[XDATAPALETTE] Записано объектов: {0}; операция {1}/{2}; {3} мс.\n", handles.Count, edit.Kind, edit.Field, timer.ElapsedMilliseconds);

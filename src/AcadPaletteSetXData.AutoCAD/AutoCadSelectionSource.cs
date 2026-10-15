@@ -99,8 +99,9 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
                 }
             }
             // ForRead only. Disposing the transaction closes objects without modifying the DWG.
-            // The schema is loaded under the same lock: the value cache types XDATA v2 with it.
-            AutoCadSchemaCaches.For(active).Get();
+            // The schema is loaded and XDATA v2 is parsed into the value cache under the same lock;
+            // the selection model then reuses these entries without parsing again.
+            AutoCadSchemaCaches.ValuesFor(active).Get(snapshots);
         }
         if (traceEnabled)
         {

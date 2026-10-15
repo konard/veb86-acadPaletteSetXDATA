@@ -9,10 +9,19 @@ using System.Xml.Linq;
 namespace AcadPaletteSetXData.Core;
 
 /// <summary>Patches documented fields in their existing storage while retaining unknown values.</summary>
-public sealed class XDataPatch
+public sealed partial class XDataPatch
 {
-    public EntityDataSnapshot Apply(EntityDataSnapshot snapshot, SelectionEdit edit)
+    public EntityDataSnapshot Apply(EntityDataSnapshot snapshot, SelectionEdit edit) => Apply(snapshot, edit, null);
+
+    /// <param name="cached">Values of <paramref name="snapshot"/> from the cache, so that v2 is not parsed again.</param>
+    public EntityDataSnapshot Apply(EntityDataSnapshot snapshot, SelectionEdit edit, ObjectValues? cached)
     {
+        if (snapshot is null) throw new ArgumentNullException(nameof(snapshot));
+        if (edit is null) throw new ArgumentNullException(nameof(edit));
+        if (edit.IsV2) return ApplyV2(snapshot, edit, cached);
+        var format = XDataV2.FormatOf(snapshot.XData);
+        if (format == XDataFormat.V2 || format == XDataFormat.Newer)
+            throw new InvalidOperationException("XDATA " + DrawingNames.RegApp + " объекта " + snapshot.Handle + " в формате v2; поля v1 не записываются.");
         if (edit.Kind == SelectionEditKind.Header && !PropertyEditorViewModel.HeaderFields.Contains(edit.Field) ||
             edit.Kind == SelectionEditKind.MaterialField && !PropertyEditorViewModel.MaterialFields.Contains(edit.Field))
             throw new ArgumentException("Неизвестное поле.", nameof(edit));

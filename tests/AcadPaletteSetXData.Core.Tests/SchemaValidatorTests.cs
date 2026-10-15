@@ -283,5 +283,9 @@ public sealed class SchemaValidatorTests
         public ParameterKind Kind => ParameterKind.Double;
         public bool IsScalar => true;
         public string? CheckValue(JsonValue value, SchemaParameter parameter, ParameterSchema schema) => value is JsonNumber ? null : "ожидается сумма";
+        public int XDataCode => 1040;
+        public bool TryRead(DataValue stored, out object value) { value = stored.Value; return stored.TypeCode == 1040 && stored.Value is double; }
+        public string? Convert(object value, out object converted) { converted = value; return value is double ? null : "ожидается сумма"; }
+        public DataValue ToXData(object value) => new DataValue(1040, (double)value);
     }
 }

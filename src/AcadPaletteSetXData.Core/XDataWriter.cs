@@ -13,13 +13,26 @@ public interface IXDataWriteTransaction : IDisposable
     void Commit();
 }
 
-/// <summary>Preflights a confirmed field edit against fresh data before writing an atomic group.</summary>
+/// <summary>
+/// Preflights a confirmed field edit against fresh data before writing an atomic group: the limits of
+/// TZXDATA 6.3 (255 bytes per string, 16 KB of XDATA per object) are checked for every object first,
+/// and any violation refuses the whole operation.
+/// </summary>
 public sealed class XDataWriter : ISelectionWriter
 {
     private readonly Func<IReadOnlyList<string>, IXDataWriteTransaction> beginTransaction;
+    private readonly ObjectValuesCache? values;
+    private readonly Func<Guid>? newGuid;
 
-    public XDataWriter(Func<IReadOnlyList<string>, IXDataWriteTransaction> beginTransaction) =>
+    public XDataWriter(Func<IReadOnlyList<string>, IXDataWriteTransaction> beginTransaction) : this(beginTransaction, null) { }
+
+    /// <param name="values">Value cache of the document: gives the schema for v2 edits and is invalidated for written objects.</param>
+    public XDataWriter(Func<IReadOnlyList<string>, IXDataWriteTransaction> beginTransaction, ObjectValuesCache? values, Func<Guid>? newGuid = null)
+    {
         this.beginTransaction = beginTransaction ?? throw new ArgumentNullException(nameof(beginTransaction));
+        this.values = values;
+        this.newGuid = newGuid;
+    }
 
     public void WriteSelection(IReadOnlyList<string> handles, SelectionEdit edit)
     {
@@ -35,20 +48,27 @@ public sealed class XDataWriter : ISelectionWriter
             throw new InvalidOperationException("Выделение изменилось; повторите ввод после обновления панели.");
 
         var changes = new List<EntityDataSnapshot>();
-        var patch = new XDataPatch();
+        var patch = new XDataPatch(edit.IsV2 ? values?.Schema : null, newGuid: newGuid);
         foreach (var before in snapshots)
         {
-            var after = patch.Apply(before, edit);
+            var after = patch.Apply(before, edit, edit.IsV2 ? values?.Get(before) : null);
             foreach (var value in after.XData.Where(v => v.TypeCode == 1000))
-                if (!(value.Value is string text) || Encoding.UTF8.GetByteCount(text) > 255)
+                if (!(value.Value is string text) || Encoding.UTF8.GetByteCount(text) > ParameterTypeRegistry.MaxStringBytes)
                     throw new InvalidOperationException("Строка XDATA превышает 255 байт; используйте более короткое значение.");
-            if (!SameData(before, after)) changes.Add(after);
+            if (SameData(before, after)) continue;
+            var size = XDataV2.EstimateSize(after.XData);
+            // The estimate is conservative: an object already above it may still shrink.
+            if (size > XDataV2.MaxXDataBytes && size > XDataV2.EstimateSize(before.XData))
+                throw new InvalidOperationException("XDATA объекта " + before.Handle + " превысит " + XDataV2.MaxXDataBytes +
+                    " байт (оценка " + size + "); операция отменена для всех объектов.");
+            changes.Add(after);
         }
 
         // Nothing is opened for write until every target has been parsed and validated.
         if (changes.Count == 0) return;
         foreach (var snapshot in changes) transaction.Write(snapshot);
         transaction.Commit();
+        values?.Invalidate(changes.Select(snapshot => snapshot.Handle));
     }
 
     private static bool SameData(EntityDataSnapshot before, EntityDataSnapshot after) =>

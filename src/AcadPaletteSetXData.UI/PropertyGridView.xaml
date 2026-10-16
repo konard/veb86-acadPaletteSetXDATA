@@ -241,13 +241,15 @@
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <!-- Control panel (TZXDATA 8.4): reserved 32 px; «⚙ Схема» belongs to stage 8. -->
         <DockPanel x:Name="Toolbar" Height="32" Margin="6,0" LastChildFill="True" AutomationProperties.Name="Панель управления свойствами">
-            <Border x:Name="TemplateIndicator" DockPanel.Dock="Left" MaxWidth="110" Margin="0,0,3,0" Padding="5,0" Height="24"
-                    Background="{DynamicResource PaletteTabBackground}" BorderBrush="{DynamicResource PaletteBorder}" BorderThickness="1"
-                    AutomationProperties.Name="Шаблон выделения" ToolTip="{Binding TemplateText}" ToolTipService.ShowOnDisabled="True">
+            <!-- «Шаблон ▾» (TZXDATA 6.4, 6.6, 6.2): assigns, changes or removes the template; commits the defaults of the template. -->
+            <Button x:Name="TemplateIndicator" DockPanel.Dock="Left" MaxWidth="130" Margin="0,0,3,0" Padding="5,0" Height="24"
+                    HorizontalContentAlignment="Left" Click="OnTemplateMenu" AutomationProperties.Name="Шаблон выделения"
+                    ToolTip="{Binding TemplateText}" ToolTipService.ShowOnDisabled="True">
                 <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
                     <Run Text="▾" Foreground="{DynamicResource PaletteMuted}" /><Run Text="{Binding TemplateText, Mode=OneWay}" />
                 </TextBlock>
-            </Border>
+                <Button.ContextMenu><ContextMenu x:Name="TemplateMenu" Placement="Bottom" /></Button.ContextMenu>
+            </Button>
             <Button x:Name="AddParameterButton" DockPanel.Dock="Left" Content="+" Style="{StaticResource ToolButton}" IsEnabled="{Binding CanEdit}"
                     Click="OnAddParameter" AutomationProperties.Name="Добавить параметр" ToolTip="Добавить параметр схемы вне шаблона во всё выделение">
                 <Button.ContextMenu><ContextMenu x:Name="ParameterMenu" Placement="Bottom" /></Button.ContextMenu>
@@ -286,8 +288,8 @@
                 </Style>
             </DockPanel.Style>
             <Button x:Name="AssignTemplateButton" DockPanel.Dock="Right" Content="Назначить шаблон" Margin="6,0,0,0" VerticalAlignment="Top"
-                    Command="{Binding AssignTemplateCommand}" Visibility="{Binding NeedsTemplate, Converter={StaticResource Visible}}"
-                    ToolTipService.ShowOnDisabled="True" ToolTip="Назначение шаблона — VELEC_TEMPLATE_APPLY (этап 7)"
+                    Click="OnTemplateMenu" IsEnabled="{Binding CanEdit}" Visibility="{Binding NeedsTemplate, Converter={StaticResource Visible}}"
+                    ToolTipService.ShowOnDisabled="True" ToolTip="Назначить шаблон схемы всему выделению (VELEC_TEMPLATE_APPLY)"
                     AutomationProperties.Name="Назначить шаблон" />
             <TextBlock x:Name="MessageText" Text="{Binding Message}" TextWrapping="Wrap">
                 <TextBlock.Style>

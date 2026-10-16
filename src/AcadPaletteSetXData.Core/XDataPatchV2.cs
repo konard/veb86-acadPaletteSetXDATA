@@ -226,10 +226,17 @@ public sealed partial class XDataPatch
 
     private static object Convert(SchemaParameter parameter, IParameterType type, object value, SchemaSnapshot schema)
     {
-        var error = type.Convert(value, out var converted) ?? type.CheckValue(Json(converted), parameter, schema.Schema!);
+        var error = Check(parameter, type, value, schema.Schema!, out var converted);
         if (error != null) throw new InvalidOperationException("Параметр " + parameter.Id + ": " + error + ".");
         return converted;
     }
+
+    /// <summary>
+    /// Converts an entered value to the schema type and checks it (number, <c>Min/Max</c>, enum items, length): the same
+    /// check as the write, so the VST reports a wrong input before a transaction (TZXDATA 8.3).
+    /// </summary>
+    internal static string? Check(SchemaParameter parameter, IParameterType type, object value, ParameterSchema schema, out object converted) =>
+        type.Convert(value, out converted) ?? type.CheckValue(Json(converted), parameter, schema);
 
     private static JsonValue Json(object value) => value switch
     {

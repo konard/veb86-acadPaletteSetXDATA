@@ -20,7 +20,33 @@ public enum PropertyRowKind
     /// <summary>A category of <c>Table</c> rows (<c>GroupBy</c>).</summary>
     Category,
     /// <summary>A row of a <c>Table</c>.</summary>
-    TableRow
+    TableRow,
+    /// <summary>A cell of a table row opened by <c>✎</c>: one row per table column (stage 6).</summary>
+    Cell
+}
+
+/// <summary>Editor of column 2 (TZXDATA 8.3); the view creates it only for the cell in focus.</summary>
+public enum PropertyEditorKind
+{
+    /// <summary>Read only: groups, <c>CalculatedString</c>, <c>Editor.ReadOnly</c>, values outside the schema, the former format.</summary>
+    None,
+    /// <summary><c>String</c>: a text field.</summary>
+    Text,
+    /// <summary><c>Double</c>/<c>Integer</c>: a text field with the number, <c>Min/Max</c> check and the unit.</summary>
+    Number,
+    /// <summary><c>Enum</c>: a drop-down list of captions, with typing when <c>AllowCustom</c>.</summary>
+    Choice,
+    /// <summary><c>Boolean</c>: a check box, three-state for «Разное».</summary>
+    Flag
+}
+
+/// <summary>An item of a drop-down list: an <c>Enum</c> item or a parameter of «+ Параметр».</summary>
+public sealed class PropertyOption
+{
+    public PropertyOption(string key, string caption) { Key = key; Caption = caption; }
+    public string Key { get; }
+    public string Caption { get; }
+    public override string ToString() => Caption;
 }
 
 /// <summary>State column of a value (TZXDATA 8.2): <c>●</c> set, <c>○</c> default, <c>ƒ</c> calculated, <c>!</c> error.</summary>
@@ -33,10 +59,12 @@ public enum PropertyState
     Error
 }
 
-/// <summary>A row of the read-only VST: the texts of columns 1–4 and its place in the tree.</summary>
+/// <summary>A row of the VST: the texts of columns 1–4, its place in the tree and the editor of its value.</summary>
 public sealed class PropertyRow : ObservableObject
 {
     private bool isExpanded;
+    private bool isEditing;
+    private string editText = "";
 
     internal PropertyRow(PropertyRowKind kind, string key, string caption, int level)
     {
@@ -77,10 +105,85 @@ public sealed class PropertyRow : ObservableObject
     public bool IsError => State == PropertyState.Error;
     /// <summary>Groups and categories are shown in italics.</summary>
     public bool IsHeader => Kind == PropertyRowKind.Group || Kind == PropertyRowKind.Category;
-    /// <summary>Column 0: <c>×</c> and <c>✎</c> of a table row (editing is stage 6).</summary>
-    public bool ShowActions => Kind == PropertyRowKind.TableRow;
-    /// <summary>Column 4 of a table node: «+ Добавить» (editing is stage 6).</summary>
+    /// <summary>Column 0: <c>×</c> and <c>✎</c> of a table row, <c>×</c> of a value outside the template or the schema.</summary>
+    public bool ShowActions => Kind == PropertyRowKind.TableRow || CanDelete;
+    /// <summary>Column 0: <c>✎</c> of a table row.</summary>
+    public bool ShowEdit => Kind == PropertyRowKind.TableRow;
+    /// <summary>Column 4 of a table node or category: «+ Добавить».</summary>
     public bool ShowAdd { get; internal set; }
+
+    /// <summary>Editor of column 2 (TZXDATA 8.3); <see cref="PropertyEditorKind.None"/> when the value is read only.</summary>
+    public PropertyEditorKind Editor { get; internal set; }
+    public bool IsEditable => Editor != PropertyEditorKind.None;
+    public bool IsTextEditor => Editor == PropertyEditorKind.Text || Editor == PropertyEditorKind.Number;
+    public bool IsChoiceEditor => Editor == PropertyEditorKind.Choice;
+    /// <summary>Column 2 is a check box: a <c>Boolean</c> parameter or cell; <see cref="Flag"/> is its value.</summary>
+    public bool IsFlagEditor => Editor == PropertyEditorKind.Flag;
+    /// <summary>Items of an <c>Enum</c>: the list shows captions, the key is written.</summary>
+    public IReadOnlyList<PropertyOption> Options { get; internal set; } = Array.Empty<PropertyOption>();
+    /// <summary><c>Editor.AllowCustom</c>: a value outside the list can be typed.</summary>
+    public bool AllowCustom { get; internal set; }
+    /// <summary><c>Editor.Unit</c>, shown next to a number editor.</summary>
+    public string Unit { get; internal set; } = "";
+    /// <summary>
+    /// Text of the editor. It starts with the value, or empty for «Разное»; setting it marks the row changed, so a visit
+    /// without typing writes nothing, while an empty text or the word «Разное» typed by the user are data (stage 4).
+    /// </summary>
+    public string EditText
+    {
+        get => editText;
+        set
+        {
+            IsDirty = true;
+            SetProperty(ref editText, value ?? "");
+        }
+    }
+    /// <summary>The editor text was changed since the value was shown: Enter or leaving the cell writes it.</summary>
+    public bool IsDirty { get; private set; }
+    /// <summary>The check box of column 2 (<see cref="IsFlagEditor"/>) or 3 (<see cref="HasFlag"/>) is applied by a click.</summary>
+    public bool CanSetFlag { get; internal set; }
+    /// <summary><c>×</c>: removes a table row in every object, or a value outside the template or the schema.</summary>
+    public bool CanDelete { get; internal set; }
+    /// <summary><c>✎</c>: shows the cells of a table row as child rows with editors.</summary>
+    public bool CanEditRow { get; internal set; }
+    /// <summary>«+ Добавить» adds a row to the table in every object.</summary>
+    public bool CanAdd { get; internal set; }
+    /// <summary>The cells of the table row are shown (<c>✎</c>).</summary>
+    public bool IsEditing { get => isEditing; internal set => SetProperty(ref isEditing, value); }
+    /// <summary><c>Id</c> of the table of a table node, category, row or cell.</summary>
+    public string? Table { get; internal set; }
+    /// <summary>The key column text of a table row (TZXDATA 4.2); null for a row without a key.</summary>
+    public string? RowKey { get; internal set; }
+    /// <summary>The table column edited in column 2 of a table row or cell.</summary>
+    public string? Column { get; internal set; }
+
+    internal SchemaParameter? Parameter;
+    internal string InitialText = "";
+    internal string? FlagColumn;
+    internal object? CategoryValue;
+    /// <summary>Key of the table node; with <see cref="RowKey"/> it names a row when its category changes.</summary>
+    internal string? TableKey;
+    internal HashSet<string>? RowKeys;
+    internal string? KeyColumn;
+    /// <summary>The <c>GroupBy</c> column of a category: a row added to it gets <see cref="CategoryValue"/>.</summary>
+    internal string? CategoryColumn;
+    /// <summary>Builds the cells shown by <c>✎</c>; called again after every rebuild while the row stays open.</summary>
+    internal Func<IEnumerable<PropertyRow>>? Cells;
+    internal string Identity => Kind switch
+    {
+        PropertyRowKind.TableRow when RowKey != null => TableKey + "/r:" + RowKey,
+        PropertyRowKind.Cell when RowKey != null => TableKey + "/r:" + RowKey + "/f:" + Column,
+        _ => Key
+    };
+
+    /// <summary>Shows the value again in the editor; the row is not changed.</summary>
+    internal void ResetEdit()
+    {
+        IsDirty = false;
+        SetProperty(ref editText, InitialText, nameof(EditText));
+    }
+
+    internal void Changed(string propertyName) => Notify(propertyName);
 
     public override string ToString() => new string(' ', Level * 2) + Caption + " | " + Value + " | " + (HasFlag ? Flag switch { true => "☑", false => "☐", _ => "?" } : StateText) + " | " + Note;
 
@@ -95,8 +198,9 @@ public sealed class PropertyRow : ObservableObject
 }
 
 /// <summary>
-/// Model of the «Свойства» tab (TZXDATA 8, stage 5): a read-only VST built from the value cache of the selection.
-/// Rows of a multiple selection are the union of parameters; differing or missing values are «Разное».
+/// Model of the «Свойства» tab (TZXDATA 8): a VST built from the value cache of the selection. Rows of a multiple
+/// selection are the union of parameters; differing or missing values are «Разное». With a writable source the values
+/// are edited (stage 6, TZXDATA 8.3–8.5): a confirmed change of one value is written to every object in one transaction.
 /// </summary>
 public sealed class PropertyGridViewModel : ObservableObject
 {
@@ -105,19 +209,30 @@ public sealed class PropertyGridViewModel : ObservableObject
     public const string GroupLegacy = "Прежний формат (только чтение)";
     public const string NoCategory = "Без категории";
     public const string DefaultNote = "по умолчанию";
+    public const string NewRowKey = "Новая строка";
 
     private readonly SelectionViewModel selection;
     private readonly CultureInfo culture;
     private readonly ParameterTypeRegistry types;
     private readonly Dictionary<string, Dictionary<string, bool>> expansion = new Dictionary<string, Dictionary<string, bool>>(StringComparer.Ordinal);
     private readonly Dictionary<string, double> offsets = new Dictionary<string, double>(StringComparer.Ordinal);
+    /// <summary>Table rows opened by <c>✎</c>, by <see cref="PropertyRow.Identity"/>: they stay open after a write.</summary>
+    private readonly HashSet<string> editing = new HashSet<string>(StringComparer.Ordinal);
     private IReadOnlyList<PropertyRow> roots = Array.Empty<PropertyRow>();
     private ObservableCollection<PropertyRow> rows = new ObservableCollection<PropertyRow>();
+    private IReadOnlyList<PropertyOption> available = Array.Empty<PropertyOption>();
+    private SchemaSnapshot? schema;
+    private PropertyRow? selectedRow;
+    private string? selectedIdentity;
+    /// <summary>The ancestors of this row are expanded by the next build: a row or parameter just added.</summary>
+    private string? reveal;
     private string templateKey = "";
     private string templateText = "";
     private string message = "Выберите объекты в чертеже";
     private string filter = "";
     private bool isEnabled;
+    private bool canEdit;
+    private bool hasError;
     private bool needsTemplate;
     private bool showActions = true, showState = true, showNote = true;
 
@@ -131,7 +246,14 @@ public sealed class PropertyGridViewModel : ObservableObject
         ToggleCommand = new DelegateCommand(row => { if (row is PropertyRow item) Toggle(item); });
         RefreshCommand = new DelegateCommand(_ => Refresh());
         AssignTemplateCommand = new DelegateCommand(_ => { }, _ => false);
+        DeleteRowCommand = new DelegateCommand(row => { if (row is PropertyRow item) DeleteRow(item); }, row => row is PropertyRow item && CanEdit && item.CanDelete);
+        EditRowCommand = new DelegateCommand(row => { if (row is PropertyRow item) EditRow(item); }, row => row is PropertyRow item && item.CanEditRow);
+        AddRowCommand = new DelegateCommand(row => { if (row is PropertyRow item) AddRow(item); }, row => row is PropertyRow item && CanEdit && item.CanAdd);
+        AddParameterCommand = new DelegateCommand(
+            option => AddParameter(option is PropertyOption item ? item.Key : option as string ?? ""),
+            option => CanEdit && (option is null || option is PropertyOption || option is string));
         selection.Applied += (_, _) => Rebuild();
+        selection.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(SelectionViewModel.CanWrite)) Rebuild(); };
         Rebuild();
     }
 
@@ -143,12 +265,30 @@ public sealed class PropertyGridViewModel : ObservableObject
     public int RowCount { get; private set; }
     /// <summary>No selection: the VST is disabled and empty (TZXDATA 8.5).</summary>
     public bool IsEnabled { get => isEnabled; private set => SetProperty(ref isEnabled, value); }
+    /// <summary>
+    /// Values can be changed: the source writes, the schema is loaded and every object is v2 or without data (stage 6).
+    /// </summary>
+    public bool CanEdit { get => canEdit; private set => SetProperty(ref canEdit, value); }
     /// <summary>The template of the selection: its caption, «Разное» when templates differ, «нет» without one (TZXDATA 8.4).</summary>
     public string TemplateText { get => templateText; private set => SetProperty(ref templateText, value); }
-    /// <summary>Message above the tree: no selection, objects without <c>BobrovXDATA</c>, no schema.</summary>
+    /// <summary>Message above the tree: no selection, objects without <c>BobrovXDATA</c>, no schema, a write or input error.</summary>
     public string Message { get => message; private set => SetProperty(ref message, value); }
+    /// <summary><see cref="Message"/> is the error of the last write or input (TZXDATA 8.5): shown in red.</summary>
+    public bool HasError { get => hasError; private set => SetProperty(ref hasError, value); }
     /// <summary>The selection has objects without <c>BobrovXDATA</c>: «Назначить шаблон» is offered (TZXDATA 8.5).</summary>
     public bool NeedsTemplate { get => needsTemplate; private set => SetProperty(ref needsTemplate, value); }
+    /// <summary>«+ Параметр» (TZXDATA 8.4): scalar parameters of the schema that are not shown yet.</summary>
+    public IReadOnlyList<PropertyOption> AvailableParameters { get => available; private set => SetProperty(ref available, value); }
+    /// <summary>The row in focus: only it gets an editor (TZXDATA 8.3); it is selected again after a write.</summary>
+    public PropertyRow? SelectedRow
+    {
+        get => selectedRow;
+        set
+        {
+            SetProperty(ref selectedRow, value);
+            if (value != null) selectedIdentity = value.Identity;
+        }
+    }
     /// <summary>Filter by <c>Caption</c>, <c>Id</c> or value; rows that do not match are hidden (TZXDATA 8.4).</summary>
     public string Filter
     {
@@ -190,6 +330,14 @@ public sealed class PropertyGridViewModel : ObservableObject
     public ICommand RefreshCommand { get; }
     /// <summary>«Назначить шаблон» runs <c>VELEC_TEMPLATE_APPLY</c> from stage 7; reserved until then.</summary>
     public ICommand AssignTemplateCommand { get; }
+    /// <summary><c>×</c> of column 0: <see cref="DeleteRow"/>.</summary>
+    public ICommand DeleteRowCommand { get; }
+    /// <summary><c>✎</c> of column 0: <see cref="EditRow"/>.</summary>
+    public ICommand EditRowCommand { get; }
+    /// <summary>«+ Добавить» of column 4: <see cref="AddRow"/>.</summary>
+    public ICommand AddRowCommand { get; }
+    /// <summary>«+ Параметр»: <see cref="AddParameter"/> with a <see cref="PropertyOption"/> of <see cref="AvailableParameters"/>.</summary>
+    public ICommand AddParameterCommand { get; }
 
     /// <summary>Raised after every build of the tree, e.g. for the trace of the AutoCAD host.</summary>
     public event EventHandler? Built;
@@ -203,28 +351,226 @@ public sealed class PropertyGridViewModel : ObservableObject
     public void Toggle(PropertyRow row)
     {
         if (row is null) throw new ArgumentNullException(nameof(row));
+        if (row.Kind == PropertyRowKind.TableRow) { if (row.IsEditing) EditRow(row); return; }
         if (!row.IsExpandable) return;
         row.IsExpanded = !row.IsExpanded;
         Saved()[row.Key] = row.IsExpanded;
-        var index = Rows.IndexOf(row);
-        if (filter.Length != 0 || index < 0) { Flatten(); return; }
-        if (row.IsExpanded)
-        {
-            var shown = new List<PropertyRow>();
-            foreach (var child in row.children) Visible(child, shown);
-            for (var i = 0; i < shown.Count; i++) Rows.Insert(index + 1 + i, shown[i]);
-        }
-        else
-            while (index + 1 < Rows.Count && Rows[index + 1].Level > row.Level) Rows.RemoveAt(index + 1);
+        ShowChildren(row);
     }
 
     /// <summary>Finds a row of the tree by its <see cref="PropertyRow.Key"/>.</summary>
     public PropertyRow? Find(string key) => All(roots).FirstOrDefault(row => row.Key == key);
 
+    /// <summary>
+    /// Enter or leaving the cell (TZXDATA 8.5): writes the text of the editor when it was changed. A visit without typing
+    /// writes nothing, so «Разное» stays; an empty text restores the default of a non-string parameter. A wrong input is
+    /// reported above the VST and nothing is written. Returns true when a write was requested.
+    /// </summary>
+    public bool Commit(PropertyRow row)
+    {
+        if (row is null) throw new ArgumentNullException(nameof(row));
+        if (!CanEdit || !row.IsDirty || !row.IsEditable || row.IsFlagEditor || row.Parameter is null) return false;
+        var text = row.EditText;
+        if (!row.IsMixed && string.Equals(text, row.InitialText, StringComparison.Ordinal)) { row.ResetEdit(); return false; }
+        var parameter = row.Parameter;
+        var type = types.Find(parameter.Type);
+        if (type is null || schema?.Schema is null) { row.ResetEdit(); return false; }
+        if (text.Trim().Length == 0 && type.Kind != ParameterKind.String)
+        {
+            // The default of a scalar is the absence of its value (TZXDATA 6.2); a cell has no default.
+            if (row.Kind != PropertyRowKind.Parameter) return Reject(row, "значение не может быть пустым");
+            return Request(row, SelectionEdit.RemoveParameter(row.Id!));
+        }
+        object value = text;
+        if (row.IsChoiceEditor)
+        {
+            var option = row.Options.FirstOrDefault(item => string.Equals(item.Caption, text, StringComparison.Ordinal))
+                ?? row.Options.FirstOrDefault(item => string.Equals(item.Caption, text.Trim(), StringComparison.OrdinalIgnoreCase))
+                ?? row.Options.FirstOrDefault(item => string.Equals(item.Key, text.Trim(), StringComparison.Ordinal));
+            if (option != null) value = option.Key;
+            else if (!row.AllowCustom) return Reject(row, "«" + text + "» нет в списке");
+        }
+        var error = XDataPatch.Check(parameter, type, value, schema.Schema, out var converted);
+        if (error != null) return Reject(row, error);
+        if (row.Kind == PropertyRowKind.Parameter) return Request(row, SelectionEdit.SetParameter(row.Id!, converted));
+        if (row.Table is null || row.RowKey is null || row.Column is null) { row.ResetEdit(); return false; }
+        if (ParameterSchema.SameId(row.Column, row.KeyColumn))
+        {
+            // A new key renames the row in every object: it must stay unique (TZXDATA 4.2).
+            var key = XDataV2.FormatValue(converted);
+            if (key.Length == 0) return Reject(row, "ключ строки не может быть пустым");
+            if (key != row.RowKey && row.RowKeys?.Contains(key) == true) return Reject(row, "строка с ключом «" + key + "» уже есть");
+            Rename(row, key);
+        }
+        return Request(row, SelectionEdit.SetTableCell(row.Table, row.RowKey, row.Column, converted));
+    }
+
+    /// <summary>Esc: the editor shows the value again; nothing is written.</summary>
+    public void Cancel(PropertyRow row)
+    {
+        if (row is null) throw new ArgumentNullException(nameof(row));
+        row.ResetEdit();
+    }
+
+    /// <summary>
+    /// A click on a check box (TZXDATA 8.5): a <c>Boolean</c> parameter, cell or the flag column of a table row is written
+    /// at once. A three-state box of «Разное» gets the clicked value in every object.
+    /// </summary>
+    public bool SetFlag(PropertyRow row, bool value)
+    {
+        if (row is null) throw new ArgumentNullException(nameof(row));
+        if (!CanEdit || !row.CanSetFlag || row.Flag == value) return false;
+        if (row.Kind == PropertyRowKind.Parameter && row.Id != null) return Request(row, SelectionEdit.SetParameter(row.Id, value));
+        var column = row.Kind == PropertyRowKind.TableRow ? row.FlagColumn : row.Column;
+        if (row.Table is null || row.RowKey is null || column is null) return false;
+        return Request(row, SelectionEdit.SetTableCell(row.Table, row.RowKey, column, value));
+    }
+
+    /// <summary>
+    /// <c>×</c>: removes a table row from every object of the selection, or a value outside the template or the schema
+    /// (TZXDATA 6.5, 8.5).
+    /// </summary>
+    public bool DeleteRow(PropertyRow row)
+    {
+        if (row is null) throw new ArgumentNullException(nameof(row));
+        if (!CanEdit || !row.CanDelete) return false;
+        if (row.Kind == PropertyRowKind.TableRow)
+            return row.Table != null && row.RowKey != null && Request(row, SelectionEdit.DeleteTableRow(row.Table, row.RowKey));
+        return row.Id != null && Request(row, SelectionEdit.RemoveParameter(row.Id));
+    }
+
+    /// <summary><c>✎</c>: shows or hides the cells of a table row, one child row per column with its editor.</summary>
+    public void EditRow(PropertyRow row)
+    {
+        if (row is null) throw new ArgumentNullException(nameof(row));
+        if (!row.CanEditRow || row.Cells is null) return;
+        var open = !row.IsEditing;
+        if (open) editing.Add(row.Identity);
+        else editing.Remove(row.Identity);
+        var before = row.children.Count;
+        Open(row, open);
+        RowCount += row.children.Count - before;
+        Notify(nameof(RowCount));
+        ShowChildren(row);
+    }
+
+    /// <summary>
+    /// «+ Добавить» of a table or category: adds a row with a new unique key to every object of the selection; a row of a
+    /// category gets its <c>GroupBy</c> value. The new row is opened by <c>✎</c> with its key cell selected.
+    /// </summary>
+    public bool AddRow(PropertyRow node)
+    {
+        if (node is null) throw new ArgumentNullException(nameof(node));
+        if (!CanEdit || !node.CanAdd || node.Table is null || node.KeyColumn is null || schema is null) return false;
+        if (!schema.Parameters.TryGetValue(node.KeyColumn, out var keyParameter)) return false;
+        var keys = node.RowKeys ?? new HashSet<string>(StringComparer.Ordinal);
+        object? key = null;
+        switch (types.Find(keyParameter.Type)?.Kind)
+        {
+            case ParameterKind.String:
+                var text = NewRowKey;
+                for (var i = 2; keys.Contains(text); i++) text = NewRowKey + " " + i.ToString(CultureInfo.InvariantCulture);
+                key = text;
+                break;
+            case ParameterKind.Integer:
+                key = keys.Select(item => int.TryParse(item, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) ? number : 0).DefaultIfEmpty(0).Max() + 1;
+                break;
+            case ParameterKind.Double:
+                key = Math.Floor(keys.Select(item => double.TryParse(item, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : 0).DefaultIfEmpty(0).Max()) + 1;
+                break;
+            case ParameterKind.Enum:
+                key = schema.Schema?.FindEnum(keyParameter.Enum)?.Items.Select(item => item.Key).FirstOrDefault(item => !string.IsNullOrEmpty(item) && !keys.Contains(item!));
+                break;
+        }
+        if (key is null) return Reject(node, "нет свободного ключа для новой строки");
+        var cells = new List<KeyValuePair<string, object>> { new KeyValuePair<string, object>(keyParameter.Id!, key) };
+        if (node.Kind == PropertyRowKind.Category && node.CategoryColumn != null && node.CategoryValue != null && !ParameterSchema.SameId(node.CategoryColumn, node.KeyColumn))
+            cells.Add(new KeyValuePair<string, object>(node.CategoryColumn, node.CategoryValue));
+        var identity = node.TableKey + "/r:" + XDataV2.FormatValue(key);
+        editing.Add(identity);
+        selectedIdentity = reveal = identity + "/f:" + keyParameter.Id!.ToUpperInvariant();
+        return Request(node, SelectionEdit.AddTableRow(node.Table, cells));
+    }
+
+    /// <summary>
+    /// «+ Параметр» (TZXDATA 8.4): writes a parameter of the schema that is not shown yet to every object, with the value
+    /// of its default (or an empty value of its type); it is shown in «Дополнительные» and selected for editing.
+    /// </summary>
+    public bool AddParameter(string id)
+    {
+        if (!CanEdit || schema?.Schema is null || string.IsNullOrEmpty(id)) return false;
+        if (!AvailableParameters.Any(option => ParameterSchema.SameId(option.Key, id)) || !schema.Parameters.TryGetValue(id, out var parameter)) return false;
+        var type = types.Find(parameter.Type)!;
+        var value = selection.Calculations.FirstOrDefault()?.Value(parameter.Id!) ?? type.Kind switch
+        {
+            ParameterKind.Integer => (object)(int)Math.Ceiling(parameter.Editor?.Min ?? 0),
+            ParameterKind.Double => parameter.Editor?.Min ?? 0.0,
+            ParameterKind.Boolean => false,
+            ParameterKind.Enum => schema.Schema.FindEnum(parameter.Enum)?.Items.FirstOrDefault()?.Key ?? "",
+            _ => ""
+        };
+        var error = XDataPatch.Check(parameter, type, value, schema.Schema, out var converted);
+        if (error != null) { ShowError("Ошибка ввода: " + parameter.Id + ": " + error + "."); return false; }
+        selectedIdentity = reveal = "p:" + parameter.Id!.ToUpperInvariant();
+        return selection.RequestEdit(SelectionEdit.SetParameter(parameter.Id!, converted));
+    }
+
+    private bool Request(PropertyRow row, SelectionEdit edit)
+    {
+        // The controller writes and reads the selection again synchronously: the tree is rebuilt by Applied.
+        if (selection.RequestEdit(edit)) return true;
+        row.ResetEdit();
+        return false;
+    }
+
+    private bool Reject(PropertyRow row, string error)
+    {
+        row.ResetEdit();
+        ShowError("Ошибка ввода: " + (row.Parameter?.Id ?? row.Id ?? row.Caption) + ": " + error + ".");
+        return false;
+    }
+
+    private void ShowError(string text)
+    {
+        Message = text;
+        HasError = true;
+    }
+
+    /// <summary>The key of a row opened by <c>✎</c> changes: it stays open and selected under the new key.</summary>
+    private void Rename(PropertyRow row, string key)
+    {
+        var old = row.TableKey + "/r:" + row.RowKey;
+        var renamed = row.TableKey + "/r:" + key;
+        if (editing.Contains(old)) editing.Add(renamed);
+        if (selectedIdentity != null && (selectedIdentity == old || selectedIdentity.StartsWith(old + "/f:", StringComparison.Ordinal)))
+            selectedIdentity = renamed + selectedIdentity.Substring(old.Length);
+    }
+
+    private void Open(PropertyRow row, bool open)
+    {
+        row.children.Clear();
+        if (open && row.Cells != null) row.children.AddRange(row.Cells());
+        row.IsEditing = open;
+        row.IsExpanded = open;
+        row.Changed(nameof(PropertyRow.IsExpandable));
+    }
+
+    /// <summary>Inserts or removes the visible children of a row that was expanded or collapsed.</summary>
+    private void ShowChildren(PropertyRow row)
+    {
+        var index = Rows.IndexOf(row);
+        if (filter.Length != 0 || index < 0) { Flatten(); return; }
+        while (index + 1 < Rows.Count && Rows[index + 1].Level > row.Level) Rows.RemoveAt(index + 1);
+        if (!row.IsExpanded) return;
+        var shown = new List<PropertyRow>();
+        foreach (var child in row.children) Visible(child, shown);
+        for (var i = 0; i < shown.Count; i++) Rows.Insert(index + 1 + i, shown[i]);
+    }
+
     private void SetAllExpanded(bool expanded)
     {
         var saved = Saved();
-        foreach (var row in All(roots).Where(row => row.IsExpandable))
+        foreach (var row in All(roots).Where(row => row.IsExpandable && row.Kind != PropertyRowKind.TableRow))
         {
             row.IsExpanded = expanded;
             saved[row.Key] = expanded;
@@ -253,19 +599,32 @@ public sealed class PropertyGridViewModel : ObservableObject
         var build = new Builder(this, selection);
         var built = build.Run();
         templateKey = build.TemplateKey;
+        schema = build.Snapshot;
         TemplateText = build.TemplateText;
         NeedsTemplate = build.NeedsTemplate;
-        Message = build.Message;
+        Message = selection.Error ?? build.Message;
+        HasError = selection.Error != null;
         IsEnabled = selection.Entities.Count != 0;
+        CanEdit = build.CanEdit;
+        foreach (var row in All(built).Where(row => row.Kind == PropertyRowKind.TableRow && row.CanEditRow && editing.Contains(row.Identity)).ToArray())
+            Open(row, true);
         var saved = Saved();
         var count = 0;
         foreach (var row in All(built))
         {
             count++;
-            if (row.IsExpandable) row.IsExpanded = saved.TryGetValue(row.Key, out var expanded) ? expanded : row.DefaultExpanded;
+            if (row.IsExpandable && row.Kind != PropertyRowKind.TableRow)
+                row.IsExpanded = saved.TryGetValue(row.Key, out var expanded) ? expanded : row.DefaultExpanded;
+        }
+        if (reveal != null)
+        {
+            foreach (var ancestor in Path(built, reveal) ?? new List<PropertyRow>())
+                if (ancestor.Kind != PropertyRowKind.TableRow) saved[ancestor.Key] = ancestor.IsExpanded = true;
+            reveal = null;
         }
         roots = built;
         RowCount = count;
+        AvailableParameters = build.Available(built);
         Flatten();
         BuildTime = timer.Elapsed;
         Notify(nameof(Roots));
@@ -275,12 +634,27 @@ public sealed class PropertyGridViewModel : ObservableObject
         Built?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>The ancestors of the row with <paramref name="identity"/>, from the root; null when it is not in the tree.</summary>
+    private static List<PropertyRow>? Path(IEnumerable<PropertyRow> rows, string identity)
+    {
+        foreach (var row in rows)
+        {
+            if (row.Identity == identity) return new List<PropertyRow>();
+            if (Path(row.children, identity) is List<PropertyRow> path) { path.Insert(0, row); return path; }
+        }
+        return null;
+    }
+
     private void Flatten()
     {
+        // A new list clears the selection of the view: the row with the same identity is selected again.
+        var identity = selectedIdentity;
         var shown = new List<PropertyRow>();
         if (filter.Length == 0) foreach (var row in roots) Visible(row, shown);
         else foreach (var row in roots) Filtered(row, false, shown);
         Rows = new ObservableCollection<PropertyRow>(shown);
+        SelectedRow = identity is null ? null : shown.FirstOrDefault(row => row.Identity == identity);
+        selectedIdentity = identity;
     }
 
     private static void Visible(PropertyRow row, List<PropertyRow> shown)
@@ -334,7 +708,13 @@ public sealed class PropertyGridViewModel : ObservableObject
             values = selection.Values.Count == selection.Entities.Count ? selection.Values : Array.Empty<ObjectValues>();
             calculations = selection.Calculations.Count == values.Count ? selection.Calculations : values.Select(item => new ObjectCalculation(item, owner.culture, owner.types)).ToArray();
             schema = values.Count != 0 ? values[0].Schema : null;
+            // v1 and newer formats are written only after a migration (TZXDATA 6.1); objects without data get a v2 section.
+            CanEdit = selection.CanWrite && values.Count != 0 && schema?.Schema != null &&
+                values.All(item => item.Format == XDataFormat.None || item.Format == XDataFormat.V2);
         }
+
+        public SchemaSnapshot? Snapshot => schema;
+        public bool CanEdit { get; }
 
         public string TemplateKey { get; private set; } = "";
         public string TemplateText { get; private set; } = "";
@@ -358,6 +738,8 @@ public sealed class PropertyGridViewModel : ObservableObject
             else if (schema?.Schema is null) Message = "Схема параметров не загружена (VELEC_SCHEMA_IMPORT): значения показаны как строки.";
             else if (none == count) Message = "Нет данных " + DrawingNames.RegApp + ": назначьте шаблон.";
             else if (none != 0) Message = "Объектов без " + DrawingNames.RegApp + ": " + none + " — их значения показаны как «Разное».";
+            if (selection.CanWrite && values.Any(item => item.Format == XDataFormat.V1 || item.Format == XDataFormat.Newer))
+                Message = (Message.Length == 0 ? "" : Message + " ") + "Есть объекты в формате v1 или более новой версии: только чтение.";
             return result;
         }
 
@@ -407,22 +789,25 @@ public sealed class PropertyGridViewModel : ObservableObject
                 if (group.Ids is null) groups.Add(group = (name, new List<string>()));
                 group.Ids.Add(id);
             }
-            foreach (var group in groups) result.Add(Group("g:" + group.Name, group.Name, group.Ids));
-            if (extra.Count != 0) result.Add(Group("g:" + GroupExtra, GroupExtra, extra));
+            foreach (var group in groups) result.Add(Group("g:" + group.Name, group.Name, group.Ids, false));
+            if (extra.Count != 0) result.Add(Group("g:" + GroupExtra, GroupExtra, extra, true));
             if (outside.Count != 0)
             {
-                var node = Group("g:" + GroupNotInSchema, GroupNotInSchema + " (" + outside.Count + ")", outside);
+                var node = Group("g:" + GroupNotInSchema, GroupNotInSchema + " (" + outside.Count + ")", outside, true);
                 node.DefaultExpanded = false;
                 node.State = PropertyState.Error;
                 node.StateText = PropertyRow.Symbol(PropertyState.Error);
-                node.Note = "удаление — этап 6";
+                node.Note = CanEdit ? "× — удалить значение" : "только чтение";
                 node.ToolTip = "Id есть в XDATA объекта, но не описан в схеме NOD (TZXDATA 6.5).";
                 result.Add(node);
             }
         }
 
-        /// <summary>A group of one table with the same caption is shown as the table node itself (TZXDATA 8.1).</summary>
-        private PropertyRow Group(string key, string name, List<string> ids)
+        /// <summary>
+        /// A group of one table with the same caption is shown as the table node itself (TZXDATA 8.1). Values of a
+        /// <paramref name="removable"/> group (outside the template or the schema) get <c>×</c>.
+        /// </summary>
+        private PropertyRow Group(string key, string name, List<string> ids, bool removable)
         {
             if (ids.Count == 1 && schema!.Parameters.TryGetValue(ids[0], out var only) && Kind(only) == ParameterKind.Table &&
                 string.Equals(Caption(only), name, StringComparison.OrdinalIgnoreCase))
@@ -431,9 +816,11 @@ public sealed class PropertyGridViewModel : ObservableObject
             foreach (var id in ids)
             {
                 var parameter = schema!.Parameters.TryGetValue(id, out var found) ? found : null;
-                group.children.Add(parameter != null && Kind(parameter) == ParameterKind.Table || parameter is null && IsList(id)
+                var child = parameter != null && Kind(parameter) == ParameterKind.Table || parameter is null && IsList(id)
                     ? Table(id, parameter, 1, key + "/")
-                    : Scalar(id, parameter, 1));
+                    : Scalar(id, parameter, 1);
+                child.CanDelete = removable && CanEdit && !ParameterSchema.ReservedIds.Contains(id, StringComparer.OrdinalIgnoreCase);
+                group.children.Add(child);
             }
             return group;
         }
@@ -506,7 +893,59 @@ public sealed class PropertyGridViewModel : ObservableObject
             row.IsDefault = !mixed && allDefault && state == PropertyState.Default;
             row.Note = error ?? (allDefault && state == PropertyState.Default ? DefaultNote : parameter?.Description ?? (parameter is null ? "не описан в схеме" : ""));
             row.ToolTip = Tip(row.Id!, parameter, error);
+            if (parameter != null && Kind(parameter) == ParameterKind.Boolean)
+            {
+                var flags = calculations.Select(calculation => calculation.Value(id) as bool?).Distinct().ToArray();
+                row.Flag = flags.Length == 1 && !mixed ? flags[0] : null;
+            }
+            SetEditor(row, parameter);
             return row;
+        }
+
+        /// <summary>The editor of column 2 by the type of the parameter (TZXDATA 8.3).</summary>
+        private void SetEditor(PropertyRow row, SchemaParameter? parameter)
+        {
+            row.Parameter = parameter;
+            if (!CanEdit || parameter?.Id is null || parameter.Editor?.ReadOnly == true ||
+                ParameterSchema.ReservedIds.Contains(parameter.Id, StringComparer.OrdinalIgnoreCase)) return;
+            var kind = Kind(parameter);
+            row.Editor = kind switch
+            {
+                ParameterKind.String => PropertyEditorKind.Text,
+                ParameterKind.Integer => PropertyEditorKind.Number,
+                ParameterKind.Double => PropertyEditorKind.Number,
+                ParameterKind.Boolean => PropertyEditorKind.Flag,
+                ParameterKind.Enum => PropertyEditorKind.Choice,
+                _ => PropertyEditorKind.None
+            };
+            if (row.Editor == PropertyEditorKind.None) return;
+            if (kind == ParameterKind.Enum)
+            {
+                row.Options = schema!.Schema!.FindEnum(parameter.Enum)?.Items.Where(item => !string.IsNullOrEmpty(item.Key))
+                    .Select(item => new PropertyOption(item.Key!, string.IsNullOrEmpty(item.Caption) ? item.Key! : item.Caption!)).ToArray() ?? Array.Empty<PropertyOption>();
+                row.AllowCustom = parameter.Editor?.AllowCustom == true;
+            }
+            row.Unit = parameter.Editor?.Unit ?? "";
+            row.CanSetFlag = row.Editor == PropertyEditorKind.Flag;
+            row.InitialText = row.IsMixed ? "" : row.Value;
+            row.ResetEdit();
+        }
+
+        /// <summary>
+        /// «+ Параметр»: scalar parameters of the schema that the tree does not show, except system ids, formulas and
+        /// table columns.
+        /// </summary>
+        public IReadOnlyList<PropertyOption> Available(IReadOnlyList<PropertyRow> built)
+        {
+            if (!CanEdit) return Array.Empty<PropertyOption>();
+            var shown = new HashSet<string>(All(built).Where(row => row.Id != null).Select(row => row.Id!), StringComparer.OrdinalIgnoreCase);
+            var columns = new HashSet<string>(schema!.Parameters.Values.Where(parameter => parameter.Columns != null).SelectMany(parameter => parameter.Columns!), StringComparer.OrdinalIgnoreCase);
+            return schema.Schema!.Parameters
+                .Where(parameter => !string.IsNullOrEmpty(parameter.Id) && !shown.Contains(parameter.Id!) && !columns.Contains(parameter.Id!) &&
+                    !ParameterSchema.ReservedIds.Contains(parameter.Id!, StringComparer.OrdinalIgnoreCase) && parameter.Editor?.ReadOnly != true &&
+                    Kind(parameter) is ParameterKind kind && kind != ParameterKind.Table && kind != ParameterKind.CalculatedString)
+                .Select(parameter => new PropertyOption(parameter.Id!, Caption(parameter) == parameter.Id ? parameter.Id! : Caption(parameter) + " (" + parameter.Id + ")"))
+                .ToArray();
         }
 
         /// <summary>Priority of the merged state: an error, then a stored, a calculated and a default value.</summary>
@@ -556,7 +995,15 @@ public sealed class PropertyGridViewModel : ObservableObject
                 }
                 else perObject.Add(null);
             }
-            Merge(node, perObject, level + 1, key);
+            node.Table = node.Id;
+            node.TableKey = key;
+            if (parameter != null)
+            {
+                node.KeyColumn = XDataV2.KeyColumn(parameter, schema!, Types);
+                node.CanAdd = CanEdit && node.KeyColumn != null && parameter.Editor?.ReadOnly != true;
+            }
+            node.RowKeys = new HashSet<string>(perObject.Where(rows => rows != null).SelectMany(rows => rows!).Where(row => row.Key != null).Select(row => row.Key!), StringComparer.Ordinal);
+            Merge(node, perObject, level + 1, key, parameter is null ? null : columns);
             node.State = state;
             node.StateText = PropertyRow.Symbol(state);
             node.Note = error ?? "";
@@ -627,31 +1074,37 @@ public sealed class PropertyGridViewModel : ObservableObject
             public string[] Texts = { "", "", "", "", "" };
             public bool? Flag;
             public string Tip = "";
+            /// <summary>The stored <c>GroupBy</c> value: a row added to the category gets it.</summary>
+            public object? CategoryValue;
+            public ObjectRow? Source;
         }
 
         private RowData RowOf(ObjectRow row, TableColumns columns)
         {
-            var data = new RowData { Key = row.Key };
-            string Text(ObjectValue? cell, SchemaParameter? parameter) =>
-                cell is null ? "" : cell.State == ObjectValueState.Typed && parameter != null && !cell.IsTable
-                    ? ObjectCalculation.FormatValue(schema!, parameter, cell.Value, false, Culture, Types) : cell.Text;
+            var data = new RowData { Key = row.Key, Source = row };
             for (var i = 1; i <= 4; i++)
                 if (columns.Ids[i] is string column) data.Texts[i] = Text(row.Find(column), columns.Parameters[i]);
             if (columns.FlagColumn && columns.Ids[3] is string flag && row.Find(flag) is ObjectValue cell && cell.Value is bool value) data.Flag = value;
             if (columns.GroupBy != null)
             {
-                var category = Text(row.Find(columns.GroupBy), columns.GroupByParameter);
+                var stored = row.Find(columns.GroupBy);
+                var category = Text(stored, columns.GroupByParameter);
                 data.Category = category.Length == 0 ? NoCategory : category;
+                if (category.Length != 0 && stored?.State == ObjectValueState.Typed && !stored.IsTable) data.CategoryValue = stored.Value;
             }
             data.Tip = string.Join("\n", columns.All.Select((column, index) => columns.Names[index] + ": " + Text(row.Find(column), schema!.Parameters.TryGetValue(column, out var found) ? found : null)));
             return data;
         }
 
+        private string Text(ObjectValue? cell, SchemaParameter? parameter) =>
+            cell is null ? "" : cell.State == ObjectValueState.Typed && parameter != null && !cell.IsTable
+                ? ObjectCalculation.FormatValue(schema!, parameter, cell.Value, false, Culture, Types) : cell.Text;
+
         /// <summary>
         /// Rows of all objects matched by the key column (TZXDATA 4.2), or by position without a key; a row missing on an
-        /// object, or a differing cell, gives «Разное».
+        /// object, or a differing cell, gives «Разное». Rows of a schema table (<paramref name="columns"/>) get their editors.
         /// </summary>
-        private void Merge(PropertyRow node, IReadOnlyList<IReadOnlyList<RowData>?> perObject, int level, string key)
+        private void Merge(PropertyRow node, IReadOnlyList<IReadOnlyList<RowData>?> perObject, int level, string key, TableColumns? columns = null)
         {
             var merged = new List<(string Key, RowData?[] Rows)>();
             var index = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -697,6 +1150,17 @@ public sealed class PropertyGridViewModel : ObservableObject
                     if (parent is null)
                     {
                         parent = new PropertyRow(PropertyRowKind.Category, key + "/c:" + category, category, level);
+                        if (columns != null)
+                        {
+                            parent.Table = node.Table;
+                            parent.TableKey = node.TableKey;
+                            parent.KeyColumn = node.KeyColumn;
+                            parent.RowKeys = node.RowKeys;
+                            parent.CanAdd = node.CanAdd;
+                            parent.ShowAdd = true;
+                            parent.CategoryColumn = columns.GroupBy;
+                            parent.CategoryValue = category == ObjectCalculation.Various ? null : item.Rows.First(row => row != null)!.CategoryValue;
+                        }
                         categories.Add(parent);
                         node.children.Add(parent);
                     }
@@ -717,9 +1181,86 @@ public sealed class PropertyGridViewModel : ObservableObject
                 row.Flag = all && flags.Length == 1 ? flags[0] : null;
                 if (!row.HasFlag) row.StateText = stateText == ObjectCalculation.Various ? "…" : stateText;
                 row.ToolTip = string.Join("\n\n", item.Rows.Where(data => data != null).Select(data => data!.Tip).Distinct(StringComparer.Ordinal));
+                if (columns != null) Editors(node, row, item.Key, item.Rows, all, columns);
                 parent.children.Add(row);
             }
             foreach (var category in categories) category.Value = RowsText(category.children.Count);
+        }
+
+        /// <summary>
+        /// A row of a schema table: <c>×</c>, <c>✎</c>, the editor of column 2 and the check box of column 3 (TZXDATA 8.2).
+        /// A row is changed by its key in every object, so a row without a key is read only.
+        /// </summary>
+        private void Editors(PropertyRow node, PropertyRow row, string name, RowData?[] rows, bool all, TableColumns columns)
+        {
+            var first = rows.First(data => data != null)!;
+            row.Table = node.Table;
+            row.TableKey = node.TableKey;
+            row.KeyColumn = node.KeyColumn;
+            row.RowKeys = node.RowKeys;
+            row.RowKey = first.Key != null && name == "k:" + first.Key ? first.Key : null;
+            var editable = node.CanAdd && row.RowKey != null;
+            row.CanDelete = row.CanEditRow = editable;
+            row.Cells = () => Cells(row, rows, all, columns, editable);
+            if (!editable) return;
+            row.Column = columns.Ids[2];
+            if (columns.Parameters[2] is SchemaParameter second)
+            {
+                SetEditor(row, second);
+                if (row.IsFlagEditor)
+                {
+                    // Column 3 is the check box of the row: a Boolean in column 2 is a «Да»/«Нет» list.
+                    row.Editor = PropertyEditorKind.Choice;
+                    row.Options = new[] { new PropertyOption("1", "Да"), new PropertyOption("0", "Нет") };
+                }
+            }
+            if (columns.FlagColumn && columns.Ids[3] is string flag && columns.Parameters[3]?.Editor?.ReadOnly != true)
+            {
+                row.FlagColumn = flag;
+                row.CanSetFlag = true;
+            }
+            else row.CanSetFlag = false;
+        }
+
+        /// <summary>The cells of a table row shown by <c>✎</c>: every column with its editor, «Разное» when they differ.</summary>
+        private IEnumerable<PropertyRow> Cells(PropertyRow row, RowData?[] rows, bool all, TableColumns columns, bool editable)
+        {
+            foreach (var column in columns.All)
+            {
+                var parameter = schema!.Parameters.TryGetValue(column, out var found) ? found : null;
+                var cells = rows.Where(data => data != null).Select(data => data!.Source?.Find(column)).ToArray();
+                var texts = cells.Select(cell => Text(cell, parameter)).Distinct(StringComparer.Ordinal).ToArray();
+                var cell = new PropertyRow(PropertyRowKind.Cell, row.Key + "/f:" + column.ToUpperInvariant(), parameter is null ? column : CaptionWithUnit(parameter), row.Level + 1)
+                {
+                    Id = parameter?.Id ?? column,
+                    Table = row.Table,
+                    TableKey = row.TableKey,
+                    KeyColumn = row.KeyColumn,
+                    RowKeys = row.RowKeys,
+                    RowKey = row.RowKey,
+                    Column = parameter?.Id ?? column,
+                    IsMixed = !all || texts.Length != 1
+                };
+                cell.Value = cell.IsMixed ? ObjectCalculation.Various : texts[0];
+                var state = PropertyState.None;
+                string? error = null;
+                foreach (var stored in cells.Where(stored => stored != null))
+                {
+                    state = Worse(state, stored!.State == ObjectValueState.Typed && stored.Warning is null ? PropertyState.Set : PropertyState.Error);
+                    error ??= stored.Warning;
+                }
+                cell.State = state;
+                cell.StateText = PropertyRow.Symbol(state);
+                cell.Note = error ?? parameter?.Description ?? (parameter is null ? "не описан в схеме" : "");
+                cell.ToolTip = Tip(column, parameter, error);
+                if (parameter != null && Kind(parameter) == ParameterKind.Boolean)
+                {
+                    var flags = cells.Select(stored => stored?.Value as bool?).Distinct().ToArray();
+                    cell.Flag = !cell.IsMixed && flags.Length == 1 ? flags[0] : null;
+                }
+                if (editable) SetEditor(cell, parameter);
+                yield return cell;
+            }
         }
 
         private bool HasLegacy(string handle) =>

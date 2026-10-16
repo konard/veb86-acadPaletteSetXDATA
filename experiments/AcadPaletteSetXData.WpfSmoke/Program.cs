@@ -308,6 +308,9 @@ internal static class Program
         Check(menu.IsOpen && templates.Select(item => (string)item.Tag).SequenceEqual(new[] { "DEVICE", "MOTOR" }),
             "The template menu must list the templates of the entity types: " + string.Join(", ", templates.Select(item => item.Tag)));
         Check(!Item(menu, "").IsEnabled && !Item(menu, "defaults").IsEnabled, "Without a template nothing can be removed or committed.");
+        Pump(view);
+        var right = menu.PointToScreen(new Point(menu.ActualWidth, 0)).X - view.PointToScreen(new Point(view.ActualWidth, 0)).X;
+        Check(right <= 1, "The menu of «Назначить шаблон» must open leftwards inside the palette: " + right.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
         SaveWithPopup(view, menu, Path.Combine(output, "tzxdata-stage7-template-menu.png"));
         var commits = source.Commits;
         Click(templates[1], menu, view);

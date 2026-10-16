@@ -247,6 +247,10 @@ public partial class PropertyGridView : UserControl
         defaults.Click += (_, _) => grid.CommitDefaults();
         TemplateMenu.Items.Add(defaults);
         TemplateMenu.PlacementTarget = (UIElement)sender;
+        // «Назначить шаблон» is at the right edge of the panel: the menu opens leftwards under it and stays inside the palette.
+        TemplateMenu.Placement = ReferenceEquals(sender, AssignTemplateButton) ? PlacementMode.Custom : PlacementMode.Bottom;
+        TemplateMenu.CustomPopupPlacementCallback = (popup, target, _) =>
+            new[] { new CustomPopupPlacement(new Point(target.Width - popup.Width, target.Height), PopupPrimaryAxis.Horizontal) };
         TemplateMenu.IsOpen = true;
     }
 

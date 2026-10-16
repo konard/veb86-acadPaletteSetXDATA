@@ -8,6 +8,7 @@ using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -65,6 +66,7 @@ internal static class Program
             VerifyVirtualization(view, model, source, output);
             VerifyTemplateOffer(view, model, source, output);
             VerifyLegacy(view, model, tabs, source, output);
+            VerifyEditing(view, model, source, output);
             source.Select(SampleSelection());
             VerifyMinimum(window, view, model, tabs, output);
             Check(bindingErrors.Messages.Count == 0, "WPF binding failures: " + string.Join("\n", bindingErrors.Messages));
@@ -74,7 +76,8 @@ internal static class Program
             Check(view.DataContext == null, "Disposal must detach the ViewModel.");
             application.Shutdown();
             Console.WriteLine("WPF checks passed: VST columns and states, «Разное», table rows, control panel, filter, column menu, " +
-                              "virtualization, kept expansion and scroll, template offer, legacy data, XDATA tree, themes, resize and disposal.");
+                              "virtualization, kept expansion and scroll, template offer, legacy data, editors, Enter/Esc, check boxes, × ✎ «+ Добавить», " +
+                              "«+ Параметр», write errors, XDATA tree, themes, resize and disposal.");
             return 0;
         }
         catch (Exception error)
@@ -93,7 +96,7 @@ internal static class Program
         Check(!list.IsEnabled && list.Items.Count == 0, "Without a selection the VST must be disabled and empty.");
         Check(((TextBlock)grid.FindName("MessageText")).Text == "Выберите объекты в чертеже" && ((TextBlock)grid.FindName("MessageText")).IsVisible,
             "The empty selection must explain what to do.");
-        Save(view, Path.Combine(output, "tzxdata-stage5-empty.png"));
+        Save(view, Path.Combine(output, "tzxdata-stage6-empty.png"));
     }
 
     private static void VerifyThemes(PaletteView view, PaletteViewModel model, TabControl tabs, string output)
@@ -143,14 +146,15 @@ internal static class Program
             Check(Descendants<CheckBox>(list).Any(flag => flag.IsVisible && flag.IsChecked == null) &&
                   Descendants<CheckBox>(list).Any(flag => flag.IsVisible && flag.IsChecked == true),
                 "The Boolean column of table rows must show three-state flags.");
-            Check(Descendants<Button>(list).Count(button => AutomationProperties.GetName(button) == "Удалить строку" && button.IsVisible && !button.IsEnabled) >= 2,
-                "Table rows must show the reserved × ✎ actions.");
+            Check(Descendants<Button>(list).Count(button => AutomationProperties.GetName(button) == "Удалить строку" && button.IsVisible && button.IsEnabled) >= 2 &&
+                  Descendants<Button>(list).Count(button => AutomationProperties.GetName(button) == "Редактировать строку" && button.IsVisible && button.IsEnabled) >= 2,
+                "Table rows of a writable selection must offer × and ✎.");
             Check(Descendants<Button>(list).Any(button => AutomationProperties.GetName(button) == "Добавить строку" && button.IsVisible),
                 "A table of the schema must offer «+ Добавить».");
             Check(Descendants<TextBlock>(list).Any(text => text.Text == "по умолчанию"), "Template defaults must be noted.");
             var header = Descendants<GridViewColumnHeader>(list).First(item => (item.Content as string) == "ПАРАМЕТР");
             Check(Fore(header) == muted, "Column headers must follow the theme.");
-            Save(view, Path.Combine(output, $"tzxdata-stage5-{theme.ToString().ToLowerInvariant()}.png"));
+            Save(view, Path.Combine(output, $"tzxdata-stage6-{theme.ToString().ToLowerInvariant()}.png"));
         }
         model.Theme = PaletteTheme.Dark;
         Pump(view);
@@ -194,8 +198,8 @@ internal static class Program
         Check(Math.Abs(toolbar.ActualHeight - 32) < 0.5, "The control panel must reserve 32 px.");
         Check(Descendants<TextBlock>((DependencyObject)grid.FindName("TemplateIndicator")).Any(text => text.Text.Contains("Устройство")),
             "The template indicator must show the template of the selection.");
-        Check(!((Button)grid.FindName("AddParameterButton")).IsEnabled && !((Button)grid.FindName("SchemaButton")).IsEnabled,
-            "«+ Параметр» and «⚙ Схема» are reserved for later stages.");
+        Check(((Button)grid.FindName("AddParameterButton")).IsEnabled && !((Button)grid.FindName("SchemaButton")).IsEnabled,
+            "«+ Параметр» edits a writable selection; «⚙ Схема» is reserved for a later stage.");
         var reads = source.Reads;
         Invoke((Button)grid.FindName("RefreshButton"), view);
         Check(source.Reads == reads + 1, "⟳ must re-read the selection.");
@@ -211,7 +215,7 @@ internal static class Program
         Check(model.Grid.Filter == "мощн" && !placeholder.IsVisible, "Typing must filter the VST.");
         Check(list.Items.Cast<PropertyRow>().Select(row => row.Caption).SequenceEqual(new[] { "Электрика", "Мощность, кВт" }),
             "The filter must hide rows that do not match.");
-        Save(view, Path.Combine(output, "tzxdata-stage5-filter.png"));
+        Save(view, Path.Combine(output, "tzxdata-stage6-filter.png"));
         filter.Text = "";
         Pump(view);
         Check(list.Items.Count == model.Grid.RowCount, "Clearing the filter must restore the rows.");
@@ -269,7 +273,7 @@ internal static class Program
         Check(Math.Abs(model.Grid.ScrollOffset - scroll.VerticalOffset) < 0.5 && scroll.VerticalOffset > 100,
             "Scrolling must be saved for the template.");
         Check(Descendants<ListViewItem>(list).Count() < list.Items.Count, "Scrolling must keep the list virtualized.");
-        Save(view, Path.Combine(output, "tzxdata-stage5-virtualized.png"));
+        Save(view, Path.Combine(output, "tzxdata-stage6-virtualized.png"));
         var saved = scroll.VerticalOffset;
         source.Select(new[] { Object("K1", "CABLE", "Polyline", Pair("Cable_Mark", "ВВГнг")) });
         Pump(view);
@@ -292,7 +296,7 @@ internal static class Program
         var assign = (Button)grid.FindName("AssignTemplateButton");
         Check(model.Grid.NeedsTemplate && assign.IsVisible && !assign.IsEnabled, "«Назначить шаблон» must be offered and reserved.");
         Check(((TextBlock)grid.FindName("MessageText")).Text.Contains("назначьте шаблон"), "The message must explain the offer.");
-        Save(view, Path.Combine(output, "tzxdata-stage5-no-template.png"));
+        Save(view, Path.Combine(output, "tzxdata-stage6-no-template.png"));
         source.Select(SampleSelection());
         Pump(view);
         Check(!assign.IsVisible, "Objects with data must not offer a template.");
@@ -308,7 +312,7 @@ internal static class Program
         Check(Descendants<TextBlock>(list).Any(text => text.Text == PropertyGridViewModel.GroupLegacy), "The legacy group must be shown.");
         // CD35 is in the ESMT data of A1 and in the XML XRecord of B2; СВ110-5 of A1 alone is «Разное».
         Check(Descendants<TextBlock>(list).Any(text => text.Text == "CD35"), "Legacy materials must be table rows.");
-        Save(view, Path.Combine(output, "tzxdata-stage5-legacy.png"));
+        Save(view, Path.Combine(output, "tzxdata-stage6-legacy.png"));
         var selector = (ComboBox)view.FindName("SelectedEntityField");
         selector.SelectedIndex = 0;
         tabs.SelectedIndex = 1;
@@ -326,6 +330,168 @@ internal static class Program
         Check(model.Grid.Rows.Count > 0 && List(Grid(view)).Items.Count == model.Grid.Rows.Count, "Switching tabs must keep the VST.");
     }
 
+    /// <summary>
+    /// TZXDATA stage 6: only the selected row has an editor; Enter writes the whole selection through XDataWriter, Esc
+    /// restores the value, wrong input and failed writes are reported; check boxes, × ✎ «+ Добавить» and «+ Параметр».
+    /// </summary>
+    private static void VerifyEditing(PaletteView view, PaletteViewModel model, MemorySelection source, string output)
+    {
+        source.Select(SampleSelection());
+        Pump(view);
+        var grid = Grid(view);
+        var list = List(grid);
+        var message = (TextBlock)grid.FindName("MessageText");
+        Check(model.Grid.CanEdit, "A writable v2 selection must be editable.");
+        Check(!Descendants<TextBox>(list).Any(box => box.IsVisible), "Rows that are not selected must not show editors.");
+
+        // «Разное»: a visit without typing writes nothing; typed text and Enter write every object in one transaction.
+        var name = Select(list, Parameter(model, "NMO_Name"), view);
+        var editor = Editor<TextBox>(list, name);
+        Check(name.IsMixed && editor.Text == "" && Descendants<TextBox>(list).Count(box => box.IsVisible) == 1,
+            "The selected «Разное» row must show one empty editor.");
+        var commits = source.Commits;
+        Press(editor, Key.Enter, view);
+        Check(source.Commits == commits, "Enter without typing must not write «Разное».");
+        editor = Editor<TextBox>(list, Selected(list));
+        editor.Text = "Щит ВРУ";
+        Pump(view);
+        Press(editor, Key.Enter, view);
+        Check(source.Commits == commits + 1 && source.Stored("NMO_Name").All(value => Equals(value, "Щит ВРУ")),
+            "Enter must write the value to every object at once.");
+        Check(Selected(list).Id == "NMO_Name" && !Selected(list).IsMixed && Selected(list).Value == "Щит ВРУ",
+            "The written row must stay selected with the common value.");
+
+        // Esc restores the shown value; nothing is written.
+        var power = Select(list, Parameter(model, "Power"), view);
+        editor = Editor<TextBox>(list, power);
+        var shown = editor.Text;
+        editor.Text = "4";
+        Pump(view);
+        Check(Descendants<TextBlock>(Container(list, power)).Any(text => text.IsVisible && text.Text == "кВт"), "The number editor must show its unit.");
+        Save(view, Path.Combine(output, "tzxdata-stage6-editor.png"));
+        Press(editor, Key.Escape, view);
+        Check(source.Commits == commits + 1 && editor.Text == shown && !power.IsDirty, "Esc must restore the value without writing.");
+
+        // Input outside the schema limits is reported in red above the VST and is not written.
+        editor.Text = "-1";
+        Pump(view);
+        Press(editor, Key.Enter, view);
+        Check(source.Commits == commits + 1 && model.Grid.HasError && message.Text.StartsWith("Ошибка ввода: Power", StringComparison.Ordinal) &&
+              Fore(message) == Resource(view, "PaletteError"), "Wrong input must be reported and not written: " + message.Text);
+        Save(view, Path.Combine(output, "tzxdata-stage6-input-error.png"));
+
+        // An Enum value is picked in the list and written when the list closes.
+        var phase = Select(list, Parameter(model, "Phase"), view);
+        var choice = Editor<ComboBox>(list, phase);
+        var option = phase.Options.Last();
+        Check(choice.Items.Count == phase.Options.Count && phase.Options.Count > 1, "The list must offer the values of the enum.");
+        choice.IsDropDownOpen = true;
+        Pump(view);
+        choice.SelectedItem = option;
+        choice.IsDropDownOpen = false;
+        Pump(view);
+        Check(source.Commits == commits + 2 && source.Stored("Phase").All(value => Equals(value, option.Key)) && !model.Grid.HasError,
+            "A picked value must be written to every object: " + string.Join(", ", source.Stored("Phase")));
+
+        // A click on the three-state box of «Разное» writes the clicked state; the other values are kept.
+        Invoke((Button)grid.FindName("ExpandAllButton"), view);
+        var concrete = TableRow(model, "СВ110-5");
+        list.ScrollIntoView(concrete);
+        Pump(view);
+        var flag = Descendants<CheckBox>(Container(list, concrete)).Single(box => box.IsVisible && AutomationProperties.GetName(box) == "Флаг строки");
+        Check(flag.IsChecked == null, "Different flags must show the mixed box.");
+        flag.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, flag));
+        Pump(view);
+        Check(source.Commits == commits + 3 && source.Cells("Materials", "СВ110-5", "Mat_InSpec").All(value => Equals(value, true)) &&
+              source.Cells("Materials", "CD35", "Mat_Count").All(value => Equals(value, 2.0)), "A check box must set the flag in every object.");
+
+        // ✎ shows the cells of a row; a cell is written like a parameter.
+        var row = TableRow(model, "CD35");
+        Invoke(Action(list, row, "Редактировать строку"), view);
+        row = TableRow(model, "CD35");
+        var count = Select(list, model.Grid.Rows.Single(item => item.Kind == PropertyRowKind.Cell && item.RowKey == "CD35" && item.Column == "Mat_Count"), view);
+        Check(row.IsEditing && list.Items.Cast<PropertyRow>().Count(item => item.Kind == PropertyRowKind.Cell && item.RowKey == "CD35") >= 4,
+            "✎ must show every field of the row.");
+        editor = Editor<TextBox>(list, count);
+        editor.Text = "5";
+        Pump(view);
+        Save(view, Path.Combine(output, "tzxdata-stage6-row-edit.png"));
+        Press(editor, Key.Enter, view);
+        Check(source.Commits == commits + 4 && source.Cells("Materials", "CD35", "Mat_Count").All(value => Equals(value, 5.0)) &&
+              Selected(list).Column == "Mat_Count" && TableRow(model, "CD35").IsEditing, "A cell must be written and stay open.");
+
+        // «+ Добавить» adds a row to every object and selects its key; × deletes it again.
+        var rows = source.Rows("Materials").Count;
+        Invoke(Descendants<Button>(list).First(button => button.IsVisible && AutomationProperties.GetName(button) == "Добавить строку"), view);
+        var added = Selected(list);
+        Check(source.Commits == commits + 5 && source.Rows("Materials").Count == rows + 1 && added.Kind == PropertyRowKind.Cell &&
+              added.RowKey == PropertyGridViewModel.NewRowKey && added.Column == "Mat_Mark", "«+ Добавить» must add a row and select its key.");
+        Invoke(Action(list, TableRow(model, PropertyGridViewModel.NewRowKey), "Удалить строку"), view);
+        Check(source.Commits == commits + 6 && source.Rows("Materials").Count == rows, "× must delete the row in every object.");
+
+        // «+ Параметр» offers the parameters of the schema that are not shown and writes the chosen one.
+        var add = (Button)grid.FindName("AddParameterButton");
+        Invoke(add, view);
+        var menu = (ContextMenu)grid.FindName("ParameterMenu");
+        var poles = menu.Items.OfType<MenuItem>().SingleOrDefault(item => Equals(item.Tag, "Poles"));
+        Check(menu.IsOpen && poles != null && poles.IsEnabled && menu.Items.Count == model.Grid.AvailableParameters.Count,
+            "«+ Параметр» must list the parameters of the schema that are not shown.");
+        SaveWithPopup(view, menu, Path.Combine(output, "tzxdata-stage6-add-parameter.png"));
+        poles!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, poles));
+        menu.IsOpen = false;
+        Pump(view);
+        Check(source.Commits == commits + 7 && source.Stored("Poles").All(value => Equals(value, 1)) && Selected(list).Id == "Poles" &&
+              !model.Grid.AvailableParameters.Any(item => item.Key == "Poles"), "The added parameter must be written and selected.");
+
+        // A failed transaction writes nothing: the error is shown, the values and the selection are kept.
+        source.FailWrite = true;
+        name = Select(list, Parameter(model, "NMO_Name"), view);
+        editor = Editor<TextBox>(list, name);
+        editor.Text = "Не записано";
+        Pump(view);
+        Press(editor, Key.Enter, view);
+        Check(source.Commits == commits + 7 && source.Stored("NMO_Name").All(value => Equals(value, "Щит ВРУ")) && model.Grid.HasError &&
+              message.Text.StartsWith("Ошибка записи", StringComparison.Ordinal) && Selected(list).Id == "NMO_Name",
+            "A failed write must keep the values and the selection: " + message.Text);
+        Save(view, Path.Combine(output, "tzxdata-stage6-write-error.png"));
+        source.FailWrite = false;
+        source.Select(SampleSelection());
+        Pump(view);
+        Check(!model.Grid.HasError, "Reading the selection again must clear the error.");
+    }
+
+    private static PropertyRow Parameter(PaletteViewModel model, string id) =>
+        model.Grid.Rows.Single(row => row.Kind == PropertyRowKind.Parameter && row.Id == id);
+
+    private static PropertyRow TableRow(PaletteViewModel model, string key) =>
+        model.Grid.Rows.First(row => row.Kind == PropertyRowKind.TableRow && row.RowKey == key);
+
+    private static PropertyRow Select(ListView list, PropertyRow row, FrameworkElement view)
+    {
+        list.SelectedItem = row;
+        list.ScrollIntoView(row);
+        Pump(view);
+        Check(ReferenceEquals(list.SelectedItem, row), "The row must be selected: " + row.Caption);
+        return row;
+    }
+
+    private static PropertyRow Selected(ListView list) => (PropertyRow)list.SelectedItem;
+
+    private static ListViewItem Container(ListView list, PropertyRow row) => (ListViewItem)list.ItemContainerGenerator.ContainerFromItem(row);
+
+    private static T Editor<T>(ListView list, PropertyRow row) where T : Control
+    {
+        var name = typeof(T) == typeof(ComboBox) ? "Список значений" : "Редактор значения";
+        return Descendants<T>(Container(list, row)).Single(control => control.IsVisible && AutomationProperties.GetName(control) == name);
+    }
+
+    private static Button Action(ListView list, PropertyRow row, string name)
+    {
+        list.ScrollIntoView(row);
+        list.UpdateLayout();
+        return Descendants<Button>(Container(list, row)).Single(button => button.IsVisible && AutomationProperties.GetName(button) == name);
+    }
+
     private static void VerifyMinimum(Window window, PaletteView view, PaletteViewModel model, TabControl tabs, string output)
     {
         // Exercise the minimum supported palette size as well as the normal render.
@@ -341,7 +507,7 @@ internal static class Program
         scroll.ScrollToRightEnd();
         Pump(view);
         Check(scroll.HorizontalOffset > 0, "The last VST column must be reachable.");
-        Save(view, Path.Combine(output, "tzxdata-stage5-minimum.png"));
+        Save(view, Path.Combine(output, "tzxdata-stage6-minimum.png"));
         scroll.ScrollToLeftEnd();
         window.Width = 520;
         window.Height = 760;
@@ -439,19 +605,69 @@ internal static class Program
 
     private static DataValue V(int code, object value) => new DataValue(code, value);
 
-    /// <summary>The selection of a drawing with the example schema in its NOD.</summary>
-    private sealed class MemorySelection : ISelectionSource, IObjectValuesSource
+    /// <summary>
+    /// The selection of a drawing with the example schema in its NOD, written through <see cref="XDataWriter"/> in one
+    /// in-memory transaction per edit, as the AutoCAD writer does.
+    /// </summary>
+    private sealed class MemorySelection : ISelectionSource, ISelectionWriter, IObjectValuesSource
     {
+        private readonly XDataWriter writer;
         private EntityDataSnapshot[] snapshots = Array.Empty<EntityDataSnapshot>();
+
+        public MemorySelection() => writer = new XDataWriter(handles => new Transaction(this, handles), Values);
+
         public int Reads { get; private set; }
-        public ObjectValuesCache? Values { get; } = Cache();
+        public int Commits { get; private set; }
+        /// <summary>The transaction fails on commit: nothing is written.</summary>
+        public bool FailWrite { get; set; }
+        public ObjectValuesCache Values { get; } = Cache();
+        ObjectValuesCache? IObjectValuesSource.Values => Values;
         public event EventHandler? SelectionChanged;
         public IReadOnlyList<EntityDataSnapshot> ReadSelection() { Reads++; return snapshots; }
+        public void WriteSelection(IReadOnlyList<string> handles, SelectionEdit edit) => writer.WriteSelection(handles, edit);
 
         public void Select(EntityDataSnapshot[] next)
         {
             snapshots = next;
             SelectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>The typed value of a parameter in every object.</summary>
+        public object?[] Stored(string id) => snapshots.Select(snapshot => Read(snapshot).Find(id)?.Value).ToArray();
+
+        /// <summary>A cell of the row with <paramref name="key"/> in every object.</summary>
+        public object?[] Cells(string table, string key, string column) =>
+            snapshots.Select(snapshot => Read(snapshot).Find(table)?.Rows?.FirstOrDefault(row => row.Key == key)?.Find(column)?.Value).ToArray();
+
+        /// <summary>Row keys of the table in the first object.</summary>
+        public IReadOnlyList<string?> Rows(string table) => Read(snapshots[0]).Find(table)!.Rows!.Select(row => row.Key).ToArray();
+
+        private ObjectValues Read(EntityDataSnapshot snapshot) => XDataV2.Read(snapshot, Values.Schema);
+
+        private sealed class Transaction : IXDataWriteTransaction
+        {
+            private readonly MemorySelection drawing;
+            private readonly EntityDataSnapshot[] staged;
+
+            public Transaction(MemorySelection drawing, IReadOnlyList<string> handles)
+            {
+                this.drawing = drawing;
+                staged = drawing.snapshots.ToArray();
+                Snapshots = handles.Select(handle => drawing.snapshots.Single(snapshot => snapshot.Handle == handle)).ToArray();
+            }
+
+            public IReadOnlyList<EntityDataSnapshot> Snapshots { get; }
+
+            public void Write(EntityDataSnapshot snapshot) => staged[Array.FindIndex(staged, item => item.Handle == snapshot.Handle)] = snapshot;
+
+            public void Commit()
+            {
+                if (drawing.FailWrite) throw new InvalidOperationException("транзакция отменена");
+                drawing.snapshots = staged;
+                drawing.Commits++;
+            }
+
+            public void Dispose() { }
         }
     }
 
@@ -500,6 +716,33 @@ internal static class Program
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var stream = File.Create(path);
         encoder.Save(stream);
+    }
+
+    /// <summary>Renders the view with an open popup (a context menu is a separate window) at its place.</summary>
+    private static void SaveWithPopup(FrameworkElement view, FrameworkElement popup, string path)
+    {
+        Pump(view);
+        popup.UpdateLayout();
+        var offset = popup.PointToScreen(new Point()) - view.PointToScreen(new Point());
+        var scene = new DrawingVisual();
+        using (var context = scene.RenderOpen())
+        {
+            context.DrawImage(Render(view), new Rect(0, 0, view.ActualWidth, view.ActualHeight));
+            context.DrawImage(Render(popup), new Rect(offset.X, offset.Y, popup.ActualWidth, popup.ActualHeight));
+        }
+        var bitmap = new RenderTargetBitmap((int)view.ActualWidth, (int)view.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(scene);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
+    }
+
+    private static BitmapSource Render(FrameworkElement element)
+    {
+        var bitmap = new RenderTargetBitmap(Math.Max(1, (int)Math.Ceiling(element.ActualWidth)), Math.Max(1, (int)Math.Ceiling(element.ActualHeight)), 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(element);
+        return bitmap;
     }
 
     private static void Check(bool condition, string message)

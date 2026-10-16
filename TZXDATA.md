@@ -2,7 +2,7 @@
 
 **Проект:** acadPaletteSetXDATA — панель свойств объектов AutoCAD на основе схемы параметров.
 **Основание:** [задача #17](https://github.com/veb86/acadPaletteSetXDATA/issues/17), исходное [ТЗ](TZ.md),
-выполненные этапы 1–6 (см. [README](README.md)).
+выполненные этапы 1–7 (см. [README](README.md)).
 **Платформа:** AutoCAD 2021 (`net48`, основная), AutoCAD 2024 (`net48`), AutoCAD 2025 (`net8.0-windows`);
 C#, WPF, MVVM; поставка — одна DLL `acadPaletteSetXDATA.dll`.
 
@@ -526,7 +526,9 @@ schema.json  ◀── VELEC_SCHEMA_EXPORT ──  NOD «VELEC»                
   «+ Параметр», запись через `XDataWriter`, мгновенный пересчёт формул.
 - **Приёмка:** перенесённые тесты этапа 4 (`GroupEditingTests`) для v2; ручная проверка Undo/Redo.
 
-### Этап 7. Шаблоны на объектах
+### Этап 7. Шаблоны на объектах — **выполнен в задаче #31**
+
+Описание реализации: [docs/object-templates.md](docs/object-templates.md).
 
 - Кнопка/команда `VELEC_TEMPLATE_APPLY`, создание `DEVICE_ID`, смена шаблона (6.6),
   значения по умолчанию шаблона, «Зафиксировать значения по умолчанию».

@@ -80,7 +80,7 @@ CheckCommand(schemaCommandsType, "Export", "VELEC_SCHEMA_EXPORT");
 foreach (var reference in metadata.AssemblyReferences.Select(metadata.GetAssemblyReference))
     Check(!metadata.GetString(reference.Name).StartsWith("AcadPaletteSetXData.", StringComparison.Ordinal),
         "Single-DLL release must not depend on a separate plugin assembly.");
-foreach (var typeName in new[] { "PaletteView", "PropertyEditorView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction" })
+foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction" })
     Check(metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
         "Release must contain " + typeName + ".");
 Check(metadata.ManifestResources.Select(metadata.GetManifestResource)

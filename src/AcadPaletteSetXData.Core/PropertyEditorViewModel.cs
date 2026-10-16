@@ -20,7 +20,7 @@ public sealed class PropertyEditorViewModel : ObservableObject
     {
         AddMaterialCommand = new DelegateCommand(_ =>
         {
-            var material = new MaterialItemViewModel { Category = Categories[0], IsEditing = true };
+            var material = new MaterialItemViewModel { IsEditing = true };
             if (selectionMode)
             {
                 // A unique initial brand gives the newly added row a stable group identity.
@@ -47,8 +47,6 @@ public sealed class PropertyEditorViewModel : ObservableObject
     }
 
     public event EventHandler<SelectionEdit>? EditRequested;
-    public IReadOnlyList<string> Types { get; } = Array.AsReadOnly(new[] { "Опора 0,4 кВ", "Устройство", "Кабель", "Суперлиния" });
-    public IReadOnlyList<string> Categories { get; } = Array.AsReadOnly(new[] { "Железобетонные элементы", "Стальные конструкции", "Линейная арматура" });
     public ObservableCollection<MaterialItemViewModel> Materials { get; } = new ObservableCollection<MaterialItemViewModel>();
     public DelegateCommand AddMaterialCommand { get; }
     public DelegateCommand EditMaterialCommand { get; }

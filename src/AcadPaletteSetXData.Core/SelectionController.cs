@@ -25,6 +25,7 @@ public sealed class SelectionController : IDisposable
         model.Editor.SetWritable(source is ISelectionWriter);
         model.Editor.EditRequested += Write;
         source.SelectionChanged += Refresh;
+        model.RefreshRequested += Refresh;
         Refresh(this, EventArgs.Empty);
     }
 
@@ -60,6 +61,7 @@ public sealed class SelectionController : IDisposable
         if (disposed) return;
         disposed = true;
         source.SelectionChanged -= Refresh;
+        model.RefreshRequested -= Refresh;
         model.Editor.EditRequested -= Write;
         model.Editor.SetWritable(false);
     }

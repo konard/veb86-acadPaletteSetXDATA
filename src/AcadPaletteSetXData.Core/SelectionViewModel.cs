@@ -31,6 +31,20 @@ public sealed class SelectionViewModel : ObservableObject
     public string Status { get => status; private set => SetProperty(ref status, value); }
     public string Diagnostics { get => diagnostics; private set => SetProperty(ref diagnostics, value); }
 
+    /// <summary>Raised at the end of <see cref="Apply"/>: the selection, its values and calculations are replaced.</summary>
+    public event EventHandler? Applied;
+    /// <summary>The palette asks to read the selection again (⟳ of the VST, TZXDATA 8.4).</summary>
+    public event EventHandler? RefreshRequested;
+
+    /// <summary>Asks the source to read the selection again; false when no source listens.</summary>
+    public bool RequestRefresh()
+    {
+        var handler = RefreshRequested;
+        if (handler is null) return false;
+        handler(this, EventArgs.Empty);
+        return true;
+    }
+
     public ParsedEntityData? SelectedEntity
     {
         get => selectedEntity;
@@ -62,6 +76,7 @@ public sealed class SelectionViewModel : ObservableObject
         SelectedEntity = Entities.FirstOrDefault(entity => entity.Handle == previousHandle) ?? Entities.FirstOrDefault();
         editor.LoadSelection(Entities);
         Status = error ?? (HasSelection ? "Выделено объектов: " + Entities.Count + " • Групповые свойства" : "Выберите объекты в чертеже");
+        Applied?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

@@ -8,19 +8,18 @@ namespace AcadPaletteSetXData.Core.Tests;
 public sealed class PropertyEditorViewModelTests
 {
     [Fact]
-    public void StartsWithAnEmptyDraftAndExposesTheSpecifiedCategories()
+    public void StartsWithAnEmptyDraft()
     {
         var model = new PaletteViewModel(enableDraftPreview: true);
         var editor = model.Properties;
-        Assert.Same(editor, model.Tabs[0].Content);
+        // Since stage 5 the «Свойства» tab shows the VST; the editor stays the model of v1 group editing.
+        Assert.Same(model.Grid, model.Tabs[0].Content);
         Assert.Empty(editor.Materials);
         Assert.Equal("", editor.Type);
         Assert.Equal("", editor.Number);
         Assert.Equal("", editor.Name);
         Assert.Equal("", editor.Title);
         Assert.Equal("", editor.ProjectReference);
-        Assert.Equal(new[] { "Железобетонные элементы", "Стальные конструкции", "Линейная арматура" },
-            editor.Categories);
     }
 
     [Fact]
@@ -49,7 +48,8 @@ public sealed class PropertyEditorViewModelTests
         var editor = new PropertyEditorViewModel();
         editor.AddMaterialCommand.Execute(null);
         var first = Assert.Single(editor.Materials);
-        Assert.Equal(editor.Categories[0], first.Category);
+        // Categories come from the schema (TZXDATA 8): no list is built in.
+        Assert.Equal("", first.Category);
         Assert.True(first.IsEditing);
         Assert.Equal("1", first.Count);
         Assert.True(first.IsInSpec);

@@ -3,6 +3,7 @@ using System.Drawing;
 using AcadPaletteSetXData.Core;
 using AcadPaletteSetXData.UI;
 using Autodesk.AutoCAD.Windows;
+using AcApplication = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
 namespace AcadPaletteSetXData.AutoCAD;
 
@@ -32,6 +33,7 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
             palette.AddVisual("XDATA", view, true);
             selectionSource = new AutoCadSelectionSource();
             selectionController = new SelectionController(selectionSource, viewModel.Selection);
+            if (Environment.GetEnvironmentVariable("XDATAPALETTE_TRACE") == "1") viewModel.Grid.Built += OnGridBuilt;
         }
         catch
         {
@@ -50,8 +52,13 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
 
     public void ApplyTheme(PaletteTheme theme) => viewModel.Theme = theme;
 
+    // TZXDATA 10.6: the build time of the VST next to the read time of the selection.
+    private void OnGridBuilt(object? sender, EventArgs args) =>
+        AcApplication.DocumentManager.MdiActiveDocument?.Editor.WriteMessage("\n[XDATAPALETTE] {0}\n", viewModel.Grid.BuildSummary);
+
     public void Dispose()
     {
+        viewModel.Grid.Built -= OnGridBuilt;
         selectionController.Dispose();
         selectionSource.Dispose();
         palette.Dispose();

@@ -30,10 +30,11 @@ string AttributeName(CustomAttribute attribute)
 
 const string applicationType = "AcadPaletteSetXData.AutoCAD.PaletteApplication";
 const string schemaCommandsType = "AcadPaletteSetXData.AutoCAD.SchemaCommands";
+const string templateCommandsType = "AcadPaletteSetXData.AutoCAD.TemplateCommands";
 foreach (var (name, targets) in new[]
 {
     ("ExtensionApplication", new[] { applicationType }),
-    ("CommandClass", new[] { applicationType, schemaCommandsType }),
+    ("CommandClass", new[] { applicationType, schemaCommandsType, templateCommandsType }),
 })
 {
     var attributes = assembly.GetCustomAttributes().Select(metadata.GetCustomAttribute)
@@ -76,11 +77,12 @@ void CheckCommand(string typeName, string methodName, string commandName)
 CheckCommand(applicationType, "TogglePalette", "XDATAPALETTE");
 CheckCommand(schemaCommandsType, "Import", "VELEC_SCHEMA_IMPORT");
 CheckCommand(schemaCommandsType, "Export", "VELEC_SCHEMA_EXPORT");
+CheckCommand(templateCommandsType, "Apply", "VELEC_TEMPLATE_APPLY");
 
 foreach (var reference in metadata.AssemblyReferences.Select(metadata.GetAssemblyReference))
     Check(!metadata.GetString(reference.Name).StartsWith("AcadPaletteSetXData.", StringComparison.Ordinal),
         "Single-DLL release must not depend on a separate plugin assembly.");
-foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction" })
+foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply" })
     Check(metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
         "Release must contain " + typeName + ".");
 Check(metadata.ManifestResources.Select(metadata.GetManifestResource)

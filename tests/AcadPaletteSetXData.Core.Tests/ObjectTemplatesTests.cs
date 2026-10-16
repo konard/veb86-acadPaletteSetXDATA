@@ -241,6 +241,55 @@ public sealed class ObjectTemplatesTests
         Assert.False(grid.CommitDefaults());
     }
 
+    [Fact]
+    public void TheCommandPromptOffersTheTemplatesOfTheSelectedTypesByIdOrNumber()
+    {
+        var cache = Cache();
+        var empty = new TemplateApply(cache.Schema, cache.Get(new[] { Empty("A"), Empty("B") }));
+        Assert.Equal(new[] { "DEVICE", "MOTOR" }, empty.Templates.Select(template => template.Id));
+        Assert.Null(empty.Current);
+        Assert.False(empty.HasTemplate);
+        Assert.Equal(new[] { "1. Устройство (DEVICE)", "2. Электродвигатель (MOTOR)" }, empty.Lines());
+        Assert.Equal("MOTOR", empty.Parse(" motor "));
+        Assert.Equal("DEVICE", empty.Parse("1"));
+        Assert.Equal("MOTOR", empty.Parse("2"));
+        Assert.Null(empty.Parse("3"));
+        Assert.Null(empty.Parse("0"));
+        Assert.Null(empty.Parse("CABLE")); // CABLE is for lines and polylines.
+        Assert.Null(empty.Parse(TemplateApply.None)); // Nothing to remove.
+        Assert.Null(empty.Parse(""));
+        Assert.Equal(2, empty.Changes("MOTOR"));
+
+        var motors = new TemplateApply(cache.Schema, cache.Get(new[] { WithId("A", Guid.NewGuid().ToString(), "MOTOR"), Object("B", "MOTOR") }));
+        Assert.Equal("MOTOR", motors.Current);
+        Assert.Equal(new[] { "1. Устройство (DEVICE)", "2. Электродвигатель (MOTOR) *", "-. Без шаблона" }, motors.Lines());
+        Assert.Equal("", motors.Parse(TemplateApply.None));
+        Assert.Equal(1, motors.Changes("MOTOR")); // B has no DEVICE_ID yet.
+        Assert.Equal(2, motors.Changes("DEVICE"));
+        Assert.Equal(2, motors.Changes(""));
+
+        var line = new EntityDataSnapshot("L", "Line", Array.Empty<DataValue>(), Array.Empty<DataRecord>());
+        var mixed = new TemplateApply(cache.Schema, cache.Get(new[] { Empty("A"), line }));
+        Assert.Empty(mixed.Templates);
+        Assert.Empty(mixed.Lines());
+    }
+
+    [Fact]
+    public void TheCommandAssignsTheChosenTemplateToTheWholeSelectionInOneTransaction()
+    {
+        // VELEC_TEMPLATE_APPLY writes through XDataWriter as the panel does; the drawing stands in for AutoCAD.
+        var drawing = new Drawing(Empty("A"), Device("B", Pair("Device_Class", "Щит"), Pair("Power", 2.5)));
+        var prompt = new TemplateApply(drawing.Values.Schema, drawing.Values.Get(drawing.Snapshots));
+        var id = prompt.Parse("MOTOR")!;
+        drawing.WriteSelection(drawing.Snapshots.Select(snapshot => snapshot.Handle).ToArray(), SelectionEdit.SetTemplate(id));
+        Assert.Equal(1, drawing.Commits);
+        var values = drawing.Snapshots.Select(drawing.Read).ToArray();
+        Assert.All(values, item => Assert.Equal("MOTOR", item.Template));
+        Assert.All(values, item => Assert.True(Guid.TryParse(item.DeviceId, out _)));
+        Assert.Equal(new object?[] { null, "Щит" }, drawing.Stored("Device_Class")); // Outside MOTOR, kept.
+        Assert.Equal(new object?[] { null, 2.5 }, drawing.Stored("Power"));
+    }
+
     private static EntityDataSnapshot Empty(string handle, params DataValue[] xdata) =>
         new EntityDataSnapshot(handle, "BlockReference", xdata, Array.Empty<DataRecord>());
 

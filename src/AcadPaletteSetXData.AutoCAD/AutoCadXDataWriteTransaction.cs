@@ -18,7 +18,10 @@ internal sealed class AutoCadXDataWriteTransaction : IXDataWriteTransaction
     private DocumentLock? documentLock;
     private Transaction? transaction;
 
-    public AutoCadXDataWriteTransaction(Document document, IReadOnlyList<string> handles)
+    public AutoCadXDataWriteTransaction(Document document, IReadOnlyList<string> handles) : this(document, handles, null) { }
+
+    /// <param name="selected">Objects chosen by a command (<c>VELEC_TEMPLATE_APPLY</c>); null — the PICKFIRST selection of the palette.</param>
+    public AutoCadXDataWriteTransaction(Document document, IReadOnlyList<string> handles, IReadOnlyList<ObjectId>? selected)
     {
         database = document.Database;
         var snapshots = new List<EntityDataSnapshot>();
@@ -27,9 +30,7 @@ internal sealed class AutoCadXDataWriteTransaction : IXDataWriteTransaction
         {
             // Autodesk defines each named lock as an action; localCommandName labels native Undo.
             documentLock = document.LockDocument(DocumentLockMode.Write, "XDATAPALETTEEDIT", "Изменение XDATA", false);
-            var selection = document.Editor.SelectImplied();
-            if (selection.Status != PromptStatus.OK) throw new InvalidOperationException("Выделение изменилось.");
-            var ids = selection.Value.GetObjectIds();
+            var ids = selected?.ToArray() ?? Implied(document);
             if (ids.Length != handles.Count || !new HashSet<string>(ids.Select(id => id.Handle.ToString())).SetEquals(handles))
                 throw new InvalidOperationException("Выделение изменилось; повторите ввод после обновления панели.");
             transaction = database.TransactionManager.StartTransaction();
@@ -43,6 +44,13 @@ internal sealed class AutoCadXDataWriteTransaction : IXDataWriteTransaction
             }
         }
         catch { Dispose(); throw; }
+    }
+
+    private static ObjectId[] Implied(Document document)
+    {
+        var selection = document.Editor.SelectImplied();
+        if (selection.Status != PromptStatus.OK) throw new InvalidOperationException("Выделение изменилось.");
+        return selection.Value.GetObjectIds();
     }
 
     public IReadOnlyList<EntityDataSnapshot> Snapshots { get; }

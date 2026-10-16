@@ -239,7 +239,7 @@
     </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-        <!-- Control panel (TZXDATA 8.4): reserved 32 px; «⚙ Схема» belongs to stage 8. -->
+        <!-- Control panel (TZXDATA 8.4): reserved 32 px. -->
         <DockPanel x:Name="Toolbar" Height="32" Margin="6,0" LastChildFill="True" AutomationProperties.Name="Панель управления свойствами">
             <!-- «Шаблон ▾» (TZXDATA 6.4, 6.6, 6.2): assigns, changes or removes the template; commits the defaults of the template. -->
             <Button x:Name="TemplateIndicator" DockPanel.Dock="Left" MaxWidth="130" Margin="0,0,3,0" Padding="5,0" Height="24"
@@ -260,8 +260,12 @@
                     AutomationProperties.Name="Развернуть все" ToolTip="Развернуть все группы" />
             <Button x:Name="CollapseAllButton" DockPanel.Dock="Left" Content="⊟" Style="{StaticResource ToolButton}" Command="{Binding CollapseAllCommand}"
                     AutomationProperties.Name="Свернуть все" ToolTip="Свернуть все группы" />
-            <Button x:Name="SchemaButton" DockPanel.Dock="Right" Content="⚙" Style="{StaticResource ToolButton}" Margin="3,0,0,0" IsEnabled="False"
-                    AutomationProperties.Name="Схема" ToolTip="Редактор схемы параметров (этап 8)" />
+            <!-- «⚙ Схема» (TZXDATA 8.4, 9): the schema editor, import and export of JSON; each is a command of the document. -->
+            <Button x:Name="SchemaButton" DockPanel.Dock="Right" Content="⚙" Style="{StaticResource ToolButton}" Margin="3,0,0,0"
+                    IsEnabled="{Binding CanRunSchemaCommands}" Click="OnSchemaMenu"
+                    AutomationProperties.Name="Схема" ToolTip="Схема параметров: редактор, импорт и экспорт JSON">
+                <Button.ContextMenu><ContextMenu x:Name="SchemaMenu" Placement="Custom" /></Button.ContextMenu>
+            </Button>
             <Grid Height="24" MinWidth="48">
                 <TextBox x:Name="FilterField" Padding="4,0" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}"
                          AutomationProperties.Name="Фильтр свойств" ToolTip="Поиск по названию, Id или значению" />

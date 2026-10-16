@@ -77,12 +77,13 @@ void CheckCommand(string typeName, string methodName, string commandName)
 CheckCommand(applicationType, "TogglePalette", "XDATAPALETTE");
 CheckCommand(schemaCommandsType, "Import", "VELEC_SCHEMA_IMPORT");
 CheckCommand(schemaCommandsType, "Export", "VELEC_SCHEMA_EXPORT");
+CheckCommand(schemaCommandsType, "Edit", "VELEC_SCHEMA_EDIT");
 CheckCommand(templateCommandsType, "Apply", "VELEC_TEMPLATE_APPLY");
 
 foreach (var reference in metadata.AssemblyReferences.Select(metadata.GetAssemblyReference))
     Check(!metadata.GetString(reference.Name).StartsWith("AcadPaletteSetXData.", StringComparison.Ordinal),
         "Single-DLL release must not depend on a separate plugin assembly.");
-foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply" })
+foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply", "SchemaEditorViewModel", "SchemaEditorWindow" })
     Check(metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
         "Release must contain " + typeName + ".");
 Check(metadata.ManifestResources.Select(metadata.GetManifestResource)

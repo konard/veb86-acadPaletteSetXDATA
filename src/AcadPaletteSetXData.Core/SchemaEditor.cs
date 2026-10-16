@@ -101,13 +101,13 @@ public sealed class SchemaEditorViewModel : ObservableObject
     public ParameterDraft? SelectedParameter
     {
         get => selectedParameter;
-        set { SetProperty(ref selectedParameter, value); selectedParameter?.Refresh(); RaiseCommands(); }
+        set { SetProperty(ref selectedParameter, value); Notify(nameof(HasSelectedParameter)); selectedParameter?.Refresh(); RaiseCommands(); }
     }
 
     public EnumDraft? SelectedEnum
     {
         get => selectedEnum;
-        set { SetProperty(ref selectedEnum, value); SelectedKey = null; selectedEnum?.Refresh(); RaiseCommands(); }
+        set { SetProperty(ref selectedEnum, value); Notify(nameof(HasSelectedEnum)); SelectedKey = null; selectedEnum?.Refresh(); RaiseCommands(); }
     }
 
     public EnumKeyDraft? SelectedKey
@@ -119,7 +119,7 @@ public sealed class SchemaEditorViewModel : ObservableObject
     public TemplateDraft? SelectedTemplate
     {
         get => selectedTemplate;
-        set { SetProperty(ref selectedTemplate, value); SelectedTemplateParameter = null; UpdateAvailable(); RaiseCommands(); }
+        set { SetProperty(ref selectedTemplate, value); Notify(nameof(HasSelectedTemplate)); SelectedTemplateParameter = null; UpdateAvailable(); RaiseCommands(); }
     }
 
     public ParameterDraft? SelectedAvailable
@@ -131,8 +131,13 @@ public sealed class SchemaEditorViewModel : ObservableObject
     public TemplateParameterDraft? SelectedTemplateParameter
     {
         get => selectedTemplateParameter;
-        set { SetProperty(ref selectedTemplateParameter, value); RaiseCommands(); }
+        set { SetProperty(ref selectedTemplateParameter, value); Notify(nameof(HasSelectedTemplateParameter)); RaiseCommands(); }
     }
+
+    public bool HasSelectedParameter => selectedParameter != null;
+    public bool HasSelectedEnum => selectedEnum != null;
+    public bool HasSelectedTemplate => selectedTemplate != null;
+    public bool HasSelectedTemplateParameter => selectedTemplateParameter != null;
 
     /// <summary>Errors and warnings of the draft (TZXDATA 4.5) and of values typed in the editor.</summary>
     public IReadOnlyList<SchemaIssue> Issues => issues;

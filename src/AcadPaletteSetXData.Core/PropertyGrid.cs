@@ -268,6 +268,7 @@ public sealed class PropertyGridViewModel : ObservableObject
         AddParameterCommand = new DelegateCommand(
             option => AddParameter(option is PropertyOption item ? item.Key : option as string ?? ""),
             option => CanEdit && (option is null || option is PropertyOption || option is string));
+        SchemaCommand = new DelegateCommand(command => RunSchemaCommand(command as string ?? SchemaEdit), _ => CanRunSchemaCommands);
         selection.Applied += (_, _) => Rebuild();
         selection.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(SelectionViewModel.CanWrite)) Rebuild(); };
         Rebuild();
@@ -365,6 +366,45 @@ public sealed class PropertyGridViewModel : ObservableObject
     public ICommand AddRowCommand { get; }
     /// <summary>«+ Параметр»: <see cref="AddParameter"/> with a <see cref="PropertyOption"/> of <see cref="AvailableParameters"/>.</summary>
     public ICommand AddParameterCommand { get; }
+
+    /// <summary>«⚙» (TZXDATA 8.4, 9): <see cref="RunSchemaCommand"/> with one of the schema commands.</summary>
+    public ICommand SchemaCommand { get; }
+
+    /// <summary>The modal schema editor (TZXDATA 9).</summary>
+    public const string SchemaEdit = "VELEC_SCHEMA_EDIT";
+    /// <summary>Import of a JSON schema into the drawing (TZXDATA 5.1).</summary>
+    public const string SchemaImport = "VELEC_SCHEMA_IMPORT";
+    /// <summary>Export of the schema of the drawing to JSON (TZXDATA 5.2).</summary>
+    public const string SchemaExport = "VELEC_SCHEMA_EXPORT";
+    private static readonly string[] SchemaCommands = { SchemaEdit, SchemaImport, SchemaExport };
+    private Action<string>? schemaCommandRunner;
+
+    /// <summary>
+    /// Starts a schema command in the host: AutoCAD runs it as a command of the document after the click, so that the
+    /// palette never writes the NOD itself and the command is one Undo step. Without a host «⚙» is disabled.
+    /// </summary>
+    public Action<string>? SchemaCommandRunner
+    {
+        get => schemaCommandRunner;
+        set
+        {
+            if (schemaCommandRunner == value) return;
+            schemaCommandRunner = value;
+            Notify(nameof(CanRunSchemaCommands));
+            ((DelegateCommand)SchemaCommand).RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool CanRunSchemaCommands => schemaCommandRunner != null;
+
+    /// <summary>Runs <see cref="SchemaEdit"/>, <see cref="SchemaImport"/> or <see cref="SchemaExport"/>; other names are refused.</summary>
+    public bool RunSchemaCommand(string command)
+    {
+        var name = SchemaCommands.FirstOrDefault(item => string.Equals(item, command, StringComparison.OrdinalIgnoreCase));
+        if (name is null || schemaCommandRunner is null) return false;
+        schemaCommandRunner(name);
+        return true;
+    }
 
     /// <summary>Raised after every build of the tree, e.g. for the trace of the AutoCAD host.</summary>
     public event EventHandler? Built;

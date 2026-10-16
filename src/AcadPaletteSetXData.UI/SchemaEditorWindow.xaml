@@ -1,0 +1,417 @@
+<Window x:Class="AcadPaletteSetXData.UI.SchemaEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Редактор схемы параметров" Width="1000" Height="700" MinWidth="780" MinHeight="520"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResizeWithGrip"
+        Background="{DynamicResource PaletteBackground}" Foreground="{DynamicResource PaletteForeground}"
+        FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" SnapsToDevicePixels="True"
+        AutomationProperties.Name="Редактор схемы параметров">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Dark.xaml" />
+                <ResourceDictionary Source="Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="Visible" />
+            <Style TargetType="TextBlock"><Setter Property="VerticalAlignment" Value="Center" /></Style>
+            <Style x:Key="Muted" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="FieldLabel" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="Heading" TargetType="TextBlock">
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Margin" Value="0,0,0,6" />
+            </Style>
+            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="Margin" Value="0,2" /></Style>
+            <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"><Setter Property="Margin" Value="0,2" /></Style>
+            <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="Margin" Value="0,4" />
+            </Style>
+            <Style x:Key="Small" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="MinWidth" Value="28" />
+                <Setter Property="Height" Value="26" />
+                <Setter Property="Margin" Value="0,0,4,0" />
+            </Style>
+            <Style x:Key="Wide" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="MinWidth" Value="96" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="12,3" />
+                <Setter Property="Margin" Value="6,0,0,0" />
+            </Style>
+            <Style TargetType="ListBox">
+                <Setter Property="Background" Value="{DynamicResource PaletteBackground}" />
+                <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PaletteBorder}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            </Style>
+            <Style TargetType="ListBoxItem">
+                <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Padding" Value="6,3" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border x:Name="Surface" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PaletteHoverBackground}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PaletteSelectedBackground}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <!-- A text box of a row selects its row: «−», «↑», «↓» work on the row being edited. -->
+                <EventSetter Event="PreviewGotKeyboardFocus" Handler="OnItemFocus" />
+            </Style>
+            <Style TargetType="TabItem">
+                <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TabItem">
+                            <Border x:Name="TabBorder" Background="{DynamicResource PaletteTabBackground}" BorderBrush="{DynamicResource PaletteBorder}"
+                                    BorderThickness="1,1,1,0" Padding="14,6" Margin="0,0,2,0" CornerRadius="3,3,0,0">
+                                <ContentPresenter ContentSource="Header" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource PaletteHoverBackground}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource PaletteSelectedBackground}" />
+                                    <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource PaletteAccent}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <DataTemplate x:Key="NamedItem">
+                <StackPanel>
+                    <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Id}" FontSize="11" Foreground="{DynamicResource PaletteMuted}" />
+                </StackPanel>
+            </DataTemplate>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TabControl x:Name="Tabs" Background="{DynamicResource PaletteBackground}" BorderBrush="{DynamicResource PaletteBorder}" Padding="10">
+            <TabControl.Template>
+                <ControlTemplate TargetType="TabControl">
+                    <DockPanel>
+                        <TabPanel DockPanel.Dock="Top" IsItemsHost="True" />
+                        <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="SelectedContent" />
+                        </Border>
+                    </DockPanel>
+                </ControlTemplate>
+            </TabControl.Template>
+
+            <!-- TZXDATA 9: «Параметры» — search, the fields of 4.1, formulas with hints @@[...] and their preview. -->
+            <TabItem x:Name="ParametersTab" Header="Параметры" AutomationProperties.Name="Параметры">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <DockPanel>
+                        <TextBox x:Name="ParameterSearchField" DockPanel.Dock="Top" Text="{Binding ParameterSearch, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="Поиск параметра" ToolTip="Поиск по Id, названию, группе или типу" />
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="+" Style="{StaticResource Small}" Command="{Binding AddParameterCommand}" ToolTip="Добавить параметр" AutomationProperties.Name="Добавить параметр" />
+                            <Button Content="−" Style="{StaticResource Small}" Command="{Binding DeleteParameterCommand}" ToolTip="Удалить параметр (запрещено, если он используется)" AutomationProperties.Name="Удалить параметр" />
+                            <Button Content="↑" Style="{StaticResource Small}" Command="{Binding MoveParameterUpCommand}" ToolTip="Выше" AutomationProperties.Name="Параметр выше" />
+                            <Button Content="↓" Style="{StaticResource Small}" Command="{Binding MoveParameterDownCommand}" ToolTip="Ниже" AutomationProperties.Name="Параметр ниже" />
+                        </StackPanel>
+                        <ListBox x:Name="ParameterList" Margin="0,6,0,0" ItemsSource="{Binding FilteredParameters}" SelectedItem="{Binding SelectedParameter}"
+                                 AutomationProperties.Name="Параметры схемы">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock FontSize="11" Foreground="{DynamicResource PaletteMuted}">
+                                            <Run Text="{Binding Type, Mode=OneWay}" /><Run Text="  " /><Run Text="{Binding Group, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                        <Grid x:Name="ParameterForm" DataContext="{Binding SelectedParameter}"
+                              Visibility="{Binding DataContext.HasSelectedParameter, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource Visible}}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" MinWidth="130" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Id" Style="{StaticResource FieldLabel}" />
+                            <TextBox x:Name="ParameterIdField" Grid.Column="1" Text="{Binding Id}" AutomationProperties.Name="Id параметра"
+                                     ToolTip="Латиница, цифры и _; Id параметра, хранящегося в объектах, не меняется" />
+                            <TextBlock Grid.Row="1" Text="Тип" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" IsEditable="True" Text="{Binding Type, UpdateSourceTrigger=LostFocus}"
+                                      ItemsSource="{Binding DataContext.TypeNames, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Тип параметра" />
+                            <TextBlock Grid.Row="2" Text="Название" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Caption}" AutomationProperties.Name="Название параметра" />
+                            <TextBlock Grid.Row="3" Text="Описание" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Description}" AutomationProperties.Name="Описание параметра" />
+                            <TextBlock Grid.Row="4" Text="Группа" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Group}" AutomationProperties.Name="Группа параметра" />
+                            <TextBlock Grid.Row="5" Text="По умолчанию" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding DefaultText}" AutomationProperties.Name="Значение по умолчанию" />
+
+                            <TextBlock Grid.Row="6" Text="Справочник" Style="{StaticResource FieldLabel}" Visibility="{Binding IsEnum, Converter={StaticResource Visible}}" />
+                            <ComboBox Grid.Row="6" Grid.Column="1" IsEditable="True" Text="{Binding Enum, UpdateSourceTrigger=LostFocus}"
+                                      ItemsSource="{Binding DataContext.EnumIds, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      Visibility="{Binding IsEnum, Converter={StaticResource Visible}}" AutomationProperties.Name="Справочник параметра" />
+
+                            <!-- CalculatedString: the format with references, a list of hints and the preview on the selected object. -->
+                            <TextBlock Grid.Row="7" Text="Формула" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,6,8,0"
+                                       Visibility="{Binding IsCalculated, Converter={StaticResource Visible}}" />
+                            <StackPanel Grid.Row="7" Grid.Column="1" Visibility="{Binding IsCalculated, Converter={StaticResource Visible}}">
+                                <DockPanel>
+                                    <ComboBox x:Name="ReferenceList" DockPanel.Dock="Right" Width="190" Margin="6,2,0,2"
+                                              ItemsSource="{Binding DataContext.ParameterIds, RelativeSource={RelativeSource AncestorType=Window}}"
+                                              SelectionChanged="OnInsertReference" AutomationProperties.Name="Вставить ссылку на параметр"
+                                              ToolTip="Вставить @@[Id] в позицию курсора; ввод «@@[» открывает этот список" />
+                                    <TextBox x:Name="FormatField" Text="{Binding Format, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnFormatChanged"
+                                             AutomationProperties.Name="Формула" ToolTip="Текст со ссылками @@[Id]" />
+                                </DockPanel>
+                                <TextBlock Text="{Binding FormulaPreview}" Style="{StaticResource Muted}" Margin="0,2,0,4" AutomationProperties.Name="Предпросмотр формулы" />
+                                <CheckBox Content="Сохранять вычисленное значение в объекте (persist)" IsChecked="{Binding Persist}" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="8" Text="Таблица" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,6,8,0"
+                                       Visibility="{Binding IsTable, Converter={StaticResource Visible}}" />
+                            <Grid Grid.Row="8" Grid.Column="1" Visibility="{Binding IsTable, Converter={StaticResource Visible}}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <TextBlock Text="Колонки" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Column="1" Text="{Binding ColumnsText}" ToolTip="Id параметров через запятую" AutomationProperties.Name="Колонки таблицы" />
+                                <TextBlock Grid.Row="1" Text="Группировка" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding GroupBy}" AutomationProperties.Name="Группировка таблицы" />
+                                <TextBlock Grid.Row="2" Text="Ключ" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Key}" AutomationProperties.Name="Ключ таблицы" />
+                            </Grid>
+
+                            <TextBlock Grid.Row="9" Text="Редактор" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,6,8,0" />
+                            <WrapPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,12,0" Visibility="{Binding IsNumber, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="Ед." Style="{StaticResource FieldLabel}" /><TextBox Width="60" Text="{Binding Unit}" AutomationProperties.Name="Единица измерения" />
+                                    <TextBlock Text="Точность" Style="{StaticResource FieldLabel}" Margin="10,0,8,0" /><TextBox Width="44" Text="{Binding PrecisionText}" AutomationProperties.Name="Точность" />
+                                    <TextBlock Text="Мин." Style="{StaticResource FieldLabel}" Margin="10,0,8,0" /><TextBox Width="60" Text="{Binding MinText}" AutomationProperties.Name="Минимум" />
+                                    <TextBlock Text="Макс." Style="{StaticResource FieldLabel}" Margin="10,0,8,0" /><TextBox Width="60" Text="{Binding MaxText}" AutomationProperties.Name="Максимум" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,12,0" Visibility="{Binding IsText, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="Макс. длина" Style="{StaticResource FieldLabel}" /><TextBox Width="60" Text="{Binding MaxLengthText}" AutomationProperties.Name="Максимальная длина" />
+                                    <CheckBox Content="Многострочный" IsChecked="{Binding Multiline}" Margin="10,4,0,4" />
+                                </StackPanel>
+                                <CheckBox Content="Свой вариант" IsChecked="{Binding AllowCustom}" Margin="0,4,12,4" Visibility="{Binding IsEnum, Converter={StaticResource Visible}}" />
+                                <CheckBox Content="Только чтение" IsChecked="{Binding ReadOnly}" Margin="0,4,12,4" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Колонка VST" Style="{StaticResource FieldLabel}" /><TextBox Width="44" Text="{Binding VstColumnText}" AutomationProperties.Name="Колонка VST" />
+                                </StackPanel>
+                            </WrapPanel>
+
+                            <Border Grid.Row="10" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="8,6" Background="{DynamicResource PaletteTabBackground}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding UsageText}" Style="{StaticResource Muted}" />
+                                    <TextBlock Text="{Binding TemplatesText}" Style="{StaticResource Muted}" />
+                                    <TextBlock Text="{Binding ReferencesText}" Style="{StaticResource Muted}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- TZXDATA 9: «ENUM» — enums and their Key/Caption with order; a key stored in objects is deleted after a confirmation. -->
+            <TabItem x:Name="EnumsTab" Header="ENUM" AutomationProperties.Name="ENUM">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="+" Style="{StaticResource Small}" Command="{Binding AddEnumCommand}" ToolTip="Добавить справочник" AutomationProperties.Name="Добавить справочник" />
+                            <Button Content="−" Style="{StaticResource Small}" Command="{Binding DeleteEnumCommand}" ToolTip="Удалить справочник (запрещено, если на него ссылаются параметры)" AutomationProperties.Name="Удалить справочник" />
+                        </StackPanel>
+                        <ListBox x:Name="EnumList" ItemsSource="{Binding Enums}" SelectedItem="{Binding SelectedEnum}" ItemTemplate="{StaticResource NamedItem}"
+                                 AutomationProperties.Name="Справочники" />
+                    </DockPanel>
+                    <DockPanel Grid.Column="2" DataContext="{Binding SelectedEnum}"
+                               Visibility="{Binding DataContext.HasSelectedEnum, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource Visible}}">
+                        <Grid DockPanel.Dock="Top">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" MinWidth="130" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBlock Text="Id" Style="{StaticResource FieldLabel}" />
+                            <TextBox x:Name="EnumIdField" Grid.Column="1" Text="{Binding Id}" AutomationProperties.Name="Id справочника" />
+                            <TextBlock Grid.Row="1" Text="Название" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Caption}" AutomationProperties.Name="Название справочника" />
+                            <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding UsedByText}" Style="{StaticResource Muted}" Margin="0,4,0,8" />
+                        </Grid>
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0"
+                                    DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <Button Content="+ Ключ" Style="{StaticResource Small}" Padding="8,3" Command="{Binding AddEnumKeyCommand}" AutomationProperties.Name="Добавить ключ" />
+                            <Button Content="−" Style="{StaticResource Small}" Command="{Binding DeleteEnumKeyCommand}" ToolTip="Удалить ключ (используемый — после подтверждения)" AutomationProperties.Name="Удалить ключ" />
+                            <Button Content="↑" Style="{StaticResource Small}" Command="{Binding MoveEnumKeyUpCommand}" AutomationProperties.Name="Ключ выше" />
+                            <Button Content="↓" Style="{StaticResource Small}" Command="{Binding MoveEnumKeyDownCommand}" AutomationProperties.Name="Ключ ниже" />
+                        </StackPanel>
+                        <Grid DockPanel.Dock="Top" Margin="7,0,7,2">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="3*" /><ColumnDefinition Width="100" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="Key" Style="{StaticResource Muted}" />
+                            <TextBlock Grid.Column="1" Text="Caption" Style="{StaticResource Muted}" Margin="6,0,0,0" />
+                            <TextBlock Grid.Column="2" Text="Используется" Style="{StaticResource Muted}" Margin="6,0,0,0" />
+                        </Grid>
+                        <ListBox x:Name="EnumKeyList" ItemsSource="{Binding Items}" AutomationProperties.Name="Ключи справочника"
+                                 SelectedItem="{Binding DataContext.SelectedKey, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="3*" /><ColumnDefinition Width="100" /></Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Key}" Margin="0,1" AutomationProperties.Name="Ключ" />
+                                        <TextBox Grid.Column="1" Text="{Binding Caption}" Margin="6,1,0,1" AutomationProperties.Name="Отображаемое значение" />
+                                        <TextBlock Grid.Column="2" Text="{Binding UsageText}" Style="{StaticResource Muted}" Margin="6,0,0,0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- TZXDATA 9: «Шаблоны» — all parameters ⇄ parameters of the template, order, Default override, EntityTypes. -->
+            <TabItem x:Name="TemplatesTab" Header="Шаблоны" AutomationProperties.Name="Шаблоны">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="+" Style="{StaticResource Small}" Command="{Binding AddTemplateCommand}" ToolTip="Добавить шаблон" AutomationProperties.Name="Добавить шаблон" />
+                            <Button Content="−" Style="{StaticResource Small}" Command="{Binding DeleteTemplateCommand}" ToolTip="Удалить шаблон (запрещено, если он назначен объектам)" AutomationProperties.Name="Удалить шаблон" />
+                        </StackPanel>
+                        <ListBox x:Name="TemplateList" ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}" ItemTemplate="{StaticResource NamedItem}"
+                                 AutomationProperties.Name="Шаблоны" />
+                    </DockPanel>
+                    <DockPanel Grid.Column="2" Visibility="{Binding HasSelectedTemplate, Converter={StaticResource Visible}}">
+                        <Grid DockPanel.Dock="Top" DataContext="{Binding SelectedTemplate}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" MinWidth="130" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBlock Text="Id" Style="{StaticResource FieldLabel}" />
+                            <TextBox x:Name="TemplateIdField" Grid.Column="1" Text="{Binding Id}" AutomationProperties.Name="Id шаблона" />
+                            <TextBlock Grid.Row="1" Text="Название" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Caption}" AutomationProperties.Name="Название шаблона" />
+                            <TextBlock Grid.Row="2" Text="Типы объектов" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding EntityTypesText}" ToolTip="Через запятую, например BlockReference, Polyline; пусто — любые"
+                                     AutomationProperties.Name="Типы объектов шаблона" />
+                            <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Text="{Binding UsageText}" Style="{StaticResource Muted}" Margin="0,4,0,8" />
+                        </Grid>
+                        <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0" DataContext="{Binding SelectedTemplateParameter}"
+                              Visibility="{Binding DataContext.HasSelectedTemplateParameter, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource Visible}}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" MinWidth="130" /><ColumnDefinition Width="200" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="По умолчанию в шаблоне" Style="{StaticResource FieldLabel}" />
+                            <TextBox Grid.Column="1" Text="{Binding DefaultText}" AutomationProperties.Name="Значение по умолчанию в шаблоне"
+                                     ToolTip="Пусто — значение по умолчанию параметра" />
+                            <TextBlock Grid.Column="2" Text="{Binding DefaultSummary}" Style="{StaticResource Muted}" Margin="8,0,0,0" />
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                            <TextBlock Text="Все параметры" Style="{StaticResource Heading}" />
+                            <TextBlock Grid.Column="2" Text="Параметры шаблона" Style="{StaticResource Heading}" />
+                            <ListBox x:Name="AvailableList" Grid.Row="1" ItemsSource="{Binding AvailableParameters}" SelectedItem="{Binding SelectedAvailable}"
+                                     ItemTemplate="{StaticResource NamedItem}" MouseDoubleClick="OnAvailableDoubleClick" AutomationProperties.Name="Все параметры" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="6,0" VerticalAlignment="Center">
+                                <Button Content="→" Style="{StaticResource Small}" Margin="0,2" Command="{Binding AddToTemplateCommand}" ToolTip="Добавить в шаблон" AutomationProperties.Name="Добавить в шаблон" />
+                                <Button Content="←" Style="{StaticResource Small}" Margin="0,2" Command="{Binding RemoveFromTemplateCommand}" ToolTip="Убрать из шаблона" AutomationProperties.Name="Убрать из шаблона" />
+                            </StackPanel>
+                            <ListBox x:Name="TemplateParameterList" Grid.Row="1" Grid.Column="2" ItemsSource="{Binding SelectedTemplate.Parameters}"
+                                     SelectedItem="{Binding SelectedTemplateParameter}" AutomationProperties.Name="Параметры шаблона">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding DefaultSummary}" FontSize="11" Foreground="{DynamicResource PaletteMuted}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <StackPanel Grid.Row="1" Grid.Column="3" Margin="6,0,0,0" VerticalAlignment="Center">
+                                <Button Content="↑" Style="{StaticResource Small}" Margin="0,2" Command="{Binding MoveTemplateParameterUpCommand}" AutomationProperties.Name="Параметр шаблона выше" />
+                                <Button Content="↓" Style="{StaticResource Small}" Margin="0,2" Command="{Binding MoveTemplateParameterDownCommand}" AutomationProperties.Name="Параметр шаблона ниже" />
+                            </StackPanel>
+                        </Grid>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- TZXDATA 9: import into the draft and export of the draft to JSON (TZXDATA 5). -->
+            <TabItem x:Name="ImportTab" Header="Импорт/экспорт JSON" AutomationProperties.Name="Импорт и экспорт JSON">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" Margin="0,0,0,10"
+                               Text="Импорт меняет только черновик: проверьте изменения и нажмите «Применить». «Объединить» добавляет новые объекты и обновляет существующие; «Заменить» делает схему равной файлу. Объекты, хранящиеся в чертеже, не удаляются." />
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button x:Name="ImportMergeButton" Content="Импорт: объединить…" Style="{StaticResource Wide}" Margin="0,0,6,0" Click="OnImportMerge" AutomationProperties.Name="Импорт JSON с объединением" />
+                        <Button x:Name="ImportReplaceButton" Content="Импорт: заменить…" Style="{StaticResource Wide}" Margin="0,0,6,0" Click="OnImportReplace" AutomationProperties.Name="Импорт JSON с заменой" />
+                        <Button x:Name="ExportButton" Content="Экспорт черновика…" Style="{StaticResource Wide}" Margin="0,0,6,0" Click="OnExport" AutomationProperties.Name="Экспорт черновика в JSON" />
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Отчёт" Style="{StaticResource Heading}" />
+                    <ListBox x:Name="ReportList" AutomationProperties.Name="Отчёт импорта">
+                        <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+
+        <!-- Errors block «Применить» (TZXDATA 4.5); warnings, e.g. a type change of a stored parameter, do not. -->
+        <Grid Grid.Row="1" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="300" /></Grid.ColumnDefinitions>
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Проверка черновика" Style="{StaticResource Heading}" />
+                <ListBox x:Name="IssueList" Height="96" ItemsSource="{Binding Issues}" AutomationProperties.Name="Ошибки и предупреждения схемы">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource PaletteError}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Severity}" Value="Warning"><Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" /></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+            <DockPanel Grid.Column="2">
+                <TextBlock DockPanel.Dock="Top" Text="Изменения" Style="{StaticResource Heading}" />
+                <ListBox x:Name="ChangeList" Height="96" ItemsSource="{Binding ChangeLines}" AutomationProperties.Name="Изменения черновика" />
+            </DockPanel>
+        </Grid>
+
+        <DockPanel Grid.Row="2" Margin="0,8,0,0">
+            <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="Отмена" Style="{StaticResource Wide}" IsCancel="True" Click="OnCancel"
+                    AutomationProperties.Name="Отмена" ToolTip="Закрыть без изменений чертежа" />
+            <Button x:Name="ApplyButton" DockPanel.Dock="Right" Content="Применить" Style="{StaticResource Wide}" IsEnabled="{Binding CanApply}" Click="OnApply"
+                    AutomationProperties.Name="Применить" ToolTip="Записать схему в чертёж одной транзакцией (одна отмена)" ToolTipService.ShowOnDisabled="True" />
+            <StackPanel>
+                <TextBlock x:Name="StatusText" Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.Name="Состояние" />
+                <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" />
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AcadPaletteSetXData.Core;
+using AcadPaletteSetXData.UI;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -13,10 +14,56 @@ using AcApplication = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
 namespace AcadPaletteSetXData.AutoCAD;
 
-/// <summary><c>VELEC_SCHEMA_IMPORT</c> and <c>VELEC_SCHEMA_EXPORT</c> (TZXDATA 5.3).</summary>
+/// <summary><c>VELEC_SCHEMA_IMPORT</c>, <c>VELEC_SCHEMA_EXPORT</c> (TZXDATA 5.3) and <c>VELEC_SCHEMA_EDIT</c> (TZXDATA 9).</summary>
 public static class SchemaCommands
 {
     private const string FileFilter = "Схема параметров (*.json)|*.json";
+
+    /// <summary>
+    /// The modal schema editor (TZXDATA 9). Edits go to a draft; «Применить» writes it to NOD in one transaction (one
+    /// Undo step), «Отмена» leaves the drawing unchanged. Objects of the pickfirst set give the formula preview and
+    /// stay selected, so the palette shows new parameters at once.
+    /// </summary>
+    [CommandMethod("VELEC_SCHEMA_EDIT", CommandFlags.Modal | CommandFlags.UsePickSet | CommandFlags.Redraw)]
+    public static void Edit()
+    {
+        var document = AcApplication.DocumentManager.MdiActiveDocument;
+        if (document == null) return;
+        var editor = document.Editor;
+        try
+        {
+            var cache = AutoCadSchemaCaches.For(document);
+            var read = cache.Get().Read;
+            if (read.Issues.Count != 0) WriteLines(editor, read.Issues.Select(issue => "Чертёж: " + issue));
+            if (read.IsDamaged)
+            {
+                editor.WriteMessage("\nСхема в чертеже повреждена; восстановите её командой VELEC_SCHEMA_IMPORT (режим «Заменить»).\n");
+                return;
+            }
+            var implied = editor.SelectImplied();
+            var selection = implied.Status == PromptStatus.OK
+                ? TemplateCommands.Read(document.Database, implied.Value.GetObjectIds())
+                : Array.Empty<EntityDataSnapshot>();
+            var model = new SchemaEditorViewModel(read.Schema, ScanUsage(document.Database), selection);
+            var window = new SchemaEditorWindow(model, AutoCadThemeSource.Read());
+            if (Autodesk.AutoCAD.ApplicationServices.Application.ShowModalWindow(window) != true)
+            {
+                editor.WriteMessage("\nРедактор схемы закрыт; чертёж не изменён.\n");
+                return;
+            }
+
+            SchemaNodWriteResult result;
+            using (var transaction = new AutoCadSchemaNodTransaction(document, "VELEC_SCHEMA_EDIT", "Редактор схемы"))
+            {
+                result = model.Apply(transaction);
+            }
+            cache.Invalidate();
+            editor.WriteMessage(result.Changed
+                ? "\nСхема записана: объектов NOD {0}, удалено {1}; {2}. Отмена — одной командой U.\n"
+                : "\nСхема чертежа совпадает с черновиком; чертёж не изменён.\n", result.Written.Count, result.Erased.Count, model.Summary);
+        }
+        catch (System.Exception error) { editor.WriteMessage("\nСхема не записана: {0}\n", error.Message); }
+    }
 
     [CommandMethod("VELEC_SCHEMA_IMPORT", CommandFlags.Modal)]
     public static void Import()

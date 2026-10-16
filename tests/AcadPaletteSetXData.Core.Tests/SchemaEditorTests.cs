@@ -19,6 +19,29 @@ public sealed class SchemaEditorTests
     private static readonly string ExamplePath = Path.Combine(AppContext.BaseDirectory, "examples", "schema.json");
 
     [Fact]
+    public void TheGearButtonRunsOnlySchemaCommandsThroughTheHost()
+    {
+        var grid = new PropertyGridViewModel(new SelectionViewModel(new PropertyEditorViewModel()), CultureInfo.InvariantCulture);
+        Assert.False(grid.CanRunSchemaCommands);
+        Assert.False(grid.SchemaCommand.CanExecute(null));
+        Assert.False(grid.RunSchemaCommand(PropertyGridViewModel.SchemaEdit));
+
+        var started = new List<string>();
+        var canExecuteChanged = 0;
+        grid.SchemaCommand.CanExecuteChanged += (_, _) => canExecuteChanged++;
+        grid.SchemaCommandRunner = started.Add;
+        Assert.True(grid.CanRunSchemaCommands);
+        Assert.True(grid.SchemaCommand.CanExecute(null));
+        Assert.Equal(1, canExecuteChanged);
+
+        grid.SchemaCommand.Execute(null);
+        Assert.True(grid.RunSchemaCommand("velec_schema_import"));
+        grid.SchemaCommand.Execute(PropertyGridViewModel.SchemaExport);
+        Assert.False(grid.RunSchemaCommand("ERASE"));
+        Assert.Equal(new[] { "VELEC_SCHEMA_EDIT", "VELEC_SCHEMA_IMPORT", "VELEC_SCHEMA_EXPORT" }, started);
+    }
+
+    [Fact]
     public void CreatedParameterEnumAndTemplateAreAvailableInVstAfterApply()
     {
         var nod = new FakeNod(Example());

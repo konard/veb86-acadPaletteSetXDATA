@@ -64,7 +64,7 @@ internal static class Program
             VerifyToolbar(view, model, source, output);
             VerifyColumns(view, model);
             VerifyVirtualization(view, model, source, output);
-            VerifyTemplateOffer(view, model, source, output);
+            VerifyTemplates(view, model, source, output);
             VerifyLegacy(view, model, tabs, source, output);
             VerifyEditing(view, model, source, output);
             source.Select(SampleSelection());
@@ -76,7 +76,7 @@ internal static class Program
             Check(view.DataContext == null, "Disposal must detach the ViewModel.");
             application.Shutdown();
             Console.WriteLine("WPF checks passed: VST columns and states, «Разное», table rows, control panel, filter, column menu, " +
-                              "virtualization, kept expansion and scroll, template offer, legacy data, editors, Enter/Esc, check boxes, × ✎ «+ Добавить», " +
+                              "virtualization, kept expansion and scroll, template menu, assigning and changing templates, committed defaults, legacy data, editors, Enter/Esc, check boxes, × ✎ «+ Добавить», " +
                               "«+ Параметр», write errors, XDATA tree, themes, resize and disposal.");
             return 0;
         }
@@ -287,20 +287,90 @@ internal static class Program
         Pump(view);
     }
 
-    /// <summary>TZXDATA 8.5: objects without BobrovXDATA get the «Назначить шаблон» offer (stage 7).</summary>
-    private static void VerifyTemplateOffer(PaletteView view, PaletteViewModel model, MemorySelection source, string output)
+    /// <summary>
+    /// TZXDATA 8.5, 6.4, 6.6, 6.2 (stage 7): objects without BobrovXDATA get «Назначить шаблон»; the template is assigned to the
+    /// whole group in one transaction with new DEVICE_IDs, changed with the values kept, its defaults are committed.
+    /// </summary>
+    private static void VerifyTemplates(PaletteView view, PaletteViewModel model, MemorySelection source, string output)
     {
-        source.Select(new[] { new EntityDataSnapshot("C3", "Line", Array.Empty<DataValue>(), Array.Empty<DataRecord>()) });
+        source.Select(new[] { Empty("D1"), Empty("D2"), Empty("D3") });
         Pump(view);
         var grid = Grid(view);
         var assign = (Button)grid.FindName("AssignTemplateButton");
-        Check(model.Grid.NeedsTemplate && assign.IsVisible && !assign.IsEnabled, "«Назначить шаблон» must be offered and reserved.");
+        Check(model.Grid.NeedsTemplate && assign.IsVisible && assign.IsEnabled, "«Назначить шаблон» must be offered.");
         Check(((TextBlock)grid.FindName("MessageText")).Text.Contains("назначьте шаблон"), "The message must explain the offer.");
-        Save(view, Path.Combine(output, "tzxdata-stage6-no-template.png"));
+        Save(view, Path.Combine(output, "tzxdata-stage7-no-template.png"));
+
+        // The menu lists the templates of the block references only: CABLE and TRAY are for lines and polylines.
+        Invoke(assign, view);
+        var menu = (ContextMenu)grid.FindName("TemplateMenu");
+        var templates = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string id && id.Length != 0 && id != "defaults").ToArray();
+        Check(menu.IsOpen && templates.Select(item => (string)item.Tag).SequenceEqual(new[] { "DEVICE", "MOTOR" }),
+            "The template menu must list the templates of the entity types: " + string.Join(", ", templates.Select(item => item.Tag)));
+        Check(!Item(menu, "").IsEnabled && !Item(menu, "defaults").IsEnabled, "Without a template nothing can be removed or committed.");
+        Pump(view);
+        var right = menu.PointToScreen(new Point(menu.ActualWidth, 0)).X - view.PointToScreen(new Point(view.ActualWidth, 0)).X;
+        Check(right <= 1, "The menu of «Назначить шаблон» must open leftwards inside the palette: " + right.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
+        SaveWithPopup(view, menu, Path.Combine(output, "tzxdata-stage7-template-menu.png"));
+        var commits = source.Commits;
+        Click(templates[1], menu, view);
+        var objects = source.Objects();
+        var ids = objects.Select(item => item.DeviceId).ToArray();
+        Check(source.Commits == commits + 1 && objects.All(item => item.Template == "MOTOR" && item.Format == XDataFormat.V2) &&
+              ids.All(id => Guid.TryParse(id, out _)) && ids.Distinct().Count() == 3,
+            "The template must be assigned to the group in one transaction with a new DEVICE_ID per object.");
+        Check(!assign.IsVisible && model.Grid.TemplateText == "Электродвигатель", "The indicator must show the assigned template.");
+        var poles = Parameter(model, "Poles");
+        Check(poles.StateText == "○" && poles.Note == PropertyGridViewModel.DefaultNote && poles.Value == "3" && source.Stored("Poles").All(value => value is null),
+            "Template defaults must be shown with ○ and not written.");
+        Check(model.Grid.HasDefaults, "Shown defaults must offer «Зафиксировать значения по умолчанию».");
+        Save(view, Path.Combine(output, "tzxdata-stage7-assigned.png"));
+
+        // «Зафиксировать значения по умолчанию» writes the shown defaults in one transaction.
+        var indicator = (Button)grid.FindName("TemplateIndicator");
+        Invoke(indicator, view);
+        Check(Item(menu, "MOTOR").IsChecked && Item(menu, "").IsEnabled && Item(menu, "defaults").IsEnabled,
+            "The menu must check the template and offer «Без шаблона» and the defaults.");
+        SaveWithPopup(view, menu, Path.Combine(output, "tzxdata-stage7-commit-defaults.png"));
+        Click(Item(menu, "defaults"), menu, view);
+        Check(source.Commits == commits + 2 && source.Stored("Poles").All(value => Equals(value, 3)) &&
+              source.Stored("Phase").All(value => Equals(value, "ABC")) && source.Stored("Device_Type").All(value => Equals(value, "Электродвигатель")),
+            "The defaults of the template must be written.");
+        Check(!model.Grid.HasDefaults && Parameter(model, "Poles").StateText == "●", "Committed defaults are stored values.");
+
+        // Another template keeps DEVICE_ID and the values: Poles is outside DEVICE and goes to «Дополнительные».
+        Invoke(indicator, view);
+        Click(Item(menu, "DEVICE"), menu, view);
+        objects = source.Objects();
+        var extra = model.Grid.Find("g:" + PropertyGridViewModel.GroupExtra);
+        Check(source.Commits == commits + 3 && objects.All(item => item.Template == "DEVICE") && objects.Select(item => item.DeviceId).SequenceEqual(ids) &&
+              source.Stored("Poles").All(value => Equals(value, 3)) && extra != null && extra.Children.Any(row => row.Id == "Poles"),
+            "Changing the template must keep DEVICE_ID and the values outside the new template.");
+        Save(view, Path.Combine(output, "tzxdata-stage7-changed-template.png"));
+
+        // «Без шаблона» removes the template; the values and DEVICE_ID stay.
+        Invoke(indicator, view);
+        Click(Item(menu, ""), menu, view);
+        objects = source.Objects();
+        Check(source.Commits == commits + 4 && objects.All(item => item.Template is null) && objects.Select(item => item.DeviceId).SequenceEqual(ids) &&
+              source.Stored("Poles").All(value => Equals(value, 3)), "«Без шаблона» must remove only the template.");
+
         source.Select(SampleSelection());
         Pump(view);
         Check(!assign.IsVisible, "Objects with data must not offer a template.");
     }
+
+    private static MenuItem Item(ContextMenu menu, string tag) => menu.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, tag));
+
+    private static void Click(MenuItem item, ContextMenu menu, FrameworkElement view)
+    {
+        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, item));
+        menu.IsOpen = false;
+        Pump(view);
+    }
+
+    private static EntityDataSnapshot Empty(string handle) =>
+        new EntityDataSnapshot(handle, "BlockReference", Array.Empty<DataValue>(), Array.Empty<DataRecord>());
 
     /// <summary>Data of the former format stays readable; the XDATA tree tab is unchanged (stage 3).</summary>
     private static void VerifyLegacy(PaletteView view, PaletteViewModel model, TabControl tabs, MemorySelection source, string output)
@@ -660,6 +730,9 @@ internal static class Program
 
         /// <summary>Row keys of the table in the first object.</summary>
         public IReadOnlyList<string?> Rows(string table) => Read(snapshots[0]).Find(table)!.Rows!.Select(row => row.Key).ToArray();
+
+        /// <summary>The values of every object.</summary>
+        public ObjectValues[] Objects() => snapshots.Select(Read).ToArray();
 
         private ObjectValues Read(EntityDataSnapshot snapshot) => XDataV2.Read(snapshot, Values.Schema);
 

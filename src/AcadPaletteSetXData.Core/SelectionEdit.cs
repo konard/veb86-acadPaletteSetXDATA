@@ -16,7 +16,9 @@ public enum SelectionEditKind
     // XDATA v2 (TZXDATA 6): one parameter, or one row of a Table.
     Parameter, RemoveParameter, TableCell, AddTableRow, DeleteTableRow, Template, NewDeviceId,
     // TZXDATA 7.4: rewrite the Persist results of CalculatedString (the recalculation of VELEC_CHECK).
-    RecalculatePersisted
+    RecalculatePersisted,
+    // TZXDATA 6.2: «Зафиксировать значения по умолчанию» of the template.
+    CommitDefaults
 }
 
 /// <summary>A confirmed change, never a serialization of the merged UI.</summary>
@@ -66,6 +68,12 @@ public sealed class SelectionEdit : EventArgs
     /// (TZXDATA 7.4); objects without XDATA v2 are left as they are.
     /// </summary>
     public static SelectionEdit RecalculatePersisted() => new SelectionEdit(SelectionEditKind.RecalculatePersisted);
+    /// <summary>
+    /// «Зафиксировать значения по умолчанию» (TZXDATA 6.2): writes the shown defaults of the template parameters that are
+    /// not stored, and the <c>Persist</c> results of the template; stored values are kept. Objects without a template
+    /// have no defaults and are left as they are.
+    /// </summary>
+    public static SelectionEdit CommitDefaults() => new SelectionEdit(SelectionEditKind.CommitDefaults);
 
     private static string Text(object? value) => value is null ? "" : XDataV2.FormatValue(value);
 }

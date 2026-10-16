@@ -28,6 +28,17 @@ public sealed class ParameterSchema : SchemaElement
     public SchemaEnum? FindEnum(string? id) => Find(Enums, id, item => item.Id);
     public SchemaTemplate? FindTemplate(string? id) => Find(Templates, id, template => template.Id);
 
+    /// <summary>
+    /// Templates that may be assigned to every one of <paramref name="entityTypes"/> (TZXDATA 4.4, <c>VELEC_TEMPLATE_APPLY</c>),
+    /// in the order of the schema; repeated or empty ids are skipped.
+    /// </summary>
+    public IReadOnlyList<SchemaTemplate> TemplatesFor(IEnumerable<string> entityTypes)
+    {
+        var types = entityTypes.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return Templates.Where(template => !string.IsNullOrEmpty(template.Id) && ReferenceEquals(FindTemplate(template.Id), template) &&
+            types.All(template.Accepts)).ToArray();
+    }
+
     public static bool SameId(string? left, string? right) =>
         left != null && right != null && string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 
@@ -108,6 +119,13 @@ public sealed class SchemaTemplate : SchemaElement
     public List<string>? EntityTypes { get; set; }
     /// <summary>Ordered references to parameters, not copies of their descriptions.</summary>
     public List<TemplateParameter> Parameters { get; } = new List<TemplateParameter>();
+
+    /// <summary>«Устройство (DEVICE)»: the caption with the id for menus and prompts; the id without a caption.</summary>
+    public string DisplayName => string.IsNullOrEmpty(Caption) || Caption == Id ? Id ?? "" : Caption + " (" + Id + ")";
+
+    /// <summary>The template may be assigned to an entity of <paramref name="entityType"/>: no filter, or the type is listed.</summary>
+    public bool Accepts(string? entityType) =>
+        EntityTypes is null || EntityTypes.Count == 0 || EntityTypes.Any(type => string.Equals(type?.Trim(), entityType, StringComparison.OrdinalIgnoreCase));
 }
 
 public sealed class TemplateParameter : SchemaElement

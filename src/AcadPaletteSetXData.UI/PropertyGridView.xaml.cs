@@ -218,6 +218,42 @@ public partial class PropertyGridView : UserControl
         ParameterMenu.IsOpen = true;
     }
 
+    /// <summary>
+    /// «Шаблон ▾» and «Назначить шаблон» (TZXDATA 6.4, 6.6, 6.2): the templates of the schema that suit the selected
+    /// entity types, «Без шаблона» and «Зафиксировать значения по умолчанию»; each item is one transaction.
+    /// </summary>
+    private void OnTemplateMenu(object sender, RoutedEventArgs args)
+    {
+        if (model == null) return;
+        var grid = model;
+        TemplateMenu.Items.Clear();
+        foreach (var option in grid.AvailableTemplates)
+        {
+            var item = new MenuItem
+            {
+                Header = new TextBlock { Text = option.Caption }, Tag = option.Key,
+                IsChecked = string.Equals(grid.TemplateKey, option.Key, StringComparison.OrdinalIgnoreCase),
+            };
+            item.Click += (_, _) => grid.AssignTemplate(option.Key);
+            TemplateMenu.Items.Add(item);
+        }
+        if (TemplateMenu.Items.Count == 0)
+            TemplateMenu.Items.Add(new MenuItem { Header = grid.CanEdit ? "Нет шаблонов для выбранных объектов" : "Только чтение", IsEnabled = false });
+        TemplateMenu.Items.Add(new Separator());
+        var none = new MenuItem { Header = "Без шаблона", Tag = "", IsEnabled = grid.CanEdit && grid.HasTemplate };
+        none.Click += (_, _) => grid.AssignTemplate("");
+        TemplateMenu.Items.Add(none);
+        var defaults = new MenuItem { Header = "Зафиксировать значения по умолчанию", Tag = "defaults", IsEnabled = grid.HasDefaults };
+        defaults.Click += (_, _) => grid.CommitDefaults();
+        TemplateMenu.Items.Add(defaults);
+        TemplateMenu.PlacementTarget = (UIElement)sender;
+        // «Назначить шаблон» is at the right edge of the panel: the menu opens leftwards under it and stays inside the palette.
+        TemplateMenu.Placement = ReferenceEquals(sender, AssignTemplateButton) ? PlacementMode.Custom : PlacementMode.Bottom;
+        TemplateMenu.CustomPopupPlacementCallback = (popup, target, _) =>
+            new[] { new CustomPopupPlacement(new Point(target.Width - popup.Width, target.Height), PopupPrimaryAxis.Horizontal) };
+        TemplateMenu.IsOpen = true;
+    }
+
     private static PropertyRow? RowOf(object sender) => (sender as FrameworkElement)?.DataContext as PropertyRow;
 
     /// <summary>The text box or list of the value column that contains <paramref name="source"/>.</summary>

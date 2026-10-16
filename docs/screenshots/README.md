@@ -1,5 +1,27 @@
 # Рендеры WPF-панели
 
+## TZXDATA, этап 7: шаблоны на объектах
+
+`tzxdata-stage7-*.png` получены из настоящего `PropertyGridView` внутри `PaletteView` на Windows
+**net48** после записи через `XDataWriter` в три блока в памяти. Источник:
+[CI, commit fec1c41](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/38913551517),
+артефакт `wpf-renders/net48`; те же проверки пройдены на .NET 8. Описание шаблонов —
+[object-templates.md](../object-templates.md).
+
+| Без шаблона | Меню «Назначить шаблон» |
+| --- | --- |
+| ![Без шаблона](tzxdata-stage7-no-template.png) | ![Меню шаблонов](tzxdata-stage7-template-menu.png) |
+
+| Назначен `MOTOR`: умолчания с `○` | Меню индикатора: отметка, «Зафиксировать значения по умолчанию» | Смена на `DEVICE`: `Poles` в «Дополнительные» |
+| --- | --- | --- |
+| ![Назначен](tzxdata-stage7-assigned.png) | ![Фиксация умолчаний](tzxdata-stage7-commit-defaults.png) | ![Смена шаблона](tzxdata-stage7-changed-template.png) |
+
+Smoke этапа 7 проверяет: кнопку «Назначить шаблон»; меню только с шаблонами `BlockReference`,
+открытое внутри палитры; назначение `MOTOR` одной записью с тремя разными `DEVICE_ID`; умолчание
+шаблона с `○` без записи; отметку текущего шаблона; фиксацию умолчаний (`●`); смену на `DEVICE` с теми
+же `DEVICE_ID`; «Без шаблона» с сохранением значений. Рендер меню собран из палитры и всплывающего
+окна `ContextMenu`.
+
 ## TZXDATA, этап 6: редактирование в VST
 
 `tzxdata-stage6-*.png` получены из настоящего `PropertyGridView` внутри `PaletteView` на Windows

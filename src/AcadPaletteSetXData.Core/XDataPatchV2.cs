@@ -40,6 +40,8 @@ public sealed partial class XDataPatch
         var name = "Объект " + snapshot.Handle + ": ";
         // The recalculation goes over a whole drawing: objects without v2 values are not errors.
         if (edit.Kind == SelectionEditKind.RecalculatePersisted && format != XDataFormat.V2) return snapshot;
+        // Only objects with a template have defaults (TZXDATA 6.2, 6.6).
+        if (edit.Kind == SelectionEditKind.CommitDefaults && format == XDataFormat.None) return snapshot;
         if (format == XDataFormat.V1) throw new InvalidOperationException(name + "XDATA в формате v1; сначала выполните миграцию в v2.");
         if (format == XDataFormat.Newer) throw new InvalidOperationException(name + "XDATA записан более новой версией формата; только чтение.");
         if (app != null && app.Value.Others) throw new InvalidOperationException(name + "XDATA " + DrawingNames.RegApp + " повторяется; запись отменена.");
@@ -85,6 +87,10 @@ public sealed partial class XDataPatch
                 {
                     if (!schema.Templates.TryGetValue(edit.Field, out var template))
                         throw new InvalidOperationException("Шаблон " + edit.Field + " не описан в схеме.");
+                    // EntityTypes filters the objects of a template (TZXDATA 4.4); a wrong one in a group cancels the operation.
+                    if (!template.Accepts(snapshot.EntityType))
+                        throw new InvalidOperationException(name + "шаблон " + template.Id + " не применяется к типу " + snapshot.EntityType +
+                            " (" + string.Join(", ", template.EntityTypes!) + ").");
                     // Changing the template keeps all values (TZXDATA 6.6); a new object gets its DEVICE_ID (6.4).
                     if (!nodes.Any(node => ParameterSchema.SameId(node.Id, XDataV2.DeviceIdKey)))
                         SetSystem(nodes, XDataV2.DeviceIdKey, XDataV2.NewDeviceId(newGuid()));
@@ -99,6 +105,15 @@ public sealed partial class XDataPatch
                 calculation = Calculation();
                 recalculated = calculation.Results;
                 break;
+            case SelectionEditKind.CommitDefaults:
+            {
+                calculation = Calculation();
+                var missing = calculation.MissingDefaults();
+                CommitDefaults(nodes, calculation, missing, schema);
+                // Only missing results are written: a stale stored one is updated by its sources or by VELEC_CHECK (TZXDATA 7.4).
+                recalculated = calculation.Results.Where(result => missing.Contains(result.Id, StringComparer.OrdinalIgnoreCase)).ToArray();
+                break;
+            }
             default: throw new ArgumentException("Неизвестная операция.", nameof(edit));
         }
         if (calculation != null && recalculated != null)
@@ -124,6 +139,21 @@ public sealed partial class XDataPatch
         var value = Convert(parameter, type, edit.Data!, schema);
         Set(nodes, Pair(parameter.Id!, type.ToXData(value)));
         return (parameter.Id!, value);
+    }
+
+    /// <summary>
+    /// Writes the defaults of the template parameters missing in the object (TZXDATA 6.2): the value the VST shows with
+    /// <c>○</c>, the template default over the parameter default; <c>Persist</c> results are written by
+    /// <see cref="WritePersisted"/>. Stored values, values outside the template and other RegApps are kept.
+    /// </summary>
+    private void CommitDefaults(List<Node> nodes, ObjectCalculation calculation, IEnumerable<string> missing, SchemaSnapshot schema)
+    {
+        foreach (var id in missing)
+        {
+            if (schema.Formulas.Find(id) != null) continue;
+            var (parameter, type) = Scalar(id, schema);
+            Set(nodes, Pair(parameter.Id!, type.ToXData(Convert(parameter, type, calculation.Value(id)!, schema))));
+        }
     }
 
     /// <summary>

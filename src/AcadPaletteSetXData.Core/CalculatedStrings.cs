@@ -257,6 +257,29 @@ public sealed class ObjectCalculation
         template.Parameters.Any(item => ParameterSchema.SameId(item.Id, id));
 
     /// <summary>
+    /// «Зафиксировать значения по умолчанию» (TZXDATA 6.2): the parameters of the template that are not stored and are shown
+    /// with <c>○</c> — scalars with a default and <c>Persist</c> results without an error — in the order of the template.
+    /// </summary>
+    public IReadOnlyList<string> MissingDefaults()
+    {
+        if (Template is null || !Schema.Templates.TryGetValue(Template, out var template)) return Array.Empty<string>();
+        var result = new List<string>();
+        foreach (var item in template.Parameters)
+        {
+            if (item.Id is null || ParameterSchema.ReservedIds.Contains(item.Id, StringComparer.OrdinalIgnoreCase) || Source.Find(item.Id) != null) continue;
+            if (!Schema.Parameters.TryGetValue(item.Id, out var parameter) || result.Contains(parameter.Id!, StringComparer.OrdinalIgnoreCase)) continue;
+            var missing = types.Find(parameter.Type)?.Kind switch
+            {
+                null or ParameterKind.Table => false,
+                ParameterKind.CalculatedString => Formulas.Find(parameter.Id)?.Persist == true && Find(parameter.Id!)?.IsError == false,
+                _ => Default(parameter) != null
+            };
+            if (missing) result.Add(parameter.Id!);
+        }
+        return result;
+    }
+
+    /// <summary>
     /// One line for the trace: the formulas that are used by the object or reference its values,
     /// e.g. <c>A1: GC_Name = «ЩУ1.3»</c>; erroneous ones are marked with <c>!</c>, stale <c>Persist</c> with <c>*</c>.
     /// </summary>

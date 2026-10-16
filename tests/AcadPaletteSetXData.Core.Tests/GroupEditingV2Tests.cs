@@ -425,36 +425,36 @@ public sealed class GroupEditingV2Tests
         }
     }
 
-    private static (SelectionViewModel, PropertyGridViewModel, SelectionController) Open(Drawing drawing)
+    internal static (SelectionViewModel, PropertyGridViewModel, SelectionController) Open(Drawing drawing)
     {
         var (selection, grid) = Model();
         return (selection, grid, new SelectionController(drawing, selection));
     }
 
-    private static (SelectionViewModel, PropertyGridViewModel) Model()
+    internal static (SelectionViewModel, PropertyGridViewModel) Model()
     {
         var selection = new SelectionViewModel(new PropertyEditorViewModel());
         return (selection, new PropertyGridViewModel(selection, CultureInfo.InvariantCulture));
     }
 
-    private static IEnumerable<PropertyRow> All(IEnumerable<PropertyRow> rows) => rows.SelectMany(row => new[] { row }.Concat(All(row.Children)));
+    internal static IEnumerable<PropertyRow> All(IEnumerable<PropertyRow> rows) => rows.SelectMany(row => new[] { row }.Concat(All(row.Children)));
 
-    private static PropertyRow Row(PropertyGridViewModel grid, string id) =>
+    internal static PropertyRow Row(PropertyGridViewModel grid, string id) =>
         All(grid.Roots).FirstOrDefault(row => row.Id == id && row.Kind == PropertyRowKind.Parameter) ?? throw new KeyNotFoundException(id);
 
-    private static PropertyRow TableRow(PropertyGridViewModel grid, string key) =>
+    internal static PropertyRow TableRow(PropertyGridViewModel grid, string key) =>
         All(grid.Roots).FirstOrDefault(row => row.Kind == PropertyRowKind.TableRow && row.RowKey == key) ?? throw new KeyNotFoundException(key);
 
-    private static ObjectValuesCache Cache()
+    internal static ObjectValuesCache Cache()
     {
         var result = ParameterSchemaJson.Load(File.ReadAllText(ExamplePath));
         Assert.NotNull(result.Schema);
         return new ObjectValuesCache(new SchemaCache(() => new SchemaNodReadResult(result.Schema, null, result.Issues)));
     }
 
-    private static EntityDataSnapshot Device(string handle, params DataValue[][] pairs) => Object(handle, "DEVICE", pairs);
+    internal static EntityDataSnapshot Device(string handle, params DataValue[][] pairs) => Object(handle, "DEVICE", pairs);
 
-    private static EntityDataSnapshot Object(string handle, string template, params DataValue[][] pairs)
+    internal static EntityDataSnapshot Object(string handle, string template, params DataValue[][] pairs)
     {
         var xdata = new List<DataValue> { V(1001, DrawingNames.RegApp), V(1070, (short)2) };
         xdata.AddRange(Pair(XDataV2.TemplateKey, template));
@@ -462,7 +462,7 @@ public sealed class GroupEditingV2Tests
         return new EntityDataSnapshot(handle, "BlockReference", xdata.ToArray(), Array.Empty<DataRecord>());
     }
 
-    private static DataValue[] Pair(string id, object value) => new[]
+    internal static DataValue[] Pair(string id, object value) => new[]
     {
         V(1000, id),
         value switch
@@ -475,7 +475,7 @@ public sealed class GroupEditingV2Tests
         }
     };
 
-    private static DataValue[] Materials(params (string Category, string Mark, double Count, bool InSpec, string Comment)[] rows)
+    internal static DataValue[] Materials(params (string Category, string Mark, double Count, bool InSpec, string Comment)[] rows)
     {
         var list = new List<DataValue> { V(1000, "Materials"), V(1002, "{") };
         foreach (var row in rows)
@@ -492,17 +492,19 @@ public sealed class GroupEditingV2Tests
         return list.ToArray();
     }
 
-    private static DataValue V(int code, object value) => new DataValue(code, value);
+    internal static DataValue V(int code, object value) => new DataValue(code, value);
 
     /// <summary>The selection of a drawing written through <see cref="XDataWriter"/> in one transaction per edit.</summary>
-    private sealed class Drawing : ISelectionSource, ISelectionWriter, IObjectValuesSource
+    internal sealed class Drawing : ISelectionSource, ISelectionWriter, IObjectValuesSource
     {
         private readonly XDataWriter writer;
 
-        public Drawing(params EntityDataSnapshot[] snapshots)
+        public Drawing(params EntityDataSnapshot[] snapshots) : this(Cache(), snapshots) { }
+
+        public Drawing(ObjectValuesCache values, params EntityDataSnapshot[] snapshots)
         {
             Snapshots = snapshots;
-            Values = Cache();
+            Values = values;
             writer = new XDataWriter(Begin, Values);
         }
 

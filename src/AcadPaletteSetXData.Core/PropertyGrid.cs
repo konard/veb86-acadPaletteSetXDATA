@@ -231,6 +231,7 @@ public sealed class PropertyGridViewModel : ObservableObject
     private int generation;
     private ObservableCollection<PropertyRow> rows = new ObservableCollection<PropertyRow>();
     private IReadOnlyList<PropertyOption> available = Array.Empty<PropertyOption>();
+    private IReadOnlyList<PropertyOption> templates = Array.Empty<PropertyOption>();
     private SchemaSnapshot? schema;
     private PropertyRow? selectedRow;
     private string? selectedIdentity;
@@ -244,6 +245,8 @@ public sealed class PropertyGridViewModel : ObservableObject
     private bool canEdit;
     private bool hasError;
     private bool needsTemplate;
+    private bool hasTemplate;
+    private bool hasDefaults;
     private bool showActions = true, showState = true, showNote = true;
 
     public PropertyGridViewModel(SelectionViewModel selection, CultureInfo? culture = null, ParameterTypeRegistry? types = null)
@@ -255,7 +258,10 @@ public sealed class PropertyGridViewModel : ObservableObject
         CollapseAllCommand = new DelegateCommand(_ => SetAllExpanded(false));
         ToggleCommand = new DelegateCommand(row => { if (row is PropertyRow item) Toggle(item); });
         RefreshCommand = new DelegateCommand(_ => Refresh());
-        AssignTemplateCommand = new DelegateCommand(_ => { }, _ => false);
+        AssignTemplateCommand = new DelegateCommand(
+            option => AssignTemplate(option is PropertyOption item ? item.Key : option as string ?? ""),
+            option => CanEdit && (option is PropertyOption || option is string));
+        CommitDefaultsCommand = new DelegateCommand(_ => CommitDefaults(), _ => CanEdit && HasDefaults);
         DeleteRowCommand = new DelegateCommand(row => { if (row is PropertyRow item) DeleteRow(item); }, row => row is PropertyRow item && CanEdit && item.CanDelete);
         EditRowCommand = new DelegateCommand(row => { if (row is PropertyRow item) EditRow(item); }, row => row is PropertyRow item && item.CanEditRow);
         AddRowCommand = new DelegateCommand(row => { if (row is PropertyRow item) AddRow(item); }, row => row is PropertyRow item && CanEdit && item.CanAdd);
@@ -289,6 +295,15 @@ public sealed class PropertyGridViewModel : ObservableObject
     public bool NeedsTemplate { get => needsTemplate; private set => SetProperty(ref needsTemplate, value); }
     /// <summary>«+ Параметр» (TZXDATA 8.4): scalar parameters of the schema that are not shown yet.</summary>
     public IReadOnlyList<PropertyOption> AvailableParameters { get => available; private set => SetProperty(ref available, value); }
+    /// <summary>
+    /// «Шаблон ▾» (TZXDATA 8.4, stage 7): templates of the schema that accept every entity type of the selection
+    /// (<c>EntityTypes</c>); the key is the template id, the caption «Устройство (DEVICE)».
+    /// </summary>
+    public IReadOnlyList<PropertyOption> AvailableTemplates { get => templates; private set => SetProperty(ref templates, value); }
+    /// <summary>An object of the selection has a template: «Без шаблона» is offered.</summary>
+    public bool HasTemplate { get => hasTemplate; private set => SetProperty(ref hasTemplate, value); }
+    /// <summary>An object shows a template default (<c>○</c>) that is not stored: «Зафиксировать значения по умолчанию» (TZXDATA 6.2).</summary>
+    public bool HasDefaults { get => hasDefaults; private set => SetProperty(ref hasDefaults, value); }
     /// <summary>The row in focus: only it gets an editor (TZXDATA 8.3); it is selected again after a write.</summary>
     public PropertyRow? SelectedRow
     {
@@ -338,8 +353,10 @@ public sealed class PropertyGridViewModel : ObservableObject
     public ICommand ToggleCommand { get; }
     /// <summary>⟳: re-reads the selection and recalculates <c>CalculatedString</c>; rebuilds the tree without a source.</summary>
     public ICommand RefreshCommand { get; }
-    /// <summary>«Назначить шаблон» runs <c>VELEC_TEMPLATE_APPLY</c> from stage 7; reserved until then.</summary>
+    /// <summary>«Шаблон ▾» / «Назначить шаблон»: <see cref="AssignTemplate"/> with an option of <see cref="AvailableTemplates"/>.</summary>
     public ICommand AssignTemplateCommand { get; }
+    /// <summary>«Зафиксировать значения по умолчанию»: <see cref="CommitDefaults"/>.</summary>
+    public ICommand CommitDefaultsCommand { get; }
     /// <summary><c>×</c> of column 0: <see cref="DeleteRow"/>.</summary>
     public ICommand DeleteRowCommand { get; }
     /// <summary><c>✎</c> of column 0: <see cref="EditRow"/>.</summary>
@@ -535,6 +552,27 @@ public sealed class PropertyGridViewModel : ObservableObject
         return selection.RequestEdit(SelectionEdit.SetParameter(parameter.Id!, converted));
     }
 
+    /// <summary>
+    /// <c>VELEC_TEMPLATE_APPLY</c> of the panel (TZXDATA 6.4, 6.6): sets the template of every object in one transaction;
+    /// an object without <c>DEVICE_ID</c> gets a new one. Values are kept: those outside the new template go to
+    /// «Дополнительные». An empty id removes the template; the values stay.
+    /// </summary>
+    public bool AssignTemplate(string id)
+    {
+        if (!CanEdit || id is null) return false;
+        if (id.Length == 0 ? !HasTemplate : !AvailableTemplates.Any(option => ParameterSchema.SameId(option.Key, id))) return false;
+        // Every object has this template already: nothing to write.
+        if (id.Length != 0 && selection.Values.All(item => ParameterSchema.SameId(item.Template, id) && item.Format == XDataFormat.V2 &&
+            item.DeviceId != null)) return false;
+        return selection.RequestEdit(SelectionEdit.SetTemplate(id));
+    }
+
+    /// <summary>
+    /// «Зафиксировать значения по умолчанию» (TZXDATA 6.2): writes the shown defaults of the templates in one transaction,
+    /// for programs that read only XDATA; stored values are kept.
+    /// </summary>
+    public bool CommitDefaults() => CanEdit && HasDefaults && selection.RequestEdit(SelectionEdit.CommitDefaults());
+
     private bool Request(PropertyRow row, SelectionEdit edit)
     {
         // The controller writes and reads the selection again synchronously: the tree is rebuilt by Applied. The written
@@ -665,6 +703,11 @@ public sealed class PropertyGridViewModel : ObservableObject
         roots = built;
         RowCount = count;
         AvailableParameters = build.Available(built);
+        AvailableTemplates = build.TemplateOptions();
+        HasTemplate = build.HasTemplate;
+        HasDefaults = CanEdit && build.HasDefaults;
+        ((DelegateCommand)AssignTemplateCommand).RaiseCanExecuteChanged();
+        ((DelegateCommand)CommitDefaultsCommand).RaiseCanExecuteChanged();
         Flatten();
         BuildTime = timer.Elapsed;
         Notify(nameof(Roots));
@@ -759,6 +802,8 @@ public sealed class PropertyGridViewModel : ObservableObject
         public string TemplateKey { get; private set; } = "";
         public string TemplateText { get; private set; } = "";
         public bool NeedsTemplate { get; private set; }
+        public bool HasTemplate => values.Any(item => item.Template != null);
+        public bool HasDefaults => calculations.Any(calculation => calculation.MissingDefaults().Count != 0);
         public string Message { get; private set; } = "";
 
         private CultureInfo Culture => owner.culture;
@@ -986,6 +1031,14 @@ public sealed class PropertyGridViewModel : ObservableObject
                     Kind(parameter) is ParameterKind kind && kind != ParameterKind.Table && kind != ParameterKind.CalculatedString)
                 .Select(parameter => new PropertyOption(parameter.Id!, Caption(parameter) == parameter.Id ? parameter.Id! : Caption(parameter) + " (" + parameter.Id + ")"))
                 .ToArray();
+        }
+
+        /// <summary>«Шаблон ▾»: the templates that accept every entity type of the selection.</summary>
+        public IReadOnlyList<PropertyOption> TemplateOptions()
+        {
+            if (!CanEdit) return Array.Empty<PropertyOption>();
+            return schema!.Schema!.TemplatesFor(values.Select(item => item.EntityType))
+                .Select(template => new PropertyOption(template.Id!, template.DisplayName)).ToArray();
         }
 
         /// <summary>Priority of the merged state: an error, then a stored, a calculated and a default value.</summary>

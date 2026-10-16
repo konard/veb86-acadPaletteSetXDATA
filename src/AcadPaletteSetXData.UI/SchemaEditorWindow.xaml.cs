@@ -34,7 +34,7 @@ public partial class SchemaEditorWindow : Window
         {
             Source = new Uri($"/{assembly};component/Themes/{name}.xaml", UriKind.Relative)
         };
-        model.Confirm ??= Confirm;
+        model.Confirm ??= AskUser;
         DataContext = model;
         Loaded += (_, _) =>
         {
@@ -57,7 +57,7 @@ public partial class SchemaEditorWindow : Window
         Tabs.SelectedItem = ImportTab;
     }
 
-    private bool Confirm(string message) =>
+    private bool AskUser(string message) =>
         MessageBox.Show(this, message, Title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
 
     private void OnApply(object sender, RoutedEventArgs e)
@@ -85,7 +85,8 @@ public partial class SchemaEditorWindow : Window
     private bool ConfirmDiscard()
     {
         CommitFocusedText();
-        return !model.IsDirty || Confirm("Черновик схемы изменён. Закрыть редактор без записи в чертёж?");
+        // The question goes through model.Confirm like the other questions of the draft (a test replaces the message box).
+        return !model.IsDirty || (model.Confirm ?? AskUser)("Черновик схемы изменён. Закрыть редактор без записи в чертёж?");
     }
 
     private static void CommitFocusedText()

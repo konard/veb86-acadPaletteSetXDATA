@@ -49,8 +49,11 @@ jobs:
       - name: Build WPF verification tool for both runtimes
         run: dotnet build experiments/AcadPaletteSetXData.WpfSmoke -c Release
       - name: Verify and render the .NET 8 WPF editor
+        # A modal message box left open by the smoke hangs the step: fail fast (a pass takes ~15 s).
+        timeout-minutes: 5
         run: dotnet run --project experiments/AcadPaletteSetXData.WpfSmoke -c Release -f net8.0-windows --no-build -- artifacts/screenshots/net8
       - name: Verify and render the .NET Framework 4.8 WPF editor
+        timeout-minutes: 5
         run: ./experiments/AcadPaletteSetXData.WpfSmoke/bin/Release/net48/AcadPaletteSetXData.WpfSmoke.exe artifacts/screenshots/net48
       - uses: actions/upload-artifact@v4
         if: always()

@@ -36,6 +36,7 @@ jobs:
         shell: pwsh
         run: ./experiments/Test-AcadPaletteSetXDataRelease.ps1
       - name: Verify the WPF editor from the single release DLL
+        timeout-minutes: 5
         shell: pwsh
         run: |
           dotnet build experiments/AcadPaletteSetXData.WpfSmoke -c Release -p:UseReleaseAssembly=true -p:Version=0.0.${{ github.run_number }}

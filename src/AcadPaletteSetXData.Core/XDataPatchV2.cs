@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Node = AcadPaletteSetXData.Core.XDataV2.Tokens.Node;
 
@@ -8,22 +9,26 @@ namespace AcadPaletteSetXData.Core;
 /// <summary>
 /// XDATA v2 (TZXDATA 6): an edit changes one pair, or one row of a <c>Table</c>; every other value,
 /// unknown values and other RegApps are kept in their order. Values are converted to the schema type.
+/// <c>Persist</c> results of <c>CalculatedString</c> that depend on the change are written by the same patch (TZXDATA 7.4).
 /// </summary>
 public sealed partial class XDataPatch
 {
     private readonly SchemaSnapshot? schema;
     private readonly ParameterTypeRegistry types;
     private readonly Func<Guid> newGuid;
+    private readonly CultureInfo? culture;
 
     public XDataPatch() : this(null) { }
 
     /// <param name="schema">Schema of the drawing; required for v2 edits.</param>
     /// <param name="newGuid">Source of <c>DEVICE_ID</c> values (tests pass a fixed sequence).</param>
-    public XDataPatch(SchemaSnapshot? schema, ParameterTypeRegistry? types = null, Func<Guid>? newGuid = null)
+    /// <param name="culture">Decimal separator of <c>Persist</c> results; the current culture by default (TZXDATA 7.2).</param>
+    public XDataPatch(SchemaSnapshot? schema, ParameterTypeRegistry? types = null, Func<Guid>? newGuid = null, CultureInfo? culture = null)
     {
         this.schema = schema;
         this.types = types ?? ParameterTypeRegistry.Default;
         this.newGuid = newGuid ?? Guid.NewGuid;
+        this.culture = culture;
     }
 
     private EntityDataSnapshot ApplyV2(EntityDataSnapshot snapshot, SelectionEdit edit, ObjectValues? values)
@@ -33,6 +38,8 @@ public sealed partial class XDataPatch
         var app = XDataV2.FindApp(xdata);
         var format = values != null && ReferenceEquals(values.XData, xdata) ? values.Format : XDataV2.FormatOf(xdata);
         var name = "Объект " + snapshot.Handle + ": ";
+        // The recalculation goes over a whole drawing: objects without v2 values are not errors.
+        if (edit.Kind == SelectionEditKind.RecalculatePersisted && format != XDataFormat.V2) return snapshot;
         if (format == XDataFormat.V1) throw new InvalidOperationException(name + "XDATA в формате v1; сначала выполните миграцию в v2.");
         if (format == XDataFormat.Newer) throw new InvalidOperationException(name + "XDATA записан более новой версией формата; только чтение.");
         if (app != null && app.Value.Others) throw new InvalidOperationException(name + "XDATA " + DrawingNames.RegApp + " повторяется; запись отменена.");
@@ -47,13 +54,27 @@ public sealed partial class XDataPatch
             if (damaged) throw new InvalidOperationException(name + "незакрытый или лишний список XDATA; запись отменена.");
         }
 
+        // Persist results are recalculated from the cached values of the object, without parsing XDATA again.
+        var cached = values != null && ReferenceEquals(values.XData, xdata) && ReferenceEquals(values.Schema, schema) ? values : null;
+        ObjectCalculation Calculation() => new ObjectCalculation(cached ?? XDataV2.Read(snapshot, schema, types), culture, types);
+        IReadOnlyList<CalculatedValue>? recalculated = null;
+        ObjectCalculation? calculation = null;
+
         switch (edit.Kind)
         {
-            case SelectionEditKind.Parameter: SetParameter(nodes, edit, schema); break;
+            case SelectionEditKind.Parameter:
+            {
+                var (id, value) = SetParameter(nodes, edit, schema);
+                if (schema.Formulas.Dependents(id).Any(formula => formula.Persist))
+                    recalculated = (calculation = Calculation()).SetValue(id, value);
+                break;
+            }
             case SelectionEditKind.RemoveParameter:
                 if (ParameterSchema.ReservedIds.Contains(edit.Field, StringComparer.OrdinalIgnoreCase))
                     throw new ArgumentException("Системный Id " + edit.Field + " не удаляется этой операцией.", nameof(edit));
                 nodes.RemoveAll(node => ParameterSchema.SameId(node.Id, edit.Field));
+                if (schema.Formulas.Find(edit.Field) is null && schema.Formulas.Dependents(edit.Field).Any(formula => formula.Persist))
+                    recalculated = (calculation = Calculation()).SetValue(edit.Field, null);
                 break;
             case SelectionEditKind.TableCell:
             case SelectionEditKind.AddTableRow:
@@ -69,10 +90,19 @@ public sealed partial class XDataPatch
                         SetSystem(nodes, XDataV2.DeviceIdKey, XDataV2.NewDeviceId(newGuid()));
                     SetSystem(nodes, XDataV2.TemplateKey, template.Id!);
                 }
+                // Defaults of the template take part in the formulas.
+                if (schema.Formulas.Formulas.Any(formula => formula.Persist))
+                    recalculated = (calculation = Calculation()).SetTemplate(edit.Field.Length == 0 ? null : schema.Templates[edit.Field].Id);
                 break;
             case SelectionEditKind.NewDeviceId: SetSystem(nodes, XDataV2.DeviceIdKey, XDataV2.NewDeviceId(newGuid())); break;
+            case SelectionEditKind.RecalculatePersisted:
+                calculation = Calculation();
+                recalculated = calculation.Results;
+                break;
             default: throw new ArgumentException("Неизвестная операция.", nameof(edit));
         }
+        if (calculation != null && recalculated != null)
+            WritePersisted(nodes, recalculated, edit.Kind == SelectionEditKind.Parameter, calculation.Template, schema, name);
 
         if (!header && nodes.Count == 0) return snapshot;
         var result = new List<DataValue>(xdata.Count + 8);
@@ -86,13 +116,34 @@ public sealed partial class XDataPatch
         return new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, result, snapshot.Records, snapshot.Warning);
     }
 
-    private void SetParameter(List<Node> nodes, SelectionEdit edit, SchemaSnapshot schema)
+    private (string Id, object Value) SetParameter(List<Node> nodes, SelectionEdit edit, SchemaSnapshot schema)
     {
         if (ParameterSchema.ReservedIds.Contains(edit.Field, StringComparer.OrdinalIgnoreCase))
             throw new ArgumentException("Системный Id " + edit.Field + " задаётся отдельной операцией.", nameof(edit));
         var (parameter, type) = Scalar(edit.Field, schema);
         var value = Convert(parameter, type, edit.Data!, schema);
         Set(nodes, Pair(parameter.Id!, type.ToXData(value)));
+        return (parameter.Id!, value);
+    }
+
+    /// <summary>
+    /// Writes recalculated <c>Persist</c> results (TZXDATA 7.4). A result is written when it is already stored, when the
+    /// template of the object contains it, or when its source parameter has just been set; erroneous formulas are skipped.
+    /// </summary>
+    private static void WritePersisted(List<Node> nodes, IReadOnlyList<CalculatedValue> results, bool sourceSet, string? template,
+        SchemaSnapshot schema, string name)
+    {
+        var templateParameters = template != null && schema.Templates.TryGetValue(template, out var found) ? found.Parameters : null;
+        foreach (var result in results)
+        {
+            if (!result.Formula.Persist || result.IsError) continue;
+            var stored = nodes.Any(node => ParameterSchema.SameId(node.Id, result.Id));
+            if (!stored && !sourceSet && templateParameters?.Any(item => ParameterSchema.SameId(item.Id, result.Id)) != true) continue;
+            if (ParameterTypeRegistry.Utf8Length(result.Text) > ParameterTypeRegistry.MaxStringBytes)
+                throw new InvalidOperationException(name + "результат " + result.Id + " (Persist) длиннее " + ParameterTypeRegistry.MaxStringBytes +
+                    " байт UTF-8; операция отменена.");
+            Set(nodes, Pair(result.Id, new DataValue(1000, result.Text)));
+        }
     }
 
     private void EditTable(List<Node> nodes, SelectionEdit edit, SchemaSnapshot schema, string name)

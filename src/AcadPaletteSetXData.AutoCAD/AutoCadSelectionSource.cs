@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using AcadPaletteSetXData.Core;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -13,6 +14,7 @@ namespace AcadPaletteSetXData.AutoCAD;
 internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWriter, IObjectValuesSource, IDisposable
 {
     private readonly DocumentCollection documents = AcApplication.DocumentManager;
+    private const int TracedCalculations = 10;
     private readonly bool traceEnabled = Environment.GetEnvironmentVariable("XDATAPALETTE_TRACE") == "1";
     private Document? document;
     private Document? lastReadDocument;
@@ -108,6 +110,9 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
             var values = AutoCadSchemaCaches.ValuesFor(active);
             active.Editor.WriteMessage("\n[XDATAPALETTE] Прочитано объектов: {0}; {1} мс; кэш значений: {2}, разборов XDATA: {3}.\n",
                 snapshots.Count, timer.ElapsedMilliseconds, values.Count, values.ParseCount);
+            // CalculatedString results (TZXDATA 7.3) come from the cached values: the parse counter stays the same.
+            foreach (var item in values.Get(snapshots.Take(TracedCalculations)))
+                active.Editor.WriteMessage("[XDATAPALETTE] {0}\n", new ObjectCalculation(item).Describe());
         }
         return snapshots;
     }

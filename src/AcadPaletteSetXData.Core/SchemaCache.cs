@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace AcadPaletteSetXData.Core;
 
-/// <summary>Schema read from NOD with dictionaries by Id (case-insensitive, first object wins on duplicates).</summary>
+/// <summary>Schema read from NOD with dictionaries by Id (case-insensitive, first object wins on duplicates) and parsed formulas.</summary>
 public sealed class SchemaSnapshot
 {
     public SchemaSnapshot(SchemaNodReadResult read)
@@ -19,12 +19,15 @@ public sealed class SchemaSnapshot
     private readonly Dictionary<string, SchemaParameter> parameters = new Dictionary<string, SchemaParameter>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SchemaEnum> enums = new Dictionary<string, SchemaEnum>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SchemaTemplate> templates = new Dictionary<string, SchemaTemplate>(StringComparer.OrdinalIgnoreCase);
+    private FormulaSet? formulas;
 
     public SchemaNodReadResult Read { get; }
     public ParameterSchema? Schema => Read.Schema;
     public IReadOnlyDictionary<string, SchemaParameter> Parameters => parameters;
     public IReadOnlyDictionary<string, SchemaEnum> Enums => enums;
     public IReadOnlyDictionary<string, SchemaTemplate> Templates => templates;
+    /// <summary>Parsed <c>CalculatedString</c> formulas and their dependency graph, built once per snapshot (TZXDATA 7.3, 10.1).</summary>
+    public FormulaSet Formulas => formulas ??= FormulaSet.Build(this);
 
     private static void Add<T>(Dictionary<string, T> map, string? id, T item)
     {

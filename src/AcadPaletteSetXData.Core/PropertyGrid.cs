@@ -165,6 +165,8 @@ public sealed class PropertyGridViewModel : ObservableObject
     public bool ShowActionsColumn { get => showActions; set => SetProperty(ref showActions, value); }
     public bool ShowStateColumn { get => showState; set => SetProperty(ref showState, value); }
     public bool ShowNoteColumn { get => showNote; set => SetProperty(ref showNote, value); }
+    /// <summary>Widths of columns 0–4; the view writes back the widths dragged by the user for the session.</summary>
+    public double[] ColumnWidths { get; } = { 44, 150, 120, 28, 130 };
     /// <summary>
     /// Vertical scroll position; saved per template so that a new selection of the same template keeps it (TZXDATA 8.5).
     /// </summary>

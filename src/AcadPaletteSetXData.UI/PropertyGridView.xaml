@@ -1,0 +1,279 @@
+<UserControl x:Class="AcadPaletteSetXData.UI.PropertyGridView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:AcadPaletteSetXData.UI"
+             AutomationProperties.Name="Свойства объектов">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Themes/Controls.xaml" /></ResourceDictionary.MergedDictionaries>
+            <ui:IndentConverter x:Key="Indent" />
+            <BooleanToVisibilityConverter x:Key="Visible" />
+            <Style x:Key="ToolButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Width" Value="26" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0,0,3,0" />
+                <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            </Style>
+            <Style x:Key="CellButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Padding" Value="3,0" />
+                <Setter Property="Margin" Value="0,0,2,0" />
+                <Setter Property="MinWidth" Value="16" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            </Style>
+            <!-- ▸/▾ of groups, categories and tables; hidden but space-keeping on leaf rows so that captions align. -->
+            <Style x:Key="ExpandButton" TargetType="Button">
+                <Setter Property="Width" Value="14" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+                <Setter Property="Content" Value="▸" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsExpanded}" Value="True"><Setter Property="Content" Value="▾" /></DataTrigger>
+                    <DataTrigger Binding="{Binding IsExpandable}" Value="False"><Setter Property="Visibility" Value="Hidden" /></DataTrigger>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource PaletteAccent}" /></Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="CaptionText" TargetType="TextBlock">
+                <Setter Property="Text" Value="{Binding Caption}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsHeader}" Value="True">
+                        <Setter Property="FontStyle" Value="Italic" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsCaptionMixed}" Value="True">
+                        <Setter Property="Text" Value="Разное" />
+                        <Setter Property="FontStyle" Value="Italic" />
+                        <Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <!-- «Разное» and template defaults are grey italic (TZXDATA 8.5); the value is not an editor until stage 6. -->
+            <Style x:Key="ValueText" TargetType="TextBlock">
+                <Setter Property="Text" Value="{Binding Value}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsDefault}" Value="True"><Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" /></DataTrigger>
+                    <DataTrigger Binding="{Binding IsMixed}" Value="True">
+                        <Setter Property="FontStyle" Value="Italic" />
+                        <Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsHeader}" Value="True"><Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" /></DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="StateText" TargetType="TextBlock">
+                <Setter Property="Text" Value="{Binding StateText}" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{DynamicResource PaletteAccent}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding State}" Value="Default"><Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" /></DataTrigger>
+                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                        <Setter Property="Foreground" Value="{DynamicResource PaletteError}" />
+                        <Setter Property="FontWeight" Value="Bold" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding HasFlag}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="NoteText" TargetType="TextBlock">
+                <Setter Property="Text" Value="{Binding Note}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsNoteMixed}" Value="True">
+                        <Setter Property="Text" Value="Разное" />
+                        <Setter Property="FontStyle" Value="Italic" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsError}" Value="True"><Setter Property="Foreground" Value="{DynamicResource PaletteError}" /></DataTrigger>
+                    <DataTrigger Binding="{Binding ShowAdd}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="ColumnHeader" TargetType="GridViewColumnHeader">
+                <Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" />
+                <Setter Property="Background" Value="{DynamicResource PaletteTabBackground}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PaletteBorder}" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="GridViewColumnHeader">
+                            <Grid>
+                                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0,0,1,1" Padding="5,3">
+                                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
+                                </Border>
+                                <Thumb x:Name="PART_HeaderGripper" HorizontalAlignment="Right" Width="6" Margin="0,0,-3,0" Cursor="SizeWE">
+                                    <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
+                                </Thumb>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="Row" TargetType="ListViewItem">
+                <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PaletteTabBackground}" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="AutomationProperties.Name" Value="{Binding Caption}" />
+                <Setter Property="ToolTip" Value="{Binding ToolTip}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0,0,0,1">
+                                <GridViewRowPresenter VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PaletteHoverBackground}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PaletteSelectedBackground}" />
+                                    <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource PaletteAccent}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ToolTip}" Value=""><Setter Property="ToolTip" Value="{x:Null}" /></DataTrigger>
+                    <DataTrigger Binding="{Binding Kind}" Value="Group"><Setter Property="Background" Value="{DynamicResource PaletteTabBackground}" /></DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <!-- Control panel (TZXDATA 8.4): reserved 32 px; «+ Параметр» and «⚙ Схема» belong to stages 6 and 8. -->
+        <DockPanel x:Name="Toolbar" Height="32" Margin="6,0" LastChildFill="True" AutomationProperties.Name="Панель управления свойствами">
+            <Border x:Name="TemplateIndicator" DockPanel.Dock="Left" MaxWidth="110" Margin="0,0,3,0" Padding="5,0" Height="24"
+                    Background="{DynamicResource PaletteTabBackground}" BorderBrush="{DynamicResource PaletteBorder}" BorderThickness="1"
+                    AutomationProperties.Name="Шаблон выделения" ToolTip="{Binding TemplateText}" ToolTipService.ShowOnDisabled="True">
+                <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                    <Run Text="▾" Foreground="{DynamicResource PaletteMuted}" /><Run Text="{Binding TemplateText, Mode=OneWay}" />
+                </TextBlock>
+            </Border>
+            <Button x:Name="AddParameterButton" DockPanel.Dock="Left" Content="+" Style="{StaticResource ToolButton}" IsEnabled="False"
+                    AutomationProperties.Name="Добавить параметр" ToolTip="Добавить параметр схемы вне шаблона (этап 6)" />
+            <Button x:Name="RefreshButton" DockPanel.Dock="Left" Content="⟳" Style="{StaticResource ToolButton}" Command="{Binding RefreshCommand}"
+                    AutomationProperties.Name="Обновить" ToolTip="Перечитать выделение и пересчитать вычисляемые значения" />
+            <Button x:Name="ExpandAllButton" DockPanel.Dock="Left" Content="⊞" Style="{StaticResource ToolButton}" Command="{Binding ExpandAllCommand}"
+                    AutomationProperties.Name="Развернуть все" ToolTip="Развернуть все группы" />
+            <Button x:Name="CollapseAllButton" DockPanel.Dock="Left" Content="⊟" Style="{StaticResource ToolButton}" Command="{Binding CollapseAllCommand}"
+                    AutomationProperties.Name="Свернуть все" ToolTip="Свернуть все группы" />
+            <Button x:Name="SchemaButton" DockPanel.Dock="Right" Content="⚙" Style="{StaticResource ToolButton}" Margin="3,0,0,0" IsEnabled="False"
+                    AutomationProperties.Name="Схема" ToolTip="Редактор схемы параметров (этап 8)" />
+            <Grid Height="24" MinWidth="48">
+                <TextBox x:Name="FilterField" Padding="4,0" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="Фильтр свойств" ToolTip="Поиск по названию, Id или значению" />
+                <TextBlock x:Name="FilterPlaceholder" Text="Фильтр…" Margin="6,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                           FontStyle="Italic" Foreground="{DynamicResource PaletteMuted}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, ElementName=FilterField}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </DockPanel>
+        <!-- Messages of TZXDATA 8.5: no selection, no schema, objects without BobrovXDATA. -->
+        <DockPanel Grid.Row="1" Margin="6,0,6,4">
+            <DockPanel.Style>
+                <Style TargetType="DockPanel">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Message}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DockPanel.Style>
+            <Button x:Name="AssignTemplateButton" DockPanel.Dock="Right" Content="Назначить шаблон" Margin="6,0,0,0" VerticalAlignment="Top"
+                    Command="{Binding AssignTemplateCommand}" Visibility="{Binding NeedsTemplate, Converter={StaticResource Visible}}"
+                    ToolTipService.ShowOnDisabled="True" ToolTip="Назначение шаблона — VELEC_TEMPLATE_APPLY (этап 7)"
+                    AutomationProperties.Name="Назначить шаблон" />
+            <TextBlock x:Name="MessageText" Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource PaletteMuted}" />
+        </DockPanel>
+        <ListView x:Name="Rows" Grid.Row="2" ItemsSource="{Binding Rows}" IsEnabled="{Binding IsEnabled}" SelectionMode="Single"
+                  ItemContainerStyle="{StaticResource Row}" Background="{DynamicResource PaletteBackground}"
+                  Foreground="{DynamicResource PaletteForeground}" BorderBrush="{DynamicResource PaletteBorder}" BorderThickness="0,1,0,0"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                  ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                  KeyboardNavigation.DirectionalNavigation="Contained" AutomationProperties.Name="Дерево свойств">
+            <ListView.View>
+                <GridView x:Name="Columns" ColumnHeaderContainerStyle="{StaticResource ColumnHeader}" AllowsColumnReorder="False">
+                    <GridView.ColumnHeaderContextMenu>
+                        <ContextMenu x:Name="ColumnMenu">
+                            <MenuItem x:Name="ActionsColumnItem" Header="Действия" IsCheckable="True" IsChecked="{Binding ShowActionsColumn, Mode=TwoWay}" />
+                            <MenuItem x:Name="StateColumnItem" Header="Состояние ●" IsCheckable="True" IsChecked="{Binding ShowStateColumn, Mode=TwoWay}" />
+                            <MenuItem x:Name="NoteColumnItem" Header="Примечание" IsCheckable="True" IsChecked="{Binding ShowNoteColumn, Mode=TwoWay}" />
+                        </ContextMenu>
+                    </GridView.ColumnHeaderContextMenu>
+                    <GridViewColumn x:Name="ActionsColumn" Header="">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Visibility="{Binding ShowActions, Converter={StaticResource Visible}}">
+                                    <Button Content="×" Style="{StaticResource CellButton}" IsEnabled="False"
+                                            AutomationProperties.Name="Удалить строку" ToolTip="Удалить строку во всём выделении (этап 6)" />
+                                    <Button Content="✎" Style="{StaticResource CellButton}" IsEnabled="False"
+                                            AutomationProperties.Name="Редактировать строку" ToolTip="Редактировать строку (этап 6)" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn x:Name="CaptionColumn" Header="ПАРАМЕТР">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="{Binding Level, Converter={StaticResource Indent}}">
+                                    <Button DockPanel.Dock="Left" Style="{StaticResource ExpandButton}" Margin="0,0,3,0"
+                                            Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                            CommandParameter="{Binding}" AutomationProperties.Name="Развернуть или свернуть" />
+                                    <TextBlock Style="{StaticResource CaptionText}" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn x:Name="ValueColumn" Header="ЗНАЧЕНИЕ">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate><TextBlock Style="{StaticResource ValueText}" /></DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn x:Name="StateColumn" Header="●">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <TextBlock Style="{StaticResource StateText}" />
+                                    <CheckBox IsChecked="{Binding Flag, Mode=OneWay}" IsThreeState="True" IsHitTestVisible="False" Focusable="False"
+                                              Visibility="{Binding HasFlag, Converter={StaticResource Visible}}" AutomationProperties.Name="Флаг строки" />
+                                </Grid>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn x:Name="NoteColumn" Header="ПРИМЕЧАНИЕ">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <TextBlock Style="{StaticResource NoteText}" />
+                                    <Button Content="+ Добавить" Style="{StaticResource CellButton}" HorizontalAlignment="Left" IsEnabled="False"
+                                            Visibility="{Binding ShowAdd, Converter={StaticResource Visible}}"
+                                            AutomationProperties.Name="Добавить строку" ToolTip="Добавить строку во всё выделение (этап 6)" />
+                                </Grid>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                </GridView>
+            </ListView.View>
+        </ListView>
+    </Grid>
+</UserControl>

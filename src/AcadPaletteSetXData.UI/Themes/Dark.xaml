@@ -8,4 +8,5 @@
     <SolidColorBrush x:Key="PaletteSelectedBackground" Color="#4C5666" />
     <SolidColorBrush x:Key="PaletteHoverBackground" Color="#454F5E" />
     <SolidColorBrush x:Key="PaletteAccent" Color="#8BBEF1" />
+    <SolidColorBrush x:Key="PaletteError" Color="#FF8A80" />
 </ResourceDictionary>

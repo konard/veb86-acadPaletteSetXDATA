@@ -14,7 +14,7 @@
                 <ResourceDictionary Source="Themes/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <Style TargetType="Label"><Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" /></Style>
-            <DataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Properties}}"><ui:PropertyEditorView /></DataTemplate>
+            <DataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Grid}}"><ui:PropertyGridView /></DataTemplate>
             <HierarchicalDataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Node}}" ItemsSource="{Binding Children}">
                 <TextBlock Text="{Binding DisplayText}" ToolTip="{Binding Value}" />
             </HierarchicalDataTemplate>
@@ -90,7 +90,7 @@
             <TextBlock Text="{Binding Selection.Status}" TextWrapping="Wrap" Margin="0,0,0,4" />
             <ComboBox x:Name="SelectedEntityField" ItemsSource="{Binding Selection.Entities}" DisplayMemberPath="DisplayName"
                       SelectedItem="{Binding Selection.SelectedEntity, Mode=TwoWay}" IsEnabled="{Binding Selection.HasSelection}"
-                      AutomationProperties.Name="Объект для просмотра дерева XDATA" ToolTip="Выбор объекта меняет только дерево XDATA. Свойства редактируются для всего выделения.">
+                      AutomationProperties.Name="Объект для просмотра дерева XDATA" ToolTip="Выбор объекта меняет только дерево XDATA. Вкладка «Свойства» показывает всё выделение.">
                 <ComboBox.Style><Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
                     <Setter Property="Visibility" Value="Visible" />
                     <Style.Triggers><DataTrigger Binding="{Binding Selection.Entities.Count}" Value="0">
@@ -137,7 +137,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <ContentControl Content="{Binding Content}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-                    <TextBlock Grid.Row="1" Text="Enter или выход из поля — применить ко всем" FontSize="11" TextWrapping="Wrap"
+                    <TextBlock Grid.Row="1" Text="Только просмотр: ● задано, ○ по умолчанию, ƒ вычисляемое, ! ошибка" FontSize="11" TextWrapping="Wrap"
                                Foreground="{DynamicResource PaletteMuted}" Margin="6,8" />
                 </Grid>
             </DataTemplate>

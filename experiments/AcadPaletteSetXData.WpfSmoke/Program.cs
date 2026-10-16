@@ -463,8 +463,9 @@ internal static class Program
             Check(((SolidColorBrush)((Border)root).Background).Color == Resource(root, "PaletteBackground") &&
                   Resource(root, "PaletteBackground") != Colors.Black && Resource(root, "PaletteBackground").R > 128, "The light theme must be applied.");
             Save(root, Path.Combine(output, "tzxdata-stage8-light.png"));
-            editor.SelectedParameter!.Caption = "Обозначение";
+            editor.SelectedParameter!.Caption = "Обозначение по группе";
             Pump(root);
+            Check(editor.IsDirty && editor.CanApply, "A changed caption must make the draft applicable.");
             Invoke((Button)window.FindName("CancelButton"), root);
         });
         Check(result == false && asked.Count == 1 && asked[0].Contains("без записи в чертёж"), "«Отмена» of a changed draft must ask and return false.");

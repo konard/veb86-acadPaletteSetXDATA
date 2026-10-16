@@ -468,16 +468,26 @@ internal static class Program
 
     private static PropertyRow Select(ListView list, PropertyRow row, FrameworkElement view)
     {
+        // Like a click: the row gets the focus before it is selected. Otherwise the focused editor of the previous row
+        // is hidden by the selection, WPF moves the focus to that row and scrolls the list back to it.
+        for (var attempt = 0; attempt < 3 && list.ItemContainerGenerator.ContainerFromItem(row) == null; attempt++)
+        {
+            list.ScrollIntoView(row);
+            Pump(view);
+        }
+        Container(list, row).Focus();
         list.SelectedItem = row;
-        list.ScrollIntoView(row);
         Pump(view);
-        Check(ReferenceEquals(list.SelectedItem, row), "The row must be selected: " + row.Caption);
+        Check(ReferenceEquals(list.SelectedItem, row) && list.ItemContainerGenerator.ContainerFromItem(row) != null,
+            "The row must be selected and shown: " + row.Caption);
         return row;
     }
 
     private static PropertyRow Selected(ListView list) => (PropertyRow)list.SelectedItem;
 
-    private static ListViewItem Container(ListView list, PropertyRow row) => (ListViewItem)list.ItemContainerGenerator.ContainerFromItem(row);
+    private static ListViewItem Container(ListView list, PropertyRow row) =>
+        list.ItemContainerGenerator.ContainerFromItem(row) as ListViewItem ??
+        throw new InvalidOperationException("The row is not shown: " + row.Caption + ", offset " + Descendants<ScrollViewer>(list).FirstOrDefault()?.VerticalOffset);
 
     private static T Editor<T>(ListView list, PropertyRow row) where T : Control
     {

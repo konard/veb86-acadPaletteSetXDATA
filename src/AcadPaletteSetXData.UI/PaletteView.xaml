@@ -137,7 +137,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <ContentControl Content="{Binding Content}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-                    <TextBlock Grid.Row="1" Text="Только просмотр: ● задано, ○ по умолчанию, ƒ вычисляемое, ! ошибка" FontSize="11" TextWrapping="Wrap"
+                    <TextBlock Grid.Row="1" Text="● задано, ○ по умолчанию, ƒ вычисляемое, ! ошибка" FontSize="11" TextWrapping="Wrap"
                                Foreground="{DynamicResource PaletteMuted}" Margin="6,8" />
                 </Grid>
             </DataTemplate>

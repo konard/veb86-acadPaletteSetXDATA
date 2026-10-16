@@ -306,7 +306,8 @@ internal static class Program
         Invoke((Button)Grid(view).FindName("ExpandAllButton"), view);
         var list = List(Grid(view));
         Check(Descendants<TextBlock>(list).Any(text => text.Text == PropertyGridViewModel.GroupLegacy), "The legacy group must be shown.");
-        Check(Descendants<TextBlock>(list).Any(text => text.Text == "СВ110-5"), "Legacy materials must be table rows.");
+        // CD35 is in the ESMT data of A1 and in the XML XRecord of B2; СВ110-5 of A1 alone is «Разное».
+        Check(Descendants<TextBlock>(list).Any(text => text.Text == "CD35"), "Legacy materials must be table rows.");
         Save(view, Path.Combine(output, "tzxdata-stage5-legacy.png"));
         var selector = (ComboBox)view.FindName("SelectedEntityField");
         selector.SelectedIndex = 0;

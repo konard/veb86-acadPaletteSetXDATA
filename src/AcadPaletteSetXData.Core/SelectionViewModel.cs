@@ -13,6 +13,8 @@ public sealed class SelectionViewModel : ObservableObject
     private bool hasSelection;
     private string status = "Выберите объекты в чертеже";
     private string diagnostics = "";
+    private string? error;
+    private bool canWrite;
 
     public SelectionViewModel(PropertyEditorViewModel editor, bool enableDraftPreview = false)
     {
@@ -30,11 +32,17 @@ public sealed class SelectionViewModel : ObservableObject
     public bool HasSelection { get => hasSelection; private set => SetProperty(ref hasSelection, value); }
     public string Status { get => status; private set => SetProperty(ref status, value); }
     public string Diagnostics { get => diagnostics; private set => SetProperty(ref diagnostics, value); }
+    /// <summary>The error of the last read or write, shown above the VST (TZXDATA 8.5); null after a successful read.</summary>
+    public string? Error { get => error; private set => SetProperty(ref error, value); }
+    /// <summary>The source can write the selection: the VST edits values (TZXDATA 8.5, stage 6).</summary>
+    public bool CanWrite { get => canWrite; private set => SetProperty(ref canWrite, value); }
 
     /// <summary>Raised at the end of <see cref="Apply"/>: the selection, its values and calculations are replaced.</summary>
     public event EventHandler? Applied;
     /// <summary>The palette asks to read the selection again (⟳ of the VST, TZXDATA 8.4).</summary>
     public event EventHandler? RefreshRequested;
+    /// <summary>The VST confirmed a change of the selection: the controller writes it to every object in one transaction.</summary>
+    public event EventHandler<SelectionEdit>? EditRequested;
 
     /// <summary>Asks the source to read the selection again; false when no source listens.</summary>
     public bool RequestRefresh()
@@ -43,6 +51,21 @@ public sealed class SelectionViewModel : ObservableObject
         if (handler is null) return false;
         handler(this, EventArgs.Empty);
         return true;
+    }
+
+    internal void SetWritable(bool value) => CanWrite = value;
+
+    /// <summary>
+    /// Asks the writer to apply <paramref name="edit"/> to the whole selection. The controller writes and reads the
+    /// selection again synchronously: false when nothing can write it or the write failed (<see cref="Error"/>).
+    /// </summary>
+    public bool RequestEdit(SelectionEdit edit)
+    {
+        if (edit is null) throw new ArgumentNullException(nameof(edit));
+        var handler = EditRequested;
+        if (!CanWrite || handler is null || Entities.Count == 0) return false;
+        handler(this, edit);
+        return Error is null;
     }
 
     public ParsedEntityData? SelectedEntity
@@ -75,6 +98,7 @@ public sealed class SelectionViewModel : ObservableObject
         HasSelection = Entities.Count != 0;
         SelectedEntity = Entities.FirstOrDefault(entity => entity.Handle == previousHandle) ?? Entities.FirstOrDefault();
         editor.LoadSelection(Entities);
+        Error = error;
         Status = error ?? (HasSelection ? "Выделено объектов: " + Entities.Count + " • Групповые свойства" : "Выберите объекты в чертеже");
         Applied?.Invoke(this, EventArgs.Empty);
     }

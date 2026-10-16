@@ -2,7 +2,7 @@
 
 **Проект:** acadPaletteSetXDATA — панель свойств объектов AutoCAD на основе схемы параметров.
 **Основание:** [задача #17](https://github.com/veb86/acadPaletteSetXDATA/issues/17), исходное [ТЗ](TZ.md),
-выполненные этапы 1–5 (см. [README](README.md)).
+выполненные этапы 1–6 (см. [README](README.md)).
 **Платформа:** AutoCAD 2021 (`net48`, основная), AutoCAD 2024 (`net48`), AutoCAD 2025 (`net8.0-windows`);
 C#, WPF, MVVM; поставка — одна DLL `acadPaletteSetXDATA.dll`.
 
@@ -518,7 +518,9 @@ schema.json  ◀── VELEC_SCHEMA_EXPORT ──  NOD «VELEC»                
 - **Приёмка:** WPF smoke для net48/net8 в обеих темах; виртуализация (видимых контейнеров
   меньше числа строк); рендеры `tzxdata-stage5-*.png`.
 
-### Этап 6. VST: редактирование и групповое редактирование
+### Этап 6. VST: редактирование и групповое редактирование — **выполнен в задаче #29**
+
+Описание реализации: [docs/vst-editing.md](docs/vst-editing.md).
 
 - Редакторы раздела 8.3, «Разное», Enter/выход из ячейки, флажки, `+ Добавить`/`×`/`✎` для `Table`,
   «+ Параметр», запись через `XDataWriter`, мгновенный пересчёт формул.

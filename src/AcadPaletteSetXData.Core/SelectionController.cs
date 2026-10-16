@@ -23,7 +23,9 @@ public sealed class SelectionController : IDisposable
         this.source = source ?? throw new ArgumentNullException(nameof(source));
         this.model = model ?? throw new ArgumentNullException(nameof(model));
         model.Editor.SetWritable(source is ISelectionWriter);
+        model.SetWritable(source is ISelectionWriter);
         model.Editor.EditRequested += Write;
+        model.EditRequested += Write;
         source.SelectionChanged += Refresh;
         model.RefreshRequested += Refresh;
         Refresh(this, EventArgs.Empty);
@@ -51,7 +53,8 @@ public sealed class SelectionController : IDisposable
         catch (Exception error)
         {
             Trace.WriteLine(error, "XDATAPALETTE selection write");
-            try { model.Apply(source.ReadSelection(), "Ошибка записи: " + error.Message); }
+            // The group is rolled back: the fresh values come back with the error, the selection is kept.
+            try { model.Apply(source.ReadSelection(), "Ошибка записи: " + error.Message, (source as IObjectValuesSource)?.Values); }
             catch { model.Apply(Array.Empty<EntityDataSnapshot>(), "Ошибка записи: " + error.Message); }
         }
     }
@@ -63,6 +66,8 @@ public sealed class SelectionController : IDisposable
         source.SelectionChanged -= Refresh;
         model.RefreshRequested -= Refresh;
         model.Editor.EditRequested -= Write;
+        model.EditRequested -= Write;
         model.Editor.SetWritable(false);
+        model.SetWritable(false);
     }
 }

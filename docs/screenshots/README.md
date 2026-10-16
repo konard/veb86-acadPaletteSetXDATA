@@ -1,5 +1,39 @@
 # Рендеры WPF-панели
 
+## TZXDATA, этап 6: редактирование в VST
+
+`tzxdata-stage6-*.png` получены из настоящего `PropertyGridView` внутри `PaletteView` на Windows
+**net48** после записи через `XDataWriter` в объекты в памяти. Источник:
+[CI, commit 62e3374](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/38906631112),
+артефакт `wpf-renders/net48`; те же проверки пройдены на .NET 8. Описание редактирования —
+[vst-editing.md](../vst-editing.md).
+
+| Тёмная тема, 2 объекта | Светлая тема, 2 объекта |
+| --- | --- |
+| ![VST, тёмная тема](tzxdata-stage6-dark.png) | ![VST, светлая тема](tzxdata-stage6-light.png) |
+
+| Редактор с единицей `кВт` | Ошибка ввода `-1` | `✎` строки таблицы, ячейка «Кол.» |
+| --- | --- | --- |
+| ![Редактор](tzxdata-stage6-editor.png) | ![Ошибка ввода](tzxdata-stage6-input-error.png) | ![Редактирование строки](tzxdata-stage6-row-edit.png) |
+
+| Меню «+ Параметр» | Ошибка записи |
+| --- | --- |
+| ![+ Параметр](tzxdata-stage6-add-parameter.png) | ![Ошибка записи](tzxdata-stage6-write-error.png) |
+
+| Пустое выделение | Фильтр | Виртуализация, 400+ строк |
+| --- | --- | --- |
+| ![Пустое выделение](tzxdata-stage6-empty.png) | ![Фильтр](tzxdata-stage6-filter.png) | ![Виртуализация](tzxdata-stage6-virtualized.png) |
+
+| Без шаблона | Прежний формат: только чтение | Минимальный размер 280 × 320 |
+| --- | --- | --- |
+| ![Назначить шаблон](tzxdata-stage6-no-template.png) | ![Прежний формат](tzxdata-stage6-legacy.png) | ![Узкая панель](tzxdata-stage6-minimum.png) |
+
+Smoke этапа 6 проверяет: редактор только у выделенной строки; Enter без ввода не пишет «Разное»,
+ввод + Enter пишет все объекты; Esc; красную ошибку ввода; запись `Enum` из списка;
+трёхпозиционный флажок; `✎` и запись ячейки; `+ Добавить` с курсором в ключе и `×`; меню
+«+ Параметр» и запись выбранного параметра; ошибку записи с сохранением значений и выделения.
+Рендер меню собран из палитры и всплывающего окна `ContextMenu`.
+
 ## TZXDATA, этап 5: VST вкладки «Свойства»
 
 `tzxdata-stage5-*.png` получены из настоящего `PropertyGridView` внутри `PaletteView` на Windows

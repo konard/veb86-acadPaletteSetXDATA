@@ -55,14 +55,17 @@ public sealed class SelectionViewModel : ObservableObject
 
     internal void SetWritable(bool value) => CanWrite = value;
 
-    /// <summary>Asks the writer to apply <paramref name="edit"/> to the whole selection; false when nothing can write it.</summary>
+    /// <summary>
+    /// Asks the writer to apply <paramref name="edit"/> to the whole selection. The controller writes and reads the
+    /// selection again synchronously: false when nothing can write it or the write failed (<see cref="Error"/>).
+    /// </summary>
     public bool RequestEdit(SelectionEdit edit)
     {
         if (edit is null) throw new ArgumentNullException(nameof(edit));
         var handler = EditRequested;
         if (!CanWrite || handler is null || Entities.Count == 0) return false;
         handler(this, edit);
-        return true;
+        return Error is null;
     }
 
     public ParsedEntityData? SelectedEntity

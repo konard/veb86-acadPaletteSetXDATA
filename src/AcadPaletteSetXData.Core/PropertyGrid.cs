@@ -488,7 +488,7 @@ public sealed class PropertyGridViewModel : ObservableObject
             cells.Add(new KeyValuePair<string, object>(node.CategoryColumn, node.CategoryValue));
         var identity = node.TableKey + "/r:" + XDataV2.FormatValue(key);
         editing.Add(identity);
-        selectedIdentity = reveal = identity + "/f:" + keyParameter.Id!.ToUpperInvariant();
+        selectedIdentity = reveal = identity + "/f:" + keyParameter.Id;
         return Request(node, SelectionEdit.AddTableRow(node.Table, cells));
     }
 

@@ -1,5 +1,30 @@
 # Рендеры WPF-панели
 
+## TZXDATA, этап 5: VST вкладки «Свойства»
+
+`tzxdata-stage5-*.png` получены из настоящего `PropertyGridView` внутри `PaletteView` на Windows
+**net48**. Источник: [CI, commit f2cb14b](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/38896199609),
+артефакт `wpf-renders/net48`; те же проверки пройдены на .NET 8. Данные — кэш значений по схеме
+[`examples/schema.json`](../../examples/schema.json), AutoCAD в CI не запускается. Описание VST —
+[vst.md](../vst.md).
+
+| Тёмная тема, 2 объекта | Светлая тема, 2 объекта |
+| --- | --- |
+| ![VST, тёмная тема](tzxdata-stage5-dark.png) | ![VST, светлая тема](tzxdata-stage5-light.png) |
+
+| Пустое выделение | Фильтр | Виртуализация, 400+ строк |
+| --- | --- | --- |
+| ![Пустое выделение](tzxdata-stage5-empty.png) | ![Фильтр](tzxdata-stage5-filter.png) | ![Виртуализация](tzxdata-stage5-virtualized.png) |
+
+| Без шаблона | Прежний формат | Минимальный размер 280 × 320 |
+| --- | --- | --- |
+| ![Назначить шаблон](tzxdata-stage5-no-template.png) | ![Прежний формат](tzxdata-stage5-legacy.png) | ![Узкая панель](tzxdata-stage5-minimum.png) |
+
+Smoke проверяет колонки раздела 8.2, группы и категории таблиц, состояния `●/○/ƒ/!`, «Разное»
+серым курсивом, трёхпозиционный флажок, `⟳`/`⊞`/`⊟`, фильтр, меню колонок, сохранение раскрытия
+и прокрутки по шаблону, отсутствие ошибок привязок и виртуализацию: видимых контейнеров
+`ListViewItem` меньше числа строк.
+
 ## Задача #15: панель из единственной Release DLL
 
 `issue15-release-dark.png` / `issue15-release-light.png` получены из WPF-панели,

@@ -101,6 +101,7 @@
                         <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding IsMixed}" Value="True" />
                             <Condition Binding="{Binding EditText}" Value="" />
+                            <Condition Binding="{Binding IsDirty}" Value="False" />
                         </MultiDataTrigger.Conditions>
                         <Setter Property="ui:EditBehavior.Mixed" Value="True" />
                     </MultiDataTrigger>
@@ -140,6 +141,7 @@
                         <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding IsMixed}" Value="True" />
                             <Condition Binding="{Binding EditText}" Value="" />
+                            <Condition Binding="{Binding IsDirty}" Value="False" />
                         </MultiDataTrigger.Conditions>
                         <Setter Property="ui:EditBehavior.Mixed" Value="True" />
                     </MultiDataTrigger>

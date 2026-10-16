@@ -225,6 +225,92 @@ public sealed class GroupEditingV2Tests
     }
 
     [Fact]
+    public void ALateCommitGoesToTheRowOfTheNewTreeAndNeverBringsBackADeletedRow()
+    {
+        var drawing = new Drawing(
+            Device("A", Pair("Power", 1.0), Materials(("LineFittings", "X", 1, true, ""), ("LineFittings", "Y", 1, true, ""))),
+            Device("B", Pair("Power", 1.0), Materials(("LineFittings", "X", 1, true, ""), ("LineFittings", "Y", 1, true, ""))));
+        var (_, grid, controller) = Open(drawing);
+        using (controller)
+        {
+            // A cell of X is typed in and × of X is clicked: the editor keeps the focus, its commit comes after the write.
+            grid.EditRow(TableRow(grid, "X"));
+            var count = TableRow(grid, "X").Children.Single(cell => cell.Column == "Mat_Count");
+            grid.SelectedRow = count;
+            count.EditText = "5";
+            var y = TableRow(grid, "Y");
+            Assert.True(grid.DeleteRow(TableRow(grid, "X")));
+            Assert.False(grid.Commit(count));
+            Assert.Equal(new[] { "Y" }, drawing.Rows("Materials"));
+
+            // Rows of the previous tree are not clicked any more.
+            Assert.False(grid.SetFlag(y, false));
+            Assert.False(grid.DeleteRow(y));
+            Assert.Equal(new object[] { true, true }, drawing.Cells("Materials", "Y", "Mat_InSpec"));
+
+            // The row still exists after another write: the typed text is written to it.
+            var power = Row(grid, "Power");
+            power.EditText = "3";
+            Assert.True(grid.SetFlag(TableRow(grid, "Y"), false));
+            Assert.True(grid.Commit(power));
+            Assert.Equal(new object[] { 3.0, 3.0 }, drawing.Stored("Power"));
+            Assert.Equal("3.00", Row(grid, "Power").Value);
+        }
+    }
+
+    [Fact]
+    public void AFailedRenameKeepsTheRowOpenAndSelectedUnderItsKey()
+    {
+        var drawing = new Drawing(Device("A", Materials(("LineFittings", "X", 1, true, ""))));
+        var (_, grid, controller) = Open(drawing);
+        using (controller)
+        {
+            grid.EditRow(TableRow(grid, "X"));
+            var key = TableRow(grid, "X").Children.Single(cell => cell.Column == "Mat_Mark");
+            grid.SelectedRow = key;
+            var changed = new List<string?>();
+            key.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+            key.EditText = "Z";
+            // The «Разное» placeholder of the editor depends on IsDirty: typing must notify it.
+            Assert.Contains(nameof(PropertyRow.IsDirty), changed);
+            drawing.FailWrite = true;
+            Assert.False(grid.Commit(key));
+            Assert.Contains("write failed", grid.Message);
+            Assert.Equal(new[] { "X" }, drawing.Rows("Materials"));
+            Assert.True(TableRow(grid, "X").IsEditing);
+            Assert.Equal("Mat_Mark", grid.SelectedRow?.Column);
+            Assert.Equal("X", grid.SelectedRow?.RowKey);
+            Assert.Contains(grid.SelectedRow!, grid.Rows);
+
+            drawing.FailWrite = false;
+            key = grid.SelectedRow!;
+            key.EditText = "Z";
+            Assert.True(grid.Commit(key));
+            Assert.Equal(new[] { "Z" }, drawing.Rows("Materials"));
+            Assert.Equal("Z", grid.SelectedRow?.RowKey);
+            Assert.True(TableRow(grid, "Z").IsEditing);
+        }
+    }
+
+    [Fact]
+    public void CellsOutsideTheDeclaredColumnsOfTheTableAreReadOnly()
+    {
+        // Power is a parameter of the schema but not a column of Materials: a write of it would always be refused.
+        var materials = Materials(("LineFittings", "X", 1, true, "")).ToList();
+        materials.InsertRange(materials.Count - 2, Pair("Power", 2.0));
+        var drawing = new Drawing(Device("A", materials.ToArray()));
+        var (_, grid, controller) = Open(drawing);
+        using (controller)
+        {
+            grid.EditRow(TableRow(grid, "X"));
+            var cells = TableRow(grid, "X").Children;
+            Assert.Equal("2", cells.Single(cell => cell.Column == "Power").Value);
+            Assert.False(cells.Single(cell => cell.Column == "Power").IsEditable);
+            Assert.True(cells.Single(cell => cell.Column == "Mat_Count").IsEditable);
+        }
+    }
+
+    [Fact]
     public void LiteralMixedTextIsDataAndEmptyTextRestoresTheDefaultOfANumber()
     {
         var drawing = new Drawing(Device("A", Pair("NMO_Name", "Разное"), Pair("Power", 1.0)), Device("B", Pair("NMO_Name", "Two"), Pair("Power", 2.0)));

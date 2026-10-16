@@ -353,6 +353,15 @@ internal static class Program
         Press(editor, Key.Enter, view);
         Check(source.Commits == commits, "Enter without typing must not write «Разное».");
         editor = Editor<TextBox>(list, Selected(list));
+        Check(EditBehavior.GetMixed(editor), "The empty editor of «Разное» must show the placeholder.");
+        // Typed and erased text is an empty value, not «Разное»: the placeholder hides; Esc brings it back.
+        editor.Text = "x";
+        editor.Text = "";
+        Pump(view);
+        Check(!EditBehavior.GetMixed(editor), "A typed and erased text must hide the «Разное» placeholder.");
+        Press(editor, Key.Escape, view);
+        editor = Editor<TextBox>(list, Selected(list));
+        Check(source.Commits == commits && EditBehavior.GetMixed(editor), "Esc must show «Разное» again without a write.");
         editor.Text = "Щит ВРУ";
         Pump(view);
         Press(editor, Key.Enter, view);

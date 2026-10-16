@@ -64,6 +64,7 @@ public sealed class PropertyRow : ObservableObject
 {
     private bool isExpanded;
     private bool isEditing;
+    private bool isDirty;
     private string editText = "";
 
     internal PropertyRow(PropertyRowKind kind, string key, string caption, int level)
@@ -140,8 +141,11 @@ public sealed class PropertyRow : ObservableObject
             SetProperty(ref editText, value ?? "");
         }
     }
-    /// <summary>The editor text was changed since the value was shown: Enter or leaving the cell writes it.</summary>
-    public bool IsDirty { get; private set; }
+    /// <summary>
+    /// The editor text was changed since the value was shown: Enter or leaving the cell writes it. A changed empty text
+    /// of «Разное» is data, so the editor shows no «Разное» placeholder then.
+    /// </summary>
+    public bool IsDirty { get => isDirty; private set => SetProperty(ref isDirty, value); }
     /// <summary>The check box of column 2 (<see cref="IsFlagEditor"/>) or 3 (<see cref="HasFlag"/>) is applied by a click.</summary>
     public bool CanSetFlag { get; internal set; }
     /// <summary><c>×</c>: removes a table row in every object, or a value outside the template or the schema.</summary>
@@ -171,6 +175,8 @@ public sealed class PropertyRow : ObservableObject
     internal string? CategoryColumn;
     /// <summary>Builds the cells shown by <c>✎</c>; called again after every rebuild while the row stays open.</summary>
     internal Func<IEnumerable<PropertyRow>>? Cells;
+    /// <summary>The build of the tree the row belongs to: a row of an earlier build is not written (a late commit of its editor).</summary>
+    internal int Build;
     internal string Identity => Kind switch
     {
         PropertyRowKind.TableRow when RowKey != null => TableKey + "/r:" + RowKey,
@@ -221,6 +227,8 @@ public sealed class PropertyGridViewModel : ObservableObject
     /// <summary>Table rows opened by <c>✎</c>, by <see cref="PropertyRow.Identity"/>: they stay open after a write.</summary>
     private readonly HashSet<string> editing = new HashSet<string>(StringComparer.Ordinal);
     private IReadOnlyList<PropertyRow> roots = Array.Empty<PropertyRow>();
+    /// <summary>Number of the tree in <see cref="roots"/>, see <see cref="PropertyRow.Build"/>.</summary>
+    private int generation;
     private ObservableCollection<PropertyRow> rows = new ObservableCollection<PropertyRow>();
     private IReadOnlyList<PropertyOption> available = Array.Empty<PropertyOption>();
     private SchemaSnapshot? schema;
@@ -371,6 +379,16 @@ public sealed class PropertyGridViewModel : ObservableObject
     public bool Commit(PropertyRow row)
     {
         if (row is null) throw new ArgumentNullException(nameof(row));
+        if (!Current(row))
+        {
+            // A late commit (the editor lost the focus after × or another write rebuilt the tree): the text goes to the
+            // same row of the new tree, and is dropped when the row is gone, so a deleted table row is not written back.
+            var current = row.IsDirty ? All(roots).FirstOrDefault(item => item.Kind == row.Kind && item.Identity == row.Identity) : null;
+            if (current is null) { row.ResetEdit(); return false; }
+            current.EditText = row.EditText;
+            row.ResetEdit();
+            row = current;
+        }
         if (!CanEdit || !row.IsDirty || !row.IsEditable || row.IsFlagEditor || row.Parameter is null) return false;
         var text = row.EditText;
         if (!row.IsMixed && string.Equals(text, row.InitialText, StringComparison.Ordinal)) { row.ResetEdit(); return false; }
@@ -402,7 +420,7 @@ public sealed class PropertyGridViewModel : ObservableObject
             var key = XDataV2.FormatValue(converted);
             if (key.Length == 0) return Reject(row, "ключ строки не может быть пустым");
             if (key != row.RowKey && row.RowKeys?.Contains(key) == true) return Reject(row, "строка с ключом «" + key + "» уже есть");
-            Rename(row, key);
+            if (key != row.RowKey) return Rename(row, key, SelectionEdit.SetTableCell(row.Table, row.RowKey, row.Column, converted));
         }
         return Request(row, SelectionEdit.SetTableCell(row.Table, row.RowKey, row.Column, converted));
     }
@@ -421,7 +439,7 @@ public sealed class PropertyGridViewModel : ObservableObject
     public bool SetFlag(PropertyRow row, bool value)
     {
         if (row is null) throw new ArgumentNullException(nameof(row));
-        if (!CanEdit || !row.CanSetFlag || row.Flag == value) return false;
+        if (!CanEdit || !Current(row) || !row.CanSetFlag || row.Flag == value) return false;
         if (row.Kind == PropertyRowKind.Parameter && row.Id != null) return Request(row, SelectionEdit.SetParameter(row.Id, value));
         var column = row.Kind == PropertyRowKind.TableRow ? row.FlagColumn : row.Column;
         if (row.Table is null || row.RowKey is null || column is null) return false;
@@ -435,7 +453,7 @@ public sealed class PropertyGridViewModel : ObservableObject
     public bool DeleteRow(PropertyRow row)
     {
         if (row is null) throw new ArgumentNullException(nameof(row));
-        if (!CanEdit || !row.CanDelete) return false;
+        if (!CanEdit || !Current(row) || !row.CanDelete) return false;
         if (row.Kind == PropertyRowKind.TableRow)
             return row.Table != null && row.RowKey != null && Request(row, SelectionEdit.DeleteTableRow(row.Table, row.RowKey));
         return row.Id != null && Request(row, SelectionEdit.RemoveParameter(row.Id));
@@ -463,7 +481,7 @@ public sealed class PropertyGridViewModel : ObservableObject
     public bool AddRow(PropertyRow node)
     {
         if (node is null) throw new ArgumentNullException(nameof(node));
-        if (!CanEdit || !node.CanAdd || node.Table is null || node.KeyColumn is null || schema is null) return false;
+        if (!CanEdit || !Current(node) || !node.CanAdd || node.Table is null || node.KeyColumn is null || schema is null) return false;
         if (!schema.Parameters.TryGetValue(node.KeyColumn, out var keyParameter)) return false;
         var keys = node.RowKeys ?? new HashSet<string>(StringComparer.Ordinal);
         object? key = null;
@@ -539,20 +557,37 @@ public sealed class PropertyGridViewModel : ObservableObject
         HasError = true;
     }
 
-    /// <summary>The key of a row opened by <c>✎</c> changes: it stays open and selected under the new key.</summary>
-    private void Rename(PropertyRow row, string key)
+    /// <summary>
+    /// The key of a row opened by <c>✎</c> changes: it stays open and selected under the new key. The tree is rebuilt
+    /// during the write, so the new key is set first; a failed write selects the row under its old key again.
+    /// </summary>
+    private bool Rename(PropertyRow row, string key, SelectionEdit edit)
     {
         var old = row.TableKey + "/r:" + row.RowKey;
         var renamed = row.TableKey + "/r:" + key;
-        if (editing.Contains(old)) editing.Add(renamed);
-        if (selectedIdentity != null && (selectedIdentity == old || selectedIdentity.StartsWith(old + "/f:", StringComparison.Ordinal)))
-            selectedIdentity = renamed + selectedIdentity.Substring(old.Length);
+        var selected = selectedIdentity;
+        var open = editing.Contains(old);
+        if (open) editing.Add(renamed);
+        if (selected != null && (selected == old || selected.StartsWith(old + "/f:", StringComparison.Ordinal)))
+            selectedIdentity = renamed + selected.Substring(old.Length);
+        if (Request(row, edit))
+        {
+            if (open) editing.Remove(old);
+            return true;
+        }
+        if (open) editing.Remove(renamed);
+        selectedIdentity = selected;
+        SelectedRow = selected is null ? null : Rows.FirstOrDefault(item => item.Identity == selected);
+        selectedIdentity = selected;
+        return false;
     }
+
+    private bool Current(PropertyRow row) => row.Build == generation;
 
     private void Open(PropertyRow row, bool open)
     {
         row.children.Clear();
-        if (open && row.Cells != null) row.children.AddRange(row.Cells());
+        if (open && row.Cells != null) row.children.AddRange(row.Cells().Select(cell => { cell.Build = row.Build; return cell; }));
         row.IsEditing = open;
         row.IsExpanded = open;
         row.Changed(nameof(PropertyRow.IsExpandable));
@@ -601,6 +636,7 @@ public sealed class PropertyGridViewModel : ObservableObject
         var timer = Stopwatch.StartNew();
         var build = new Builder(this, selection);
         var built = build.Run();
+        generation++;
         templateKey = build.TemplateKey;
         schema = build.Snapshot;
         TemplateText = build.TemplateText;
@@ -616,6 +652,7 @@ public sealed class PropertyGridViewModel : ObservableObject
         foreach (var row in All(built))
         {
             count++;
+            row.Build = generation;
             if (row.IsExpandable && row.Kind != PropertyRowKind.TableRow)
                 row.IsExpanded = saved.TryGetValue(row.Key, out var expanded) ? expanded : row.DefaultExpanded;
         }
@@ -1026,6 +1063,8 @@ public sealed class PropertyGridViewModel : ObservableObject
             public bool FlagColumn;
             public List<string> Names = new List<string>();
             public List<string> All = new List<string>();
+            /// <summary>Columns declared by the table in the schema: only they are written (cells outside are read-only).</summary>
+            public HashSet<string> Declared = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
         private TableColumns Columns(string id, SchemaParameter? table)
@@ -1033,6 +1072,7 @@ public sealed class PropertyGridViewModel : ObservableObject
             var columns = new TableColumns();
             var ids = new List<string>();
             if (table?.Columns != null) ids.AddRange(table.Columns.Where(column => !string.IsNullOrEmpty(column)));
+            columns.Declared.UnionWith(ids);
             // Cells outside the declared columns (or of a list outside the schema) are mapped after them.
             foreach (var item in values)
                 if (item.Find(id)?.Rows is IReadOnlyList<ObjectRow> rows)
@@ -1207,7 +1247,7 @@ public sealed class PropertyGridViewModel : ObservableObject
             row.Cells = () => Cells(row, rows, all, columns, editable);
             if (!editable) return;
             row.Column = columns.Ids[2];
-            if (columns.Parameters[2] is SchemaParameter second)
+            if (columns.Parameters[2] is SchemaParameter second && columns.Declared.Contains(columns.Ids[2]!))
             {
                 SetEditor(row, second);
                 if (row.IsFlagEditor)
@@ -1217,7 +1257,7 @@ public sealed class PropertyGridViewModel : ObservableObject
                     row.Options = new[] { new PropertyOption("1", "Да"), new PropertyOption("0", "Нет") };
                 }
             }
-            if (columns.FlagColumn && columns.Ids[3] is string flag && columns.Parameters[3]?.Editor?.ReadOnly != true)
+            if (columns.FlagColumn && columns.Ids[3] is string flag && columns.Declared.Contains(flag) && columns.Parameters[3]?.Editor?.ReadOnly != true)
             {
                 row.FlagColumn = flag;
                 row.CanSetFlag = true;
@@ -1261,7 +1301,7 @@ public sealed class PropertyGridViewModel : ObservableObject
                     var flags = cells.Select(stored => stored?.Value as bool?).Distinct().ToArray();
                     cell.Flag = !cell.IsMixed && flags.Length == 1 ? flags[0] : null;
                 }
-                if (editable) SetEditor(cell, parameter);
+                if (editable && columns.Declared.Contains(column)) SetEditor(cell, parameter);
                 yield return cell;
             }
         }

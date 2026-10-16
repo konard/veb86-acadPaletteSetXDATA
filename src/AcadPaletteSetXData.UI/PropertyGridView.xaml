@@ -57,7 +57,7 @@
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
-            <!-- «Разное» and template defaults are grey italic (TZXDATA 8.5); the value is not an editor until stage 6. -->
+            <!-- «Разное» and template defaults are grey italic (TZXDATA 8.5); the selected row shows its editor instead. -->
             <Style x:Key="ValueText" TargetType="TextBlock">
                 <Setter Property="Text" Value="{Binding Value}" />
                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -70,6 +70,88 @@
                     </DataTrigger>
                     <DataTrigger Binding="{Binding IsHeader}" Value="True"><Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" /></DataTrigger>
                 </Style.Triggers>
+            </Style>
+            <!-- TZXDATA 8.3: an editor exists only for the selected row; a check box is always shown and applies on click. -->
+            <Style x:Key="ValueEditor" TargetType="FrameworkElement">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Setter Property="Height" Value="21" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="TextEditor" TargetType="DockPanel" BasedOn="{StaticResource ValueEditor}">
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True" />
+                            <Condition Binding="{Binding IsTextEditor}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Visibility" Value="Visible" />
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="ChoiceEditor" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Setter Property="Height" Value="21" />
+                <Setter Property="Padding" Value="3,0" />
+                <Setter Property="IsEditable" Value="True" />
+                <Setter Property="IsReadOnly" Value="True" />
+                <Setter Property="MinHeight" Value="0" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding AllowCustom}" Value="True"><Setter Property="IsReadOnly" Value="False" /></DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsMixed}" Value="True" />
+                            <Condition Binding="{Binding EditText}" Value="" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="ui:EditBehavior.Mixed" Value="True" />
+                    </MultiDataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True" />
+                            <Condition Binding="{Binding IsChoiceEditor}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Visibility" Value="Visible" />
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="ShownValue" TargetType="TextBlock" BasedOn="{StaticResource ValueText}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFlagEditor}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True" />
+                            <Condition Binding="{Binding IsTextEditor}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Visibility" Value="Hidden" />
+                    </MultiDataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True" />
+                            <Condition Binding="{Binding IsChoiceEditor}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Visibility" Value="Hidden" />
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+            <!-- The empty editor of «Разное» keeps the grey hint of the theme until the user types. -->
+            <Style x:Key="ValueBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                <Setter Property="Padding" Value="2,0" />
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsMixed}" Value="True" />
+                            <Condition Binding="{Binding EditText}" Value="" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="ui:EditBehavior.Mixed" Value="True" />
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="FlagBox" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                <Setter Property="IsChecked" Value="{Binding Flag, Mode=OneWay}" />
+                <Setter Property="IsThreeState" Value="True" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="IsHitTestVisible" Value="{Binding CanSetFlag}" />
+                <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
             </Style>
             <Style x:Key="StateText" TargetType="TextBlock">
                 <Setter Property="Text" Value="{Binding StateText}" />
@@ -155,7 +237,7 @@
     </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-        <!-- Control panel (TZXDATA 8.4): reserved 32 px; «+ Параметр» and «⚙ Схема» belong to stages 6 and 8. -->
+        <!-- Control panel (TZXDATA 8.4): reserved 32 px; «⚙ Схема» belongs to stage 8. -->
         <DockPanel x:Name="Toolbar" Height="32" Margin="6,0" LastChildFill="True" AutomationProperties.Name="Панель управления свойствами">
             <Border x:Name="TemplateIndicator" DockPanel.Dock="Left" MaxWidth="110" Margin="0,0,3,0" Padding="5,0" Height="24"
                     Background="{DynamicResource PaletteTabBackground}" BorderBrush="{DynamicResource PaletteBorder}" BorderThickness="1"
@@ -164,8 +246,10 @@
                     <Run Text="▾" Foreground="{DynamicResource PaletteMuted}" /><Run Text="{Binding TemplateText, Mode=OneWay}" />
                 </TextBlock>
             </Border>
-            <Button x:Name="AddParameterButton" DockPanel.Dock="Left" Content="+" Style="{StaticResource ToolButton}" IsEnabled="False"
-                    AutomationProperties.Name="Добавить параметр" ToolTip="Добавить параметр схемы вне шаблона (этап 6)" />
+            <Button x:Name="AddParameterButton" DockPanel.Dock="Left" Content="+" Style="{StaticResource ToolButton}" IsEnabled="{Binding CanEdit}"
+                    Click="OnAddParameter" AutomationProperties.Name="Добавить параметр" ToolTip="Добавить параметр схемы вне шаблона во всё выделение">
+                <Button.ContextMenu><ContextMenu x:Name="ParameterMenu" Placement="Bottom" /></Button.ContextMenu>
+            </Button>
             <Button x:Name="RefreshButton" DockPanel.Dock="Left" Content="⟳" Style="{StaticResource ToolButton}" Command="{Binding RefreshCommand}"
                     AutomationProperties.Name="Обновить" ToolTip="Перечитать выделение и пересчитать вычисляемые значения" />
             <Button x:Name="ExpandAllButton" DockPanel.Dock="Left" Content="⊞" Style="{StaticResource ToolButton}" Command="{Binding ExpandAllCommand}"
@@ -190,7 +274,7 @@
                 </TextBlock>
             </Grid>
         </DockPanel>
-        <!-- Messages of TZXDATA 8.5: no selection, no schema, objects without BobrovXDATA. -->
+        <!-- Messages of TZXDATA 8.5: no selection, no schema, objects without BobrovXDATA; input and write errors in red. -->
         <DockPanel Grid.Row="1" Margin="6,0,6,4">
             <DockPanel.Style>
                 <Style TargetType="DockPanel">
@@ -203,9 +287,18 @@
                     Command="{Binding AssignTemplateCommand}" Visibility="{Binding NeedsTemplate, Converter={StaticResource Visible}}"
                     ToolTipService.ShowOnDisabled="True" ToolTip="Назначение шаблона — VELEC_TEMPLATE_APPLY (этап 7)"
                     AutomationProperties.Name="Назначить шаблон" />
-            <TextBlock x:Name="MessageText" Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource PaletteMuted}" />
+            <TextBlock x:Name="MessageText" Text="{Binding Message}" TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True"><Setter Property="Foreground" Value="{DynamicResource PaletteError}" /></DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </DockPanel>
-        <ListView x:Name="Rows" Grid.Row="2" ItemsSource="{Binding Rows}" IsEnabled="{Binding IsEnabled}" SelectionMode="Single"
+        <ListView x:Name="Rows" Grid.Row="2" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" IsEnabled="{Binding IsEnabled}" SelectionMode="Single"
                   ItemContainerStyle="{StaticResource Row}" Background="{DynamicResource PaletteBackground}"
                   Foreground="{DynamicResource PaletteForeground}" BorderBrush="{DynamicResource PaletteBorder}" BorderThickness="0,1,0,0"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -224,10 +317,11 @@
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" Visibility="{Binding ShowActions, Converter={StaticResource Visible}}">
-                                    <Button Content="×" Style="{StaticResource CellButton}" IsEnabled="False"
-                                            AutomationProperties.Name="Удалить строку" ToolTip="Удалить строку во всём выделении (этап 6)" />
-                                    <Button Content="✎" Style="{StaticResource CellButton}" IsEnabled="False"
-                                            AutomationProperties.Name="Редактировать строку" ToolTip="Редактировать строку (этап 6)" />
+                                    <Button Content="×" Style="{StaticResource CellButton}" IsEnabled="{Binding CanDelete}" Click="OnDeleteRow"
+                                            AutomationProperties.Name="Удалить строку" ToolTip="Удалить во всём выделении" />
+                                    <Button Content="✎" Style="{StaticResource CellButton}" IsEnabled="{Binding CanEditRow}" Click="OnEditRow"
+                                            Visibility="{Binding ShowEdit, Converter={StaticResource Visible}}"
+                                            AutomationProperties.Name="Редактировать строку" ToolTip="Показать или скрыть все поля строки" />
                                 </StackPanel>
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
@@ -246,7 +340,22 @@
                     </GridViewColumn>
                     <GridViewColumn x:Name="ValueColumn" Header="ЗНАЧЕНИЕ">
                         <GridViewColumn.CellTemplate>
-                            <DataTemplate><TextBlock Style="{StaticResource ValueText}" /></DataTemplate>
+                            <DataTemplate>
+                                <Grid Tag="ValueCell">
+                                    <TextBlock Style="{StaticResource ShownValue}" />
+                                    <CheckBox Style="{StaticResource FlagBox}" Click="OnFlagClick" HorizontalAlignment="Left" AutomationProperties.Name="Значение флажка"
+                                              Visibility="{Binding IsFlagEditor, Converter={StaticResource Visible}}" />
+                                    <DockPanel Style="{StaticResource TextEditor}">
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Unit}" Margin="3,0,0,0" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource PaletteMuted}" />
+                                        <TextBox Style="{StaticResource ValueBox}" Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}"
+                                                 LostKeyboardFocus="OnEditorLostFocus" AutomationProperties.Name="Редактор значения" />
+                                    </DockPanel>
+                                    <ComboBox Style="{StaticResource ChoiceEditor}" ItemsSource="{Binding Options}" DisplayMemberPath="Caption"
+                                              Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}" LostKeyboardFocus="OnEditorLostFocus"
+                                              DropDownClosed="OnChoiceClosed" AutomationProperties.Name="Список значений" />
+                                </Grid>
+                            </DataTemplate>
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
                     <GridViewColumn x:Name="StateColumn" Header="●">
@@ -254,7 +363,7 @@
                             <DataTemplate>
                                 <Grid>
                                     <TextBlock Style="{StaticResource StateText}" />
-                                    <CheckBox IsChecked="{Binding Flag, Mode=OneWay}" IsThreeState="True" IsHitTestVisible="False" Focusable="False"
+                                    <CheckBox Style="{StaticResource FlagBox}" Click="OnFlagClick"
                                               Visibility="{Binding HasFlag, Converter={StaticResource Visible}}" AutomationProperties.Name="Флаг строки" />
                                 </Grid>
                             </DataTemplate>
@@ -265,9 +374,9 @@
                             <DataTemplate>
                                 <Grid>
                                     <TextBlock Style="{StaticResource NoteText}" />
-                                    <Button Content="+ Добавить" Style="{StaticResource CellButton}" HorizontalAlignment="Left" IsEnabled="False"
-                                            Visibility="{Binding ShowAdd, Converter={StaticResource Visible}}"
-                                            AutomationProperties.Name="Добавить строку" ToolTip="Добавить строку во всё выделение (этап 6)" />
+                                    <Button Content="+ Добавить" Style="{StaticResource CellButton}" HorizontalAlignment="Left" IsEnabled="{Binding CanAdd}"
+                                            Visibility="{Binding ShowAdd, Converter={StaticResource Visible}}" Click="OnAddRow"
+                                            AutomationProperties.Name="Добавить строку" ToolTip="Добавить строку во всё выделение" />
                                 </Grid>
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>

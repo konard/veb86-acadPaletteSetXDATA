@@ -126,14 +126,16 @@ public sealed class PropertyRow : ObservableObject
     /// <summary><c>Editor.Unit</c>, shown next to a number editor.</summary>
     public string Unit { get; internal set; } = "";
     /// <summary>
-    /// Text of the editor. It starts with the value, or empty for «Разное»; setting it marks the row changed, so a visit
-    /// without typing writes nothing, while an empty text or the word «Разное» typed by the user are data (stage 4).
+    /// Text of the editor. It starts with the value, or empty for «Разное»; a different text marks the row changed, so a
+    /// visit without typing writes nothing (also when a control sets the same text back), while an empty text or the word
+    /// «Разное» typed by the user are data (stage 4).
     /// </summary>
     public string EditText
     {
         get => editText;
         set
         {
+            if (string.Equals(editText, value ?? "", StringComparison.Ordinal)) return;
             IsDirty = true;
             SetProperty(ref editText, value ?? "");
         }
@@ -517,10 +519,11 @@ public sealed class PropertyGridViewModel : ObservableObject
 
     private bool Request(PropertyRow row, SelectionEdit edit)
     {
-        // The controller writes and reads the selection again synchronously: the tree is rebuilt by Applied.
-        if (selection.RequestEdit(edit)) return true;
+        // The controller writes and reads the selection again synchronously: the tree is rebuilt by Applied. The written
+        // row is reset too, so leaving its editor afterwards does not write the same text again.
+        var written = selection.RequestEdit(edit);
         row.ResetEdit();
-        return false;
+        return written;
     }
 
     private bool Reject(PropertyRow row, string error)

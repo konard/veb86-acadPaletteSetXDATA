@@ -63,6 +63,9 @@ public sealed class GroupEditingV2Tests
             Assert.True(grid.Commit(name));
             Assert.Equal(1, drawing.Commits);
             Assert.Equal(2, drawing.Writes); // One transaction for both objects.
+            // Leaving the editor of the replaced row after Enter does not write the text twice.
+            Assert.False(grid.Commit(name));
+            Assert.Equal(1, drawing.Commits);
             Assert.False(Row(grid, "NMO_Name").IsMixed);
             Assert.Equal("Unified", Row(grid, "NMO_Name").Value);
             Assert.Equal(new object[] { "Unified", "Unified" }, drawing.Stored("NMO_Name"));
@@ -230,6 +233,10 @@ public sealed class GroupEditingV2Tests
         {
             var name = Row(grid, "NMO_Name");
             name.EditText = "";
+            Assert.False(name.IsDirty); // The editor of «Разное» is empty already: nothing was typed.
+            Assert.False(grid.Commit(name));
+            name.EditText = "x";
+            name.EditText = ""; // Typed and erased: the empty string is data.
             Assert.True(grid.Commit(name));
             Assert.False(Row(grid, "NMO_Name").IsMixed);
             Assert.Equal(new object[] { "", "" }, drawing.Stored("NMO_Name"));

@@ -126,6 +126,17 @@ public sealed class DrawingCheckTests
     }
 
     [Fact]
+    public void KeptSourcesOfMigratedObjectsAreToldFromObjectsToMigrate()
+    {
+        var schema = Schema();
+        var migrated = new SchemaMigration(schema, false, newGuid: Guids()).Migrate(Line("1")).After;
+        var issues = new DrawingCheck(schema).Run(new[] { migrated, Line("2") }).Issues.Where(issue => issue.Kind == DrawingIssueKind.LegacyData).ToArray();
+        Assert.Equal(new[] { "1", "2" }, issues.Select(issue => issue.Handle));
+        Assert.Equal("ESMT_LEP_v1.0: перенесено, исходные данные сохранены (удаление — VELEC_MIGRATE «Удалить»).", issues[0].Message);
+        Assert.Equal("ESMT_LEP_v1.0; перенесите командой VELEC_MIGRATE.", issues[1].Message);
+    }
+
+    [Fact]
     public void WriteEachRemovesRecordsAndRejectsForeignHandles()
     {
         var drawing = new Drawing(Cable("1"), Device("2", Pair("NMO_Name", "x")));

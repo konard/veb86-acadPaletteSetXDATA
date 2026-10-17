@@ -132,12 +132,15 @@ public sealed class DrawingCheck
     private readonly SchemaSnapshot schema;
     private readonly ParameterTypeRegistry types;
     private readonly XDataPatch patch;
+    private readonly SchemaMigration? migration;
 
     public DrawingCheck(SchemaSnapshot schema, ParameterTypeRegistry? types = null, Func<Guid>? newGuid = null, CultureInfo? culture = null)
     {
         this.schema = schema ?? throw new ArgumentNullException(nameof(schema));
         this.types = types ?? ParameterTypeRegistry.Default;
         patch = new XDataPatch(schema.Schema is null ? null : schema, this.types, newGuid, culture);
+        // Tells migrated objects whose sources were kept from objects still to migrate; its GUIDs are never written.
+        if (schema.Schema != null) migration = new SchemaMigration(schema, false, this.types, () => Guid.Empty, culture);
     }
 
     public DrawingCheckReport Run(IReadOnlyList<EntityDataSnapshot> snapshots)
@@ -216,7 +219,13 @@ public sealed class DrawingCheck
             Add(DrawingIssueKind.Format, null, warning);
         }
         var sources = SchemaMigration.FindSources(snapshot);
-        if (sources.Count != 0) Add(DrawingIssueKind.LegacyData, null, string.Join(", ", sources) + "; перенесите командой VELEC_MIGRATE.");
+        if (sources.Count != 0)
+        {
+            var pending = migration?.Migrate(snapshot);
+            Add(DrawingIssueKind.LegacyData, null, string.Join(", ", sources) + (pending is { Changed: false, Complete: true, Errors.Count: 0 }
+                ? ": перенесено, исходные данные сохранены (удаление — VELEC_MIGRATE «Удалить»)."
+                : "; перенесите командой VELEC_MIGRATE."));
+        }
         if (snapshot.Warning != null) Add(DrawingIssueKind.Format, null, snapshot.Warning);
 
         if (values.Format != XDataFormat.V2 || schema.Schema is null) return;

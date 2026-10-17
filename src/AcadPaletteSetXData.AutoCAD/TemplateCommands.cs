@@ -66,7 +66,7 @@ public static class TemplateCommands
     }
 
     /// <summary>Detached snapshots of the chosen objects, as the palette reads them.</summary>
-    private static IReadOnlyList<EntityDataSnapshot> Read(Database database, IEnumerable<ObjectId> ids)
+    internal static IReadOnlyList<EntityDataSnapshot> Read(Database database, IEnumerable<ObjectId> ids)
     {
         var snapshots = new List<EntityDataSnapshot>();
         using var transaction = database.TransactionManager.StartOpenCloseTransaction();

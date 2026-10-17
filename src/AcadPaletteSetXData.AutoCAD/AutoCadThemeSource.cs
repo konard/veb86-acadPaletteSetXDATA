@@ -13,7 +13,10 @@ internal sealed class AutoCadThemeSource : IThemeSource, IDisposable
         AcApplication.SystemVariableChanged += OnSystemVariableChanged;
     }
 
-    public PaletteTheme CurrentTheme =>
+    public PaletteTheme CurrentTheme => Read();
+
+    /// <summary>The theme of AutoCAD now (<c>COLORTHEME</c>), e.g. for a modal window.</summary>
+    public static PaletteTheme Read() =>
         Convert.ToInt32(AcApplication.GetSystemVariable("COLORTHEME"), CultureInfo.InvariantCulture) == 1
             ? PaletteTheme.Light : PaletteTheme.Dark;
 

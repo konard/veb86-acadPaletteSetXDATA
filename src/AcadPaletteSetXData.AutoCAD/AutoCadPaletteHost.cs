@@ -33,6 +33,8 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
             palette.AddVisual("XDATA", view, true);
             selectionSource = new AutoCadSelectionSource();
             selectionController = new SelectionController(selectionSource, viewModel.Selection);
+            // «⚙» starts the schema commands as commands of the document: one Undo step, no write from the palette.
+            viewModel.Grid.SchemaCommandRunner = RunCommand;
             if (Environment.GetEnvironmentVariable("XDATAPALETTE_TRACE") == "1") viewModel.Grid.Built += OnGridBuilt;
         }
         catch
@@ -51,6 +53,9 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
     }
 
     public void ApplyTheme(PaletteTheme theme) => viewModel.Theme = theme;
+
+    private static void RunCommand(string command) =>
+        AcApplication.DocumentManager.MdiActiveDocument?.SendStringToExecute("_" + command + " ", true, false, false);
 
     // TZXDATA 10.6: the build time of the VST next to the read time of the selection.
     private void OnGridBuilt(object? sender, EventArgs args) =>

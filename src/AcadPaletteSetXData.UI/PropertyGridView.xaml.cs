@@ -254,6 +254,30 @@ public partial class PropertyGridView : UserControl
         TemplateMenu.IsOpen = true;
     }
 
+    /// <summary>«⚙» (TZXDATA 8.4, 9): «Редактор схемы…», «Импорт JSON…», «Экспорт JSON…»; the menu opens leftwards under the button.</summary>
+    private void OnSchemaMenu(object sender, RoutedEventArgs args)
+    {
+        if (model == null) return;
+        var grid = model;
+        SchemaMenu.Items.Clear();
+        foreach (var (header, command) in new[]
+                 {
+                     ("Редактор схемы…", PropertyGridViewModel.SchemaEdit),
+                     ("Импорт JSON…", PropertyGridViewModel.SchemaImport),
+                     ("Экспорт JSON…", PropertyGridViewModel.SchemaExport),
+                 })
+        {
+            var item = new MenuItem { Header = header, Tag = command, ToolTip = command };
+            item.Click += (_, _) => grid.RunSchemaCommand(command);
+            SchemaMenu.Items.Add(item);
+            if (command == PropertyGridViewModel.SchemaEdit) SchemaMenu.Items.Add(new Separator());
+        }
+        SchemaMenu.PlacementTarget = SchemaButton;
+        SchemaMenu.CustomPopupPlacementCallback = (popup, target, _) =>
+            new[] { new CustomPopupPlacement(new Point(target.Width - popup.Width, target.Height), PopupPrimaryAxis.Horizontal) };
+        SchemaMenu.IsOpen = true;
+    }
+
     private static PropertyRow? RowOf(object sender) => (sender as FrameworkElement)?.DataContext as PropertyRow;
 
     /// <summary>The text box or list of the value column that contains <paramref name="source"/>.</summary>

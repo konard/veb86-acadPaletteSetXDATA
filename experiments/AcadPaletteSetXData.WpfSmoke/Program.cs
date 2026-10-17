@@ -65,6 +65,7 @@ internal static class Program
             VerifyColumns(view, model);
             VerifyVirtualization(view, model, source, output);
             VerifyTemplates(view, model, source, output);
+            VerifySchemaEditor(view, model, output);
             VerifyLegacy(view, model, tabs, source, output);
             VerifyEditing(view, model, source, output);
             source.Select(SampleSelection());
@@ -77,7 +78,7 @@ internal static class Program
             application.Shutdown();
             Console.WriteLine("WPF checks passed: VST columns and states, «Разное», table rows, control panel, filter, column menu, " +
                               "virtualization, kept expansion and scroll, template menu, assigning and changing templates, committed defaults, legacy data, editors, Enter/Esc, check boxes, × ✎ «+ Добавить», " +
-                              "«+ Параметр», write errors, XDATA tree, themes, resize and disposal.");
+                              "«+ Параметр», write errors, ⚙ schema menu, schema editor (draft, formula preview, guards, errors, import, apply, cancel, light theme), XDATA tree, themes, resize and disposal.");
             return 0;
         }
         catch (Exception error)
@@ -358,6 +359,148 @@ internal static class Program
         source.Select(SampleSelection());
         Pump(view);
         Check(!assign.IsVisible, "Objects with data must not offer a template.");
+    }
+
+    /// <summary>TZXDATA 9: the ⚙ menu starts the schema commands; the editor changes a draft and «Применить» writes it once.</summary>
+    private static void VerifySchemaEditor(PaletteView view, PaletteViewModel model, string output)
+    {
+        var grid = Grid(view);
+        var button = (Button)grid.FindName("SchemaButton");
+        Check(!button.IsEnabled, "Without AutoCAD the ⚙ button must be disabled.");
+        var started = new List<string>();
+        model.Grid.SchemaCommandRunner = started.Add;
+        Pump(view);
+        Check(button.IsEnabled, "The host runner must enable the ⚙ button.");
+        Invoke(button, view);
+        var menu = (ContextMenu)grid.FindName("SchemaMenu");
+        var commands = menu.Items.OfType<MenuItem>().Select(item => (string)item.Tag).ToArray();
+        Check(menu.IsOpen && commands.SequenceEqual(new[] { PropertyGridViewModel.SchemaEdit, PropertyGridViewModel.SchemaImport, PropertyGridViewModel.SchemaExport }),
+            "The ⚙ menu must offer the editor, import and export: " + string.Join(", ", commands));
+        Pump(view);
+        SaveWithPopup(view, menu, Path.Combine(output, "tzxdata-stage8-schema-menu.png"));
+        Click(Item(menu, PropertyGridViewModel.SchemaEdit), menu, view);
+        Check(started.SequenceEqual(new[] { PropertyGridViewModel.SchemaEdit }), "«Редактор схемы…» must start VELEC_SCHEMA_EDIT.");
+        model.Grid.SchemaCommandRunner = null;
+
+        var loaded = ParameterSchemaJson.Load(File.ReadAllText(SchemaPath));
+        var selection = SampleSelection();
+        var usage = new SchemaUsage();
+        foreach (var item in selection) usage.Add(item.XData);
+        var asked = new List<string>();
+        var editor = new SchemaEditorViewModel(loaded.Schema, usage, selection) { Confirm = message => { asked.Add(message); return true; } };
+        var window = new SchemaEditorWindow(editor);
+        var result = ShowEditor(window, root =>
+        {
+            Check(editor.SelectedParameter == editor.Parameters[0] && !editor.IsDirty && !((Button)window.FindName("ApplyButton")).IsEnabled,
+                "The editor must open on the first parameter with nothing to apply.");
+            editor.SelectedParameter = editor.FindParameter("GC_Name");
+            Pump(root);
+            Check(((FrameworkElement)window.FindName("FormatField")).IsVisible && editor.SelectedParameter!.FormulaPreview == "«ЩУ1.3» (BlockReference [A1])",
+                "The formula preview must calculate the draft on the first selected object: " + editor.SelectedParameter!.FormulaPreview);
+            Save(root, Path.Combine(output, "tzxdata-stage8-parameters.png"));
+
+            // A parameter stored in the objects cannot be deleted: the draft is kept and the status explains why.
+            editor.SelectedParameter = editor.FindParameter("Power");
+            editor.DeleteParameterCommand.Execute(null);
+            Check(editor.FindParameter("Power") != null && editor.Status.Contains("удаление запрещено") && !editor.IsDirty,
+                "A used parameter must not be deleted: " + editor.Status);
+
+            window.SelectTab(1);
+            editor.SelectedEnum = editor.FindEnum("Phase");
+            Pump(root);
+            var keys = (ListBox)window.FindName("EnumKeyList");
+            Check(keys.IsVisible && keys.Items.Count == editor.SelectedEnum!.Items.Count && keys.Items.Count != 0, "The ENUM tab must list the keys.");
+            Save(root, Path.Combine(output, "tzxdata-stage8-enums.png"));
+
+            window.SelectTab(2);
+            editor.SelectedTemplate = editor.FindTemplate("DEVICE");
+            Pump(root);
+            var members = (ListBox)window.FindName("TemplateParameterList");
+            Check(members.IsVisible && members.Items.Count == editor.SelectedTemplate!.Parameters.Count && ((ListBox)window.FindName("AvailableList")).Items.Count != 0,
+                "The template tab must show the parameters of the template and the others.");
+            Save(root, Path.Combine(output, "tzxdata-stage8-templates.png"));
+
+            // A new parameter with an invalid Id: the error is listed and «Применить» stays disabled.
+            window.SelectTab(0);
+            editor.AddParameterCommand.Execute(null);
+            var added = editor.SelectedParameter!;
+            added.Id = "1st";
+            Pump(root);
+            var apply = (Button)window.FindName("ApplyButton");
+            Check(editor.IsDirty && editor.HasErrors && !apply.IsEnabled && ((ListBox)window.FindName("IssueList")).Items.Count != 0,
+                "An invalid draft must list the error and block «Применить».");
+            Save(root, Path.Combine(output, "tzxdata-stage8-errors.png"));
+            added.Id = "Room";
+            added.Caption = "Помещение";
+            Pump(root);
+            Check(editor.CanApply && apply.IsEnabled, "A corrected draft must be applicable.");
+
+            window.Import("{ \"format\": \"BobrovXDATA.schema\", \"version\": 1, \"parameters\": [" +
+                          "{ \"id\": \"Floor\", \"type\": \"Integer\", \"caption\": \"Этаж\" }, { \"id\": \"Power\", \"type\": \"Integer\", \"caption\": \"Мощность\" }] }",
+                SchemaImportMode.Merge);
+            Pump(root);
+            Check(((ListBox)window.FindName("ReportList")).Items.Count != 0 && editor.FindParameter("Floor") != null && editor.FindParameter("Power")!.Type == "Double",
+                "Merge must add Floor to the draft and keep the type of Power.");
+            Save(root, Path.Combine(output, "tzxdata-stage8-import.png"));
+            Invoke(apply, root);
+        });
+        Check(result == true && asked.Count == 0, "«Применить» must close the editor with DialogResult true without questions.");
+
+        // The caller writes the draft in one transaction; the written NOD reads back as the draft.
+        var nod = new MemoryNod();
+        var written = editor.Apply(nod);
+        var stored = SchemaNod.FromRecords(nod.Records);
+        Check(nod.Commits == 1 && written.Changed && stored.Schema != null && stored.Schema.FindParameter("Room") != null && stored.Schema.FindParameter("Floor") != null &&
+              ParameterSchemaJson.Write(stored.Schema) == editor.ExportJson(), "«Применить» must write the draft to NOD in one commit.");
+
+        // «Отмена» of a changed draft asks once and leaves the drawing unchanged; the light theme follows AutoCAD.
+        editor = new SchemaEditorViewModel(loaded.Schema, usage, selection) { Confirm = message => { asked.Add(message); return true; } };
+        window = new SchemaEditorWindow(editor, PaletteTheme.Light);
+        result = ShowEditor(window, root =>
+        {
+            editor.SelectedParameter = editor.FindParameter("GC_Name");
+            Pump(root);
+            Check(((SolidColorBrush)((Border)root).Background).Color == Resource(root, "PaletteBackground") &&
+                  Resource(root, "PaletteBackground") != Colors.Black && Resource(root, "PaletteBackground").R > 128, "The light theme must be applied.");
+            Save(root, Path.Combine(output, "tzxdata-stage8-light.png"));
+            editor.SelectedParameter!.Caption = "Обозначение по группе";
+            Pump(root);
+            Check(editor.IsDirty && editor.CanApply, "A changed caption must make the draft applicable.");
+            Invoke((Button)window.FindName("CancelButton"), root);
+        });
+        Check(result == false && asked.Count == 1 && asked[0].Contains("без записи в чертёж"), "«Отмена» of a changed draft must ask and return false.");
+    }
+
+    /// <summary>Shows the modal editor and runs <paramref name="checks"/> inside its dialog loop on the content.</summary>
+    private static bool? ShowEditor(SchemaEditorWindow window, Action<FrameworkElement> checks)
+    {
+        Exception? failure = null;
+        window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            try { checks((FrameworkElement)window.FindName("Root")); }
+            catch (Exception error) { failure = error; window.Model.Confirm = _ => true; window.Close(); }
+        }));
+        var result = window.ShowDialog();
+        if (failure != null) throw new InvalidOperationException("Schema editor: " + failure.Message, failure);
+        return result;
+    }
+
+    /// <summary>The NOD of a drawing in memory: what <see cref="SchemaEditorViewModel.Apply"/> writes in one commit.</summary>
+    private sealed class MemoryNod : ISchemaNodTransaction
+    {
+        private readonly List<DataRecord> store = new List<DataRecord>();
+        private readonly List<Action> pending = new List<Action>();
+        public int Commits { get; private set; }
+        public IReadOnlyList<DataRecord> Records => store.ToList();
+        public IReadOnlyList<string> Warnings => Array.Empty<string>();
+        public void Write(DataRecord record) => pending.Add(() =>
+        {
+            store.RemoveAll(existing => string.Equals(existing.Name, record.Name, StringComparison.OrdinalIgnoreCase));
+            store.Add(record);
+        });
+        public void Erase(string path) => pending.Add(() => store.RemoveAll(existing => string.Equals(existing.Name, path, StringComparison.OrdinalIgnoreCase)));
+        public void Commit() { pending.ForEach(action => action()); pending.Clear(); Commits++; }
+        public void Dispose() => pending.Clear();
     }
 
     private static MenuItem Item(ContextMenu menu, string tag) => menu.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, tag));

@@ -19,8 +19,13 @@ jobs:
           dotnet-version: 8.0.x
       - name: Test transactional writer, selection, mixed values, lifecycle, parsing and parameter schema
         run: dotnet test tests/AcadPaletteSetXData.Core.Tests -c Release --logger "trx;LogFileName=core.trx" --results-directory artifacts/tests --blame-hang-timeout 2m
-      - name: Validate the example parameter schema
-        run: dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/schema.json
+      - name: Validate the example parameter schema and the stage 10 load schema
+        run: |
+          dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/schema.json
+          dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/tzxdata-stage10-load-schema.json
+      - name: Load report of 1000 objects × 50 parameters (TZXDATA 10.6)
+        timeout-minutes: 3
+        run: dotnet run --project experiments/AcadPaletteSetXData.LoadReport -c Release -- examples/tzxdata-stage10-load-schema.json
       - name: Migrate the stage 3 and stage 9 samples twice and check the drawing (VELEC_MIGRATE, VELEC_CHECK)
         run: |
           dotnet run --project experiments/AcadPaletteSetXData.MigrationReport -c Release -- examples/schema.json

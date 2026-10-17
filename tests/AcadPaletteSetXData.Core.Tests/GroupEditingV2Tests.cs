@@ -518,6 +518,7 @@ public sealed class GroupEditingV2Tests
         public event EventHandler? SelectionChanged { add { } remove { } }
         public IReadOnlyList<EntityDataSnapshot> ReadSelection() => Snapshots;
         public void WriteSelection(IReadOnlyList<string> handles, SelectionEdit edit) => writer.WriteSelection(handles, edit);
+        public IReadOnlyList<EntityDataSnapshot> WriteEach(IReadOnlyList<string> handles, Func<EntityDataSnapshot, EntityDataSnapshot> change) => writer.WriteEach(handles, change);
 
         public ObjectValues Read(EntityDataSnapshot snapshot) => XDataV2.Read(snapshot, Values.Schema);
 

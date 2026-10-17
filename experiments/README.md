@@ -122,3 +122,26 @@ dotnet run --project experiments/AcadPaletteSetXData.MigrationReport -c Release 
 печатает отчёт проверки до и после «Исправить: Все». Возвращает 1, если значения различаются
 или повторный перенос что-то меняет; `--remove` соответствует ответу «Удалить». Запускается в CI;
 вывод приведён в [docs/migration-check.md](../docs/migration-check.md).
+
+## Нагрузочный отчёт 1000 объектов × 50 параметров (#37)
+
+```sh
+dotnet run --project experiments/AcadPaletteSetXData.LoadReport -c Release -- examples/tzxdata-stage10-load-schema.json
+```
+
+`LoadReport` (TZXDATA, этап 10) без AutoCAD выбирает 1000 объектов `examples/tzxdata-stage10-load.lsp`
+(общий код — `tests/AcadPaletteSetXData.Core.Tests/LoadData.cs`) по схеме
+`examples/tzxdata-stage10-load-schema.json`. Он печатает время разбора XDATA и построения VST при первом
+и повторном выборе, паузы GC, счётчики `ParseCount` и `TreeParseCount`, проверяет запись одного объекта
+и LRU на 12 000 объектов. Возвращает 1, если лучшее построение VST дольше 300 мс или повторный выбор
+разбирает XDATA. `--profile N [--cold]` повторяет выбор для `dotnet-trace`. Запускается в CI; пример
+вывода и профилирование — [docs/performance.md](../docs/performance.md).
+
+Скрипты `experiments/scripts`:
+
+- `gen-load-schema.py` создаёт схему нагрузочного теста;
+- `speedscope-top.py` печатает самые дорогие методы профиля `dotnet-trace --format speedscope`;
+- `lisp-balance.py examples/*.lsp` проверяет баланс скобок в файлах AutoLISP.
+
+`RegistrationSmoke` с этапа 10 печатает ссылки выпускаемой DLL и падает, если среди них есть сборка,
+отличная от .NET Framework/WPF и AutoCAD.

@@ -2,7 +2,7 @@
 
 **Проект:** acadPaletteSetXDATA — панель свойств объектов AutoCAD на основе схемы параметров.
 **Основание:** [задача #17](https://github.com/veb86/acadPaletteSetXDATA/issues/17), исходное [ТЗ](TZ.md),
-выполненные этапы 1–8 (см. [README](README.md)).
+выполненные этапы 0–10 (см. [README](README.md)).
 **Платформа:** AutoCAD 2021 (`net48`, основная), AutoCAD 2024 (`net48`), AutoCAD 2025 (`net8.0-windows`);
 C#, WPF, MVVM; поставка — одна DLL `acadPaletteSetXDATA.dll`.
 
@@ -556,7 +556,9 @@ schema.json  ◀── VELEC_SCHEMA_EXPORT ──  NOD «VELEC»                
 - **Приёмка:** `examples/stage3-selection.lsp` после миграции показывает те же значения и
   материалы в VST; повторная миграция ничего не меняет.
 
-### Этап 10. Производительность, документация, выпуск
+### Этап 10. Производительность, документация, выпуск — **выполнен в задаче #37**
+
+Описание реализации: [docs/performance.md](docs/performance.md).
 
 - Нагрузочный тест кэша/объединения (раздел 10, п. 6), обновление README и `docs/`,
   ручной сценарий AutoCAD 2021, выпуск одной DLL через существующий Release.

@@ -91,6 +91,20 @@ WPF-содержимое следует `COLORTHEME`: `0` — тёмная те�
 - Обе команды сначала выводят отчёт и меняют чертёж одной транзакцией и одним шагом Undo —
   [docs/migration-check.md](docs/migration-check.md).
 
+Этап 10 выполнен: производительность, документация и выпуск:
+
+- Кэш значений хранит рядом со значениями v2 и дерево XDATA. Повторный выбор того же набора не
+  разбирает XDATA (счётчики `ParseCount` и `TreeParseCount`); запись разбирает заново только
+  записанные объекты; LRU на 10 000 объектов; кэш схемы — один на документ.
+- 1000 объектов × 50 параметров строятся в VST не дольше 300 мс после чтения снимков. Это проверяют
+  `LoadTests` и отчёт `LoadReport` в CI на схеме
+  [examples/tzxdata-stage10-load-schema.json](examples/tzxdata-stage10-load-schema.json).
+  В AutoCAD те же объекты создаёт [examples/tzxdata-stage10-load.lsp](examples/tzxdata-stage10-load.lsp)
+  (`VELECLOAD`), время и счётчики показывает `XDATAPALETTE_TRACE=1`.
+- Release выпускает одну `acadPaletteSetXDATA.dll`. Проверка выпуска перечисляет её ссылки и
+  допускает только .NET Framework/WPF и AutoCAD — [docs/performance.md](docs/performance.md),
+  [ручной сценарий](docs/autocad-verification.md#tzxdata-этап-10-производительность-и-выпуск).
+
 Описание этапов 2–4 палитры ниже сохраняется как история: их запись полей прежнего формата
 (`XDataPatch`, `XDataWriter`) остаётся в Core и покрыта тестами; групповое редактирование v2
 проверяют перенесённые тесты `GroupEditingV2Tests`.
@@ -241,4 +255,7 @@ CI выполняет эти проверки и публикует артефа
 Пример чертёжных данных: [examples/stage3-selection.lsp](examples/stage3-selection.lsp).
 Для диагностики установите `XDATAPALETTE_TRACE=1` в окружении **до запуска AutoCAD**:
 после чтения/записи в командной строке выводятся число объектов, операция и время, после построения
-VST — `[XDATAPALETTE] VST: объектов N, строк M, видимых K; T мс.`. По умолчанию трассировка отключена.
+VST — `[XDATAPALETTE] VST: объектов N, строк M, видимых K; T мс. Разборов XDATA: P, деревьев XDATA: D.`
+(повторный выбор того же набора счётчики не меняет). По умолчанию трассировка отключена.
+Кэши, нагрузочный тест 1000 объектов × 50 параметров и его запуск — [docs/performance.md](docs/performance.md),
+объекты для AutoCAD — [examples/tzxdata-stage10-load.lsp](examples/tzxdata-stage10-load.lsp).

@@ -54,7 +54,10 @@ Pull request тоже собирает DLL и ZIP, запускает прове
 завершает build job; зависимый release job не запускается.
 Проверки читают метаданные именно выпускаемой DLL: регистрацию приложения/команды,
 наличие реализации панели и WPF-ресурсов, отсутствие зависимости от отдельных DLL
-плагина. Windows запускает полный WPF smoke-сценарий с этой сборкой и сохраняет
+плагина. С этапа 10 TZXDATA проверка печатает ссылки DLL («Assembly references: …») и завершается
+ошибкой, если среди них есть сборка, отличная от .NET Framework/WPF (`mscorlib`, `System*`, `WindowsBase`,
+`PresentationCore`, `PresentationFramework`, `Microsoft.CSharp`) и AutoCAD (`AcMgd`, `AcDbMgd`, `AcCoreMgd`,
+`AdWindows`): новая зависимость не попадёт в выпуск незамеченной. Windows запускает полный WPF smoke-сценарий с этой сборкой и сохраняет
 рендеры в `release-wpf-renders`. Упаковка проверяет управляемую x64-сборку
 и сохраняет только нужную DLL. Нативный `NETLOAD` требует установленного AutoCAD;
 [сценарий ручной проверки](autocad-verification.md).

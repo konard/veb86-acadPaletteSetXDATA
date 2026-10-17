@@ -89,10 +89,12 @@ VST — стандартные `ListView` + `GridView` WPF с `VirtualizingStack
   Раскрытие группы вставляет/удаляет только её строки, без перестроения.
 - `ListView` с `VirtualizingPanel.IsVirtualizing=True` и `VirtualizationMode=Recycling`: контейнеры
   создаются только для видимых строк (smoke проверяет 400+ строк таблицы).
-- Тест `ThousandObjectsWithFiftyParametersAreBuiltWithinTheBudget`: 1000 объектов × 50 параметров
-  строятся не дольше 300 мс после чтения снимков.
+- Тесты `ThousandObjectsWithFiftyParametersAreBuiltWithinTheBudget` и `LoadTests` (этап 10): 1000 объектов ×
+  50 параметров строятся не дольше 300 мс после чтения снимков. При повторном выборе XDATA не разбирается:
+  значения и дерево XDATA берутся из кэша значений (`ParseCount`, `TreeParseCount`). Подробнее — в
+  [performance.md](performance.md).
 - `XDATAPALETTE_TRACE=1` выводит после каждого построения:
-  `[XDATAPALETTE] VST: объектов 2, строк 24, видимых 21; 1.8 мс.`
+  `[XDATAPALETTE] VST: объектов 2, строк 24, видимых 21; 1.8 мс. Разборов XDATA: 2, деревьев XDATA: 2.`
 
 ## Проверка
 

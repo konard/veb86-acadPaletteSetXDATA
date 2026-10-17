@@ -80,7 +80,7 @@ public sealed class XDataParser
             }
             else if (ignoredDepth == 0)
             {
-                current.Add(new XDataNode("[" + value.TypeCode.ToString(CultureInfo.InvariantCulture) + "]", text, value.TypeCode));
+                current.Add(new XDataNode(Label(value.TypeCode), text, value.TypeCode));
                 label = value.TypeCode == 1000 && !text.Contains("=") ? text : null;
             }
         }
@@ -232,6 +232,13 @@ public sealed class XDataParser
     /// <summary>A section that starts with <c>(1070 . N)</c> holds typed pairs, not <c>key=value</c> strings.</summary>
     private static bool IsTyped(XDataNode app) => app.Children.Count != 0 && app.Children[0].TypeCode == 1070 &&
         long.TryParse(app.Children[0].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version) && version >= XDataV2.FormatVersion;
+    /// <summary>The caption <c>[1000]</c> of a value node; one string per group code instead of one per value (TZXDATA 10.6).</summary>
+    private static string Label(int code)
+    {
+        if (code >= 0 && code < Labels.Length) return Labels[code] ??= "[" + code.ToString(CultureInfo.InvariantCulture) + "]";
+        return "[" + code.ToString(CultureInfo.InvariantCulture) + "]";
+    }
+    private static readonly string?[] Labels = new string?[1072];
     private static string Format(object value) => value is byte[] bytes ? BitConverter.ToString(bytes).Replace("-", "") :
         value is IFormattable formatted ? formatted.ToString(null, CultureInfo.InvariantCulture) : value.ToString() ?? "";
 }

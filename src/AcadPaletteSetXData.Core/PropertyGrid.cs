@@ -971,6 +971,9 @@ public sealed class PropertyGridViewModel : ObservableObject
             var state = PropertyState.None;
             string? error = null;
             var allDefault = true;
+            // Objects of a selection often store the same value: it is formatted once (TZXDATA 10.4).
+            object? formattedValue = null;
+            string? formattedText = null;
             for (var i = 0; i < values.Count; i++)
             {
                 var item = values[i];
@@ -990,7 +993,12 @@ public sealed class PropertyGridViewModel : ObservableObject
                 {
                     if (stored.State == ObjectValueState.Typed && parameter != null)
                     {
-                        text = ObjectCalculation.FormatValue(schema!, parameter, stored.Value, false, Culture, Types);
+                        if (formattedText is null || !SameValue(formattedValue, stored.Value))
+                        {
+                            formattedValue = stored.Value;
+                            formattedText = ObjectCalculation.FormatValue(schema!, parameter, stored.Value, false, Culture, Types);
+                        }
+                        text = formattedText;
                         itemState = PropertyState.Set;
                     }
                     else
@@ -1026,6 +1034,10 @@ public sealed class PropertyGridViewModel : ObservableObject
             SetEditor(row, parameter);
             return row;
         }
+
+        /// <summary>Equal stored values have equal text; doubles by bits, so that <c>-0</c> is not taken for <c>0</c>.</summary>
+        private static bool SameValue(object? left, object right) =>
+            left is double x && right is double y ? BitConverter.DoubleToInt64Bits(x) == BitConverter.DoubleToInt64Bits(y) : Equals(left, right);
 
         /// <summary>The editor of column 2 by the type of the parameter (TZXDATA 8.3).</summary>
         private void SetEditor(PropertyRow row, SchemaParameter? parameter)

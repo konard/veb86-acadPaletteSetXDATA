@@ -360,7 +360,13 @@ public static class XDataV2
     {
         internal sealed class Node
         {
-            public Node(string? id, List<DataValue> all, int valueStart) { Id = id; All = all; Value = all.Skip(valueStart).ToArray(); }
+            public Node(string? id, List<DataValue> all, int valueStart)
+            {
+                Id = id; All = all;
+                var value = new DataValue[all.Count - valueStart];
+                all.CopyTo(valueStart, value, 0, value.Length);
+                Value = value;
+            }
             /// <summary>Null for a value that is not a pair (kept as is).</summary>
             public string? Id { get; }
             /// <summary>All values of the node: the Id and its value.</summary>

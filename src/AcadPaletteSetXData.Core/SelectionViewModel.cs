@@ -86,7 +86,8 @@ public sealed class SelectionViewModel : ObservableObject
     {
         var previousHandle = SelectedEntity?.Handle;
         // Parse first, then replace the whole selection so a failure cannot expose a partial update.
-        var parsed = snapshots.Select(snapshot => new XDataParser().Parse(snapshot)).ToArray();
+        // With the value cache an unchanged object is not parsed again (TZXDATA 10.6).
+        var parsed = snapshots.Select(snapshot => cache?.Parse(snapshot) ?? new XDataParser().Parse(snapshot)).ToArray();
         var values = cache?.Get(snapshots) ?? Array.Empty<ObjectValues>();
         var calculations = values.Select(item => new ObjectCalculation(item)).ToArray();
         AddWarnings(parsed, values, calculations);

@@ -21,7 +21,9 @@ internal sealed class AutoCadXDataWriteTransaction : IXDataWriteTransaction
     public AutoCadXDataWriteTransaction(Document document, IReadOnlyList<string> handles) : this(document, handles, null) { }
 
     /// <param name="selected">Objects chosen by a command (<c>VELEC_TEMPLATE_APPLY</c>); null — the PICKFIRST selection of the palette.</param>
-    public AutoCadXDataWriteTransaction(Document document, IReadOnlyList<string> handles, IReadOnlyList<ObjectId>? selected)
+    /// <param name="command">The global and the local name of the native Undo action.</param>
+    public AutoCadXDataWriteTransaction(Document document, IReadOnlyList<string> handles, IReadOnlyList<ObjectId>? selected,
+        (string Global, string Local)? command = null)
     {
         database = document.Database;
         var snapshots = new List<EntityDataSnapshot>();
@@ -29,7 +31,8 @@ internal sealed class AutoCadXDataWriteTransaction : IXDataWriteTransaction
         try
         {
             // Autodesk defines each named lock as an action; localCommandName labels native Undo.
-            documentLock = document.LockDocument(DocumentLockMode.Write, "XDATAPALETTEEDIT", "Изменение XDATA", false);
+            var name = command ?? ("XDATAPALETTEEDIT", "Изменение XDATA");
+            documentLock = document.LockDocument(DocumentLockMode.Write, name.Global, name.Local, false);
             var ids = selected?.ToArray() ?? Implied(document);
             if (ids.Length != handles.Count || !new HashSet<string>(ids.Select(id => id.Handle.ToString())).SetEquals(handles))
                 throw new InvalidOperationException("Выделение изменилось; повторите ввод после обновления панели.");
@@ -63,19 +66,43 @@ internal sealed class AutoCadXDataWriteTransaction : IXDataWriteTransaction
         if (!change.Before.XData.SequenceEqual(snapshot.XData))
         {
             EnsureRegApps(snapshot.XData);
-            using var buffer = Buffer(snapshot.XData);
+            using var buffer = Buffer(Removed(change.Before.XData, snapshot.XData));
             change.Entity.XData = buffer;
         }
-        for (var index = 0; index < change.Before.Records.Count; index++)
+        if (change.Before.Records.Count == snapshot.Records.Count)
         {
-            var before = change.Before.Records[index];
-            var after = snapshot.Records[index];
-            if (ReferenceEquals(before, after)) continue;
-            // Use the captured ObjectId rather than parsing the display path of a dictionary key.
-            var record = (Xrecord)transaction.GetObject(recordIds[before], OpenMode.ForWrite);
-            using var buffer = Buffer(after.Values);
-            record.Data = buffer;
+            for (var index = 0; index < change.Before.Records.Count; index++)
+            {
+                var before = change.Before.Records[index];
+                var after = snapshot.Records[index];
+                if (ReferenceEquals(before, after)) continue;
+                // Use the captured ObjectId rather than parsing the display path of a dictionary key.
+                var record = (Xrecord)transaction.GetObject(recordIds[before], OpenMode.ForWrite);
+                using var buffer = Buffer(after.Values);
+                record.Data = buffer;
+            }
+            return;
         }
+        // VELEC_MIGRATE with «Удалить»: records are only removed, the kept ones are the same instances.
+        if (snapshot.Records.Any(after => !change.Before.Records.Any(before => ReferenceEquals(before, after))))
+            throw new InvalidOperationException("Объект " + snapshot.Handle + ": XRecord можно только сохранить или удалить.");
+        foreach (var before in change.Before.Records.Where(before => !snapshot.Records.Any(after => ReferenceEquals(before, after))))
+            transaction.GetObject(recordIds[before], OpenMode.ForWrite).Erase();
+    }
+
+    /// <summary>
+    /// Setting <c>Entity.XData</c> replaces only the RegApps present in the buffer; an empty <c>(1001 "APP")</c> removes
+    /// a RegApp whose data is gone (source data deleted by <c>VELEC_MIGRATE</c>).
+    /// </summary>
+    private static IReadOnlyList<DataValue> Removed(IReadOnlyList<DataValue> before, IReadOnlyList<DataValue> after)
+    {
+        var kept = new HashSet<string>(after.Where(v => v.TypeCode == 1001).Select(v => (string)v.Value), StringComparer.OrdinalIgnoreCase);
+        var removed = before.Where(v => v.TypeCode == 1001).Select(v => (string)v.Value).Where(name => !kept.Contains(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (removed.Length == 0) return after;
+        var values = after.ToList();
+        values.AddRange(removed.Select(name => new DataValue(1001, name)));
+        return values;
     }
 
     private void EnsureRegApps(IReadOnlyList<DataValue> values)

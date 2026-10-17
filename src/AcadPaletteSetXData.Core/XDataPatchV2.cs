@@ -277,13 +277,13 @@ public sealed partial class XDataPatch
         _ => JsonNull.Instance
     };
 
-    private static string? RowKey(IEnumerable<Node> cells, string key)
+    internal static string? RowKey(IEnumerable<Node> cells, string key)
     {
         var cell = cells.FirstOrDefault(node => ParameterSchema.SameId(node.Id, key));
         return cell != null && cell.Value.Count == 1 ? XDataV2.FormatValue(cell.Value[0].Value) : null;
     }
 
-    private static XDataV2.Tokens.RowItem Row(List<Node> cells)
+    internal static XDataV2.Tokens.RowItem Row(List<Node> cells)
     {
         var all = new List<DataValue> { new DataValue(1002, "{") };
         foreach (var cell in cells) all.AddRange(cell.All);
@@ -291,10 +291,10 @@ public sealed partial class XDataPatch
         return new XDataV2.Tokens.RowItem(all, cells);
     }
 
-    private static Node Pair(string id, DataValue value) => new Node(id, new List<DataValue> { new DataValue(1000, id), value }, 1);
+    internal static Node Pair(string id, DataValue value) => new Node(id, new List<DataValue> { new DataValue(1000, id), value }, 1);
 
     /// <summary>System pairs go first, after <c>FMT</c>, as in TZXDATA 6.1.</summary>
-    private static void SetSystem(List<Node> nodes, string id, string value)
+    internal static void SetSystem(List<Node> nodes, string id, string value)
     {
         var pair = Pair(id, new DataValue(1000, value));
         if (nodes.Any(node => ParameterSchema.SameId(node.Id, id))) { Set(nodes, pair); return; }
@@ -303,7 +303,7 @@ public sealed partial class XDataPatch
     }
 
     /// <summary>Replaces the first pair with the same Id (keeping its spelling) and drops repeated ones, or appends.</summary>
-    private static void Set(List<Node> nodes, Node pair)
+    internal static void Set(List<Node> nodes, Node pair)
     {
         var index = nodes.FindIndex(node => ParameterSchema.SameId(node.Id, pair.Id));
         if (index < 0) { nodes.Add(pair); return; }

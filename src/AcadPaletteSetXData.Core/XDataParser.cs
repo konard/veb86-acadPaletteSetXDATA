@@ -26,7 +26,7 @@ public sealed class XDataParser
             // v2 pairs are read by XDataV2: a String value "Name=…" must not become a v1 header field.
             var v2 = XDataV2.FormatOf(snapshot.XData) is XDataFormat.V2 or XDataFormat.Newer;
             foreach (var app in xdata.Children.Where(node => IsKnownApp(node.Name) &&
-                !(v2 && node.Name.Equals(DrawingNames.RegApp, StringComparison.OrdinalIgnoreCase)))) ProjectList(app, result);
+                !(v2 && node.Name.Equals(DrawingNames.RegApp, StringComparison.OrdinalIgnoreCase)) && !IsTyped(node))) ProjectList(app, result);
         }
         if (snapshot.Records.Count != 0)
         {
@@ -123,12 +123,38 @@ public sealed class XDataParser
 
     private static void ParseXml(DataRecord record, XDataNode node, ParsedEntityData result)
     {
-        // String chunks form one XML payload only when every value is textual.
-        if (record.Values.Count == 0 || record.Values.Any(value => (value.TypeCode != 1 && value.TypeCode != 1000) || !(value.Value is string))) return;
+        var root = LoadXml(record, out var error);
+        if (error != null) result.Warnings.Add(error);
+        if (root is null) return;
+        node.Add(XmlNode(root));
+        if (!IsVisualTree(root)) return;
+        foreach (var properties in root.Elements().Where(element => element.Name.LocalName == "Properties"))
+        {
+            foreach (var field in properties.Attributes()) SetHeader(result.Properties, field.Name.LocalName, field.Value);
+            foreach (var field in properties.Elements()) SetHeader(result.Properties, field.Name.LocalName, field.Value);
+        }
+        foreach (var materials in root.Elements().Where(element => element.Name.LocalName == "Materials"))
+            foreach (var material in materials.Elements().Where(element => IsMaterial(element.Name.LocalName)))
+            {
+                var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var field in material.Attributes()) fields[Canonical(field.Name.LocalName)] = field.Value;
+                foreach (var field in material.Elements()) fields[Canonical(field.Name.LocalName)] = field.Value;
+                result.Materials.Add(Material(fields));
+            }
+    }
+
+    /// <summary>
+    /// The XML payload of an XRecord: string chunks (1 or 1000) form one document only when every value is textual.
+    /// Null when the record is not XML; <paramref name="error"/> is set when the XML is damaged or above the limits.
+    /// </summary>
+    internal static XElement? LoadXml(DataRecord record, out string? error)
+    {
+        error = null;
+        if (record.Values.Count == 0 || record.Values.Any(value => (value.TypeCode != 1 && value.TypeCode != 1000) || !(value.Value is string))) return null;
         var length = record.Values.Sum(value => (long)((string)value.Value).Length);
-        if (length > MaxXmlCharacters) { result.Warnings.Add(record.Name + ": превышен лимит XML."); return; }
+        if (length > MaxXmlCharacters) { error = record.Name + ": превышен лимит XML."; return null; }
         var xml = string.Concat(record.Values.Select(value => (string)value.Value));
-        if (!xml.TrimStart().StartsWith("<", StringComparison.Ordinal)) return;
+        if (!xml.TrimStart().StartsWith("<", StringComparison.Ordinal)) return null;
         try
         {
             var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = MaxXmlCharacters };
@@ -140,26 +166,12 @@ public sealed class XDataParser
                     if (reader.Depth > MaxDepth || ++count > MaxValues) throw new XmlException("Превышены пределы дерева XML.");
             }
             using var safeReader = XmlReader.Create(new StringReader(xml), settings);
-            var document = XDocument.Load(safeReader);
-            var root = document.Root!;
-            node.Add(XmlNode(root));
-            if (!root.Name.LocalName.Equals("VisualTreeString", StringComparison.OrdinalIgnoreCase)) return;
-            foreach (var properties in root.Elements().Where(element => element.Name.LocalName == "Properties"))
-            {
-                foreach (var field in properties.Attributes()) SetHeader(result.Properties, field.Name.LocalName, field.Value);
-                foreach (var field in properties.Elements()) SetHeader(result.Properties, field.Name.LocalName, field.Value);
-            }
-            foreach (var materials in root.Elements().Where(element => element.Name.LocalName == "Materials"))
-                foreach (var material in materials.Elements().Where(element => IsMaterial(element.Name.LocalName)))
-                {
-                    var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var field in material.Attributes()) fields[Canonical(field.Name.LocalName)] = field.Value;
-                    foreach (var field in material.Elements()) fields[Canonical(field.Name.LocalName)] = field.Value;
-                    result.Materials.Add(Material(fields));
-                }
+            return XDocument.Load(safeReader).Root;
         }
-        catch (XmlException error) { result.Warnings.Add(record.Name + ": " + error.Message); }
+        catch (XmlException exception) { error = record.Name + ": " + exception.Message; return null; }
     }
+
+    internal static bool IsVisualTree(XElement root) => root.Name.LocalName.Equals("VisualTreeString", StringComparison.OrdinalIgnoreCase);
 
     private static XDataNode XmlNode(XElement element)
     {
@@ -209,7 +221,17 @@ public sealed class XDataParser
     }
 
     internal static bool IsMaterial(string name) => name.Equals("Material", StringComparison.OrdinalIgnoreCase) || name == "Материал";
-    internal static bool IsKnownApp(string name) => name.Equals("ESMT_LEP_v1.0", StringComparison.OrdinalIgnoreCase) || name.Equals(DrawingNames.RegApp, StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// RegApps with <c>key=value</c> strings: <c>ESMT_LEP_v1.0</c>, <see cref="DrawingNames.RegApp"/> v1, the earlier
+    /// <see cref="DrawingNames.LegacyRegApp"/> and the v1 copy kept by <c>VELEC_MIGRATE</c>.
+    /// </summary>
+    internal static bool IsKnownApp(string name) =>
+        new[] { DrawingNames.EsmtRegApp, DrawingNames.RegApp, DrawingNames.LegacyRegApp, DrawingNames.BackupRegApp }
+            .Any(app => name.Equals(app, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>A section that starts with <c>(1070 . N)</c> holds typed pairs, not <c>key=value</c> strings.</summary>
+    private static bool IsTyped(XDataNode app) => app.Children.Count != 0 && app.Children[0].TypeCode == 1070 &&
+        long.TryParse(app.Children[0].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version) && version >= XDataV2.FormatVersion;
     private static string Format(object value) => value is byte[] bytes ? BitConverter.ToString(bytes).Replace("-", "") :
         value is IFormattable formatted ? formatted.ToString(null, CultureInfo.InvariantCulture) : value.ToString() ?? "";
 }

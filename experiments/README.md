@@ -108,3 +108,17 @@ dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- -
 печатает члены `DxfCode` в диапазоне 280–299: `Bool = 290` — отдельный код рядом с
 `Int8 = 280`, поэтому логические поля схемы пишутся в Xrecord как `bool` с кодом 290.
 `dotnet run --project experiments/DxfCodeProbe -- <путь к AcDbMgd.dll из NuGet AutoCAD.NET.Model>`.
+
+## Миграция и проверка чертежа (#35)
+
+```sh
+dotnet run --project experiments/AcadPaletteSetXData.MigrationReport -c Release -- examples/schema.json
+dotnet run --project experiments/AcadPaletteSetXData.MigrationReport -c Release -- --remove examples/schema.json
+```
+
+`MigrationReport` (TZXDATA, этап 9) без AutoCAD выполняет `VELEC_MIGRATE` и `VELEC_CHECK` для
+объектов `examples/stage3-selection.lsp` и `examples/tzxdata-stage9-migrate.lsp`: печатает отчёт
+переноса, сверяет VST прежнего формата с перенесёнными значениями v2, повторяет перенос и
+печатает отчёт проверки до и после «Исправить: Все». Возвращает 1, если значения различаются
+или повторный перенос что-то меняет; `--remove` соответствует ответу «Удалить». Запускается в CI;
+вывод приведён в [docs/migration-check.md](../docs/migration-check.md).

@@ -36,8 +36,24 @@ public sealed class XDataWriter : ISelectionWriter
 
     public void WriteSelection(IReadOnlyList<string> handles, SelectionEdit edit)
     {
-        if (handles == null) throw new ArgumentNullException(nameof(handles));
         if (edit == null) throw new ArgumentNullException(nameof(edit));
+        XDataPatch? patch = null;
+        WriteEach(handles, before =>
+        {
+            patch ??= new XDataPatch(edit.IsV2 ? values?.Schema : null, newGuid: newGuid);
+            return patch.Apply(before, edit, edit.IsV2 ? values?.Get(before) : null);
+        });
+    }
+
+    /// <summary>
+    /// Changes every object in one transaction (one Undo step, TZXDATA П14). <paramref name="change"/> gets fresh data
+    /// and returns the new data or the same snapshot; the limits are checked for every object before anything is
+    /// written. Returns the written objects.
+    /// </summary>
+    public IReadOnlyList<EntityDataSnapshot> WriteEach(IReadOnlyList<string> handles, Func<EntityDataSnapshot, EntityDataSnapshot> change)
+    {
+        if (handles == null) throw new ArgumentNullException(nameof(handles));
+        if (change == null) throw new ArgumentNullException(nameof(change));
         if (handles.Count == 0 || handles.Distinct(StringComparer.Ordinal).Count() != handles.Count)
             throw new InvalidOperationException("Нет объектов для записи или повторяются идентификаторы.");
 
@@ -48,10 +64,12 @@ public sealed class XDataWriter : ISelectionWriter
             throw new InvalidOperationException("Выделение изменилось; повторите ввод после обновления панели.");
 
         var changes = new List<EntityDataSnapshot>();
-        var patch = new XDataPatch(edit.IsV2 ? values?.Schema : null, newGuid: newGuid);
         foreach (var before in snapshots)
         {
-            var after = patch.Apply(before, edit, edit.IsV2 ? values?.Get(before) : null);
+            var after = change(before);
+            if (ReferenceEquals(after, before)) continue;
+            if (!string.Equals(after.Handle, before.Handle, StringComparison.Ordinal))
+                throw new InvalidOperationException("Изменение объекта " + before.Handle + " вернуло данные другого объекта.");
             foreach (var value in after.XData.Where(v => v.TypeCode == 1000))
                 if (!(value.Value is string text) || Encoding.UTF8.GetByteCount(text) > ParameterTypeRegistry.MaxStringBytes)
                     throw new InvalidOperationException("Строка XDATA превышает 255 байт; используйте более короткое значение.");
@@ -65,17 +83,19 @@ public sealed class XDataWriter : ISelectionWriter
         }
 
         // Nothing is opened for write until every target has been parsed and validated.
-        if (changes.Count == 0) return;
+        if (changes.Count == 0) return changes;
         foreach (var snapshot in changes) transaction.Write(snapshot);
         transaction.Commit();
         values?.Invalidate(changes.Select(snapshot => snapshot.Handle));
+        return changes;
     }
 
-    private static bool SameData(EntityDataSnapshot before, EntityDataSnapshot after) =>
+    /// <summary>Same XDATA and the same records in the same order; a removed or added record is a change.</summary>
+    internal static bool SameData(EntityDataSnapshot before, EntityDataSnapshot after) =>
         SameValues(before.XData, after.XData) && before.Records.Count == after.Records.Count &&
         before.Records.Zip(after.Records, (a, b) => a.Name == b.Name && SameValues(a.Values, b.Values)).All(equal => equal);
 
-    private static bool SameValues(IReadOnlyList<DataValue> before, IReadOnlyList<DataValue> after) =>
+    internal static bool SameValues(IReadOnlyList<DataValue> before, IReadOnlyList<DataValue> after) =>
         before.Count == after.Count && before.Zip(after, (a, b) => a.TypeCode == b.TypeCode &&
             (a.Value is byte[] bytes && b.Value is byte[] other ? bytes.SequenceEqual(other) : Equals(a.Value, b.Value))).All(equal => equal);
 }

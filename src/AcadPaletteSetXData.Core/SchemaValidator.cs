@@ -85,6 +85,7 @@ public sealed class SchemaValidator
         for (var i = 0; i < schema.Enums.Count; i++) CheckEnum(schema.Enums[i], Name("Справочник", schema.Enums[i].Id, i), issues);
         for (var i = 0; i < schema.Templates.Count; i++) CheckTemplate(schema, schema.Templates[i], Name("Шаблон", schema.Templates[i].Id, i), issues);
         CheckCycles(schema, issues);
+        CheckMigration(schema, issues);
         return issues;
     }
 
@@ -253,6 +254,99 @@ public sealed class SchemaValidator
         }
         foreach (var id in formulas.Keys.ToList())
             if (!state.ContainsKey(id)) Visit(id);
+    }
+
+    /// <summary>
+    /// The table of correspondence of <c>VELEC_MIGRATE</c> (TZXDATA stage 9, <see cref="MigrationMap"/>): fields go to
+    /// scalar parameters, lists to <c>Table</c> parameters and their columns; a rename goes to a parameter of the schema
+    /// in one step.
+    /// </summary>
+    private void CheckMigration(ParameterSchema schema, List<SchemaIssue> issues)
+    {
+        var section = schema.Extra.FirstOrDefault(item => string.Equals(item.Key, MigrationMap.SectionName, StringComparison.OrdinalIgnoreCase));
+        if (section.Value is null) return;
+        const string name = "Миграция";
+        if (!(section.Value is JsonObject migration))
+        {
+            issues.Add(Error(SchemaIssueCode.InvalidFieldType, name, MigrationMap.SectionName, "ожидается объект"));
+            return;
+        }
+        SchemaParameter? Find(string id) => schema.FindParameter(id);
+        foreach (var item in migration)
+        {
+            var field = MigrationMap.SectionName + "." + item.Key;
+            if (string.Equals(item.Key, MigrationMap.FieldsName, StringComparison.OrdinalIgnoreCase))
+                foreach (var entry in Map(item.Value, field, name, issues))
+                {
+                    var kind = Kind(Find(entry.Value));
+                    if (Find(entry.Value) is null || ParameterSchema.ReservedIds.Contains(entry.Value, StringComparer.OrdinalIgnoreCase))
+                        issues.Add(Error(SchemaIssueCode.UnknownReference, name, field + "." + entry.Key, "параметр \"" + entry.Value + "\" не описан в схеме"));
+                    else if (kind == ParameterKind.Table || kind == ParameterKind.CalculatedString)
+                        issues.Add(Error(SchemaIssueCode.InvalidValue, name, field + "." + entry.Key, "поле переносится только в параметр со значением, не в " + Find(entry.Value)!.Type));
+                }
+            else if (string.Equals(item.Key, MigrationMap.TablesName, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!(item.Value is JsonObject tables)) { issues.Add(Error(SchemaIssueCode.InvalidFieldType, name, field, "ожидается объект")); continue; }
+                foreach (var table in tables)
+                {
+                    var path = field + "." + table.Key;
+                    if (!(table.Value is JsonObject json)) { issues.Add(Error(SchemaIssueCode.InvalidFieldType, name, path, "ожидается объект")); continue; }
+                    var target = json.FirstOrDefault(member => string.Equals(member.Key, MigrationMap.TableName, StringComparison.OrdinalIgnoreCase)).Value;
+                    if (!(target is JsonString id)) { issues.Add(Error(SchemaIssueCode.Required, name, path + "." + MigrationMap.TableName, "ожидается Id параметра Table")); continue; }
+                    var parameter = Find(id.Value);
+                    if (parameter is null || Kind(parameter) != ParameterKind.Table)
+                    {
+                        issues.Add(Error(SchemaIssueCode.UnknownReference, name, path + "." + MigrationMap.TableName, "параметр Table \"" + id.Value + "\" не описан в схеме"));
+                        continue;
+                    }
+                    foreach (var member in json.Where(member => !string.Equals(member.Key, MigrationMap.TableName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        if (!string.Equals(member.Key, MigrationMap.ColumnsName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            issues.Add(Warning(SchemaIssueCode.NotApplicable, name, path + "." + member.Key, "неизвестное поле не используется"));
+                            continue;
+                        }
+                        foreach (var column in Map(member.Value, path + "." + member.Key, name, issues))
+                            if (parameter.Columns?.Any(c => ParameterSchema.SameId(c, column.Value)) != true)
+                                issues.Add(Error(SchemaIssueCode.InvalidColumn, name, path + "." + member.Key + "." + column.Key,
+                                    "\"" + column.Value + "\" не является колонкой " + parameter.Id));
+                    }
+                }
+            }
+            else if (string.Equals(item.Key, MigrationMap.RenameName, StringComparison.OrdinalIgnoreCase))
+            {
+                var renames = Map(item.Value, field, name, issues).ToList();
+                foreach (var entry in renames)
+                {
+                    var path = field + "." + entry.Key;
+                    if (!IsValidId(entry.Key) || !IsValidId(entry.Value)) issues.Add(Error(SchemaIssueCode.InvalidId, name, path, "недопустимый Id"));
+                    else if (ParameterSchema.ReservedIds.Contains(entry.Key, StringComparer.OrdinalIgnoreCase) || ParameterSchema.ReservedIds.Contains(entry.Value, StringComparer.OrdinalIgnoreCase))
+                        issues.Add(Error(SchemaIssueCode.ReservedId, name, path, "системный Id не переименовывается"));
+                    else if (Find(entry.Value) is null) issues.Add(Error(SchemaIssueCode.UnknownReference, name, path, "параметр \"" + entry.Value + "\" не описан в схеме"));
+                    else if (ParameterSchema.SameId(entry.Key, entry.Value)) issues.Add(Error(SchemaIssueCode.InvalidValue, name, path, "Id переименовывается в себя"));
+                    else if (renames.Any(other => ParameterSchema.SameId(other.Key, entry.Value)))
+                        issues.Add(Error(SchemaIssueCode.InvalidValue, name, path, "цепочка переименований: \"" + entry.Value + "\" тоже переименовывается"));
+                    else if (Find(entry.Key) != null)
+                        issues.Add(Warning(SchemaIssueCode.InvalidValue, name, path, "параметр \"" + entry.Key + "\" ещё описан в схеме; его значения будут переименованы"));
+                }
+            }
+            else issues.Add(Warning(SchemaIssueCode.NotApplicable, name, field, "неизвестное поле не используется"));
+        }
+    }
+
+    /// <summary>A JSON object of strings; other values are reported.</summary>
+    private static IEnumerable<KeyValuePair<string, string>> Map(JsonValue value, string field, string name, List<SchemaIssue> issues)
+    {
+        if (!(value is JsonObject map))
+        {
+            issues.Add(Error(SchemaIssueCode.InvalidFieldType, name, field, "ожидается объект"));
+            yield break;
+        }
+        foreach (var entry in map)
+        {
+            if (entry.Value is JsonString text) yield return new KeyValuePair<string, string>(entry.Key, text.Value);
+            else issues.Add(Error(SchemaIssueCode.InvalidFieldType, name, field + "." + entry.Key, "ожидается строка с Id"));
+        }
     }
 
     private ParameterKind? Kind(SchemaParameter? parameter) => types.Find(parameter?.Type)?.Kind;

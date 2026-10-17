@@ -4,6 +4,9 @@
   "parameters": [
     { "id": "Device_Type", "type": "String", "caption": "Тип устройства", "group": "Общие" },
     { "id": "Device_Class", "type": "String", "caption": "Класс устройства", "group": "Общие" },
+    { "id": "Device_Number", "type": "String", "caption": "Номер", "group": "Общие" },
+    { "id": "Device_Title", "type": "String", "caption": "Заголовок", "group": "Общие" },
+    { "id": "Project_Ref", "type": "String", "caption": "Ссылка на проект", "group": "Общие" },
     {
       "id": "NMO_Name",
       "type": "String",
@@ -135,7 +138,8 @@
       "type": "Enum",
       "caption": "Категория",
       "group": "Материалы",
-      "enum": "MaterialCategory"
+      "enum": "MaterialCategory",
+      "editor": { "allowCustom": true }
     },
     {
       "id": "Mat_Mark",
@@ -273,5 +277,27 @@
         "Materials"
       ]
     }
-  ]
+  ],
+  "migration": {
+    "fields": {
+      "Type": "Device_Type",
+      "Number": "Device_Number",
+      "Name": "NMO_Name",
+      "Title": "Device_Title",
+      "ProjectReference": "Project_Ref"
+    },
+    "tables": {
+      "Material": {
+        "table": "Materials",
+        "columns": {
+          "Category": "Mat_Category",
+          "Name": "Mat_Mark",
+          "Count": "Mat_Count",
+          "IsInSpec": "Mat_InSpec",
+          "Comment": "Mat_Comment"
+        }
+      }
+    },
+    "rename": {}
+  }
 }

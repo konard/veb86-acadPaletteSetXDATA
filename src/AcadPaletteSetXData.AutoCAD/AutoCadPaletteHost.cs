@@ -58,8 +58,15 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
         AcApplication.DocumentManager.MdiActiveDocument?.SendStringToExecute("_" + command + " ", true, false, false);
 
     // TZXDATA 10.6: the build time of the VST next to the read time of the selection.
-    private void OnGridBuilt(object? sender, EventArgs args) =>
-        AcApplication.DocumentManager.MdiActiveDocument?.Editor.WriteMessage("\n[XDATAPALETTE] {0}\n", viewModel.Grid.BuildSummary);
+    // The counters of the value cache show that a repeated selection parses nothing (TZXDATA 10.6).
+    private void OnGridBuilt(object? sender, EventArgs args)
+    {
+        var document = AcApplication.DocumentManager.MdiActiveDocument;
+        if (document is null) return;
+        var values = AutoCadSchemaCaches.ValuesFor(document);
+        document.Editor.WriteMessage("\n[XDATAPALETTE] {0} Разборов XDATA: {1}, деревьев XDATA: {2}.\n",
+            viewModel.Grid.BuildSummary, values.ParseCount, values.TreeParseCount);
+    }
 
     public void Dispose()
     {

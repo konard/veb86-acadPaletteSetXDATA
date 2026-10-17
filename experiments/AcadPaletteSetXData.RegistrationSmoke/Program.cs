@@ -86,6 +86,14 @@ CheckCommand(migrationCommandsType, "Check", "VELEC_CHECK");
 foreach (var reference in metadata.AssemblyReferences.Select(metadata.GetAssemblyReference))
     Check(!metadata.GetString(reference.Name).StartsWith("AcadPaletteSetXData.", StringComparison.Ordinal),
         "Single-DLL release must not depend on a separate plugin assembly.");
+// TZXDATA stage 10: the release adds no dependencies; it references only .NET Framework 4.8 and the AutoCAD API.
+var references = metadata.AssemblyReferences.Select(handle => metadata.GetString(metadata.GetAssemblyReference(handle).Name)).OrderBy(name => name, StringComparer.Ordinal).ToArray();
+Console.WriteLine("Assembly references: " + string.Join(", ", references) + ".");
+string[] framework = { "mscorlib", "System", "WindowsBase", "PresentationCore", "PresentationFramework", "Microsoft.CSharp" };
+string[] autocad = { "AcMgd", "AcDbMgd", "AcCoreMgd", "AdWindows" };
+foreach (var name in references)
+    Check(framework.Contains(name) || name.StartsWith("System.", StringComparison.Ordinal) || autocad.Contains(name, StringComparer.OrdinalIgnoreCase),
+        "Single-DLL release must not depend on " + name + ": only .NET Framework 4.8 and the AutoCAD API are allowed.");
 foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply", "SchemaEditorViewModel", "SchemaEditorWindow", "SchemaMigration", "DrawingCheck" })
     Check(metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
         "Release must contain " + typeName + ".");

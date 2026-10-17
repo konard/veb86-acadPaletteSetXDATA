@@ -11,7 +11,7 @@
 | `src/AcadPaletteSetXData.Core/CalculatedStrings.cs` | `FormulaSet` (формулы и граф схемы), `ObjectCalculation` (результаты объекта), `CalculatedValue`. |
 | `src/AcadPaletteSetXData.Core/SchemaCache.cs` | `SchemaSnapshot.Formulas` — формулы разбираются один раз на снимок схемы. |
 | `src/AcadPaletteSetXData.Core/XDataPatchV2.cs` | Запись результатов `Persist` той же операцией, что меняет исходный параметр. |
-| `src/AcadPaletteSetXData.Core/SelectionEdit.cs` | Операция `RecalculatePersisted` — пересчёт `Persist` (основа `VELEC_CHECK`, этап 9). |
+| `src/AcadPaletteSetXData.Core/SelectionEdit.cs` | Операция `RecalculatePersisted` — пересчёт `Persist` (основа «Исправить: Persist» команды `VELEC_CHECK`, этап 9). |
 | `src/AcadPaletteSetXData.Core/SelectionViewModel.cs` | `Calculations` выделения и диагностика формул во вкладке «XDATA». |
 | `src/AcadPaletteSetXData.AutoCAD/AutoCadSelectionSource.cs` | Результаты формул в трассировке `XDATAPALETTE_TRACE=1`. |
 | `tests/AcadPaletteSetXData.Core.Tests/CalculatedStringTests.cs` | Приёмочные тесты этапа. |
@@ -123,7 +123,7 @@ ObjectCalculation.Merge(selection, "GC_Name");     // общий текст ил
   «…результат Name (Persist) длиннее 255 байт UTF-8; операция отменена.»
 - `RecalculatePersisted` пропускает объекты без XDATA v2 (v1, другой версии, без раздела) вместо
   отказа для всей группы и не открывает на запись объекты, где ничего не изменилось (`XDataWriter`
-  сравнивает данные до и после). Это пересчёт `Persist` команды `VELEC_CHECK` (этап 9).
+  сравнивает данные до и после). На нём основан пересчёт `Persist` команды `VELEC_CHECK` (этап 9, [migration-check.md](migration-check.md)).
 - Вычисление в `XDataPatch` использует значения кэша, если они относятся к той же схеме, иначе
   разбирает снимок транзакции; культура подстановки — текущая (`CultureInfo.CurrentCulture`).
 

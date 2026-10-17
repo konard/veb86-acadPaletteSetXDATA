@@ -155,6 +155,27 @@ public sealed class SchemaMigrationTests
     }
 
     [Fact]
+    public void KeptSourcesAreRemovedByALaterRunWithTheFlag()
+    {
+        var keep = new SchemaMigration(Schema(), removeSources: false, newGuid: Guids());
+        var remove = new SchemaMigration(Schema(), removeSources: true, newGuid: Guids());
+        foreach (var before in new[] { Line(), Cable() })
+        {
+            var kept = keep.Migrate(before).After;
+            var result = remove.Migrate(kept);
+            Assert.True(result.Changed);
+            Assert.True(result.SourcesRemoved);
+            Assert.Empty(result.Migrated);
+            Assert.False(result.NewDeviceId);
+            Assert.Equal(new[] { DrawingNames.RegApp }, Apps(result.After));
+            Assert.Empty(result.After.Records);
+            Assert.Equal(XDataV2.Read(kept, Schema()).Values.Select(value => value.Id + "=" + value.Text),
+                XDataV2.Read(result.After, Schema()).Values.Select(value => value.Id + "=" + value.Text));
+            Assert.False(remove.Migrate(result.After).Changed);
+        }
+    }
+
+    [Fact]
     public void AnIncompleteObjectKeepsItsSourcesEvenWithTheFlag()
     {
         var snapshot = Esmt("A", "Name=Опора", "Unknown_Field=1", "Odd", "Material", "{", "Name=X", "Mystery=2", "}");

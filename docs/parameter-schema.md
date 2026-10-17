@@ -38,6 +38,11 @@ if (!result.HasErrors) ParameterSchemaJson.WriteFile("schema.json", result.Schem
 | `editor` | `unit`, `precision`, `min`, `max`, `maxLength`, `readOnly`, `multiline`, `allowCustom`, `vstColumn` (8.2) |
 | Справочник | `id`, `caption`, `items[]` из `{ key, caption }` |
 | Шаблон | `id`, `caption`, `entityTypes[]`, `parameters[]` — строка `"Id"` или `{ "id": ..., "default": ... }` |
+| `migration` (корень, этап 9) | `fields` — ключ прежнего формата → `Id`; `tables` — метка списка → `{ "table": Id Table, "columns": { ключ → колонка } }`; `rename` — `старый Id` → `новый Id` |
+
+Раздел `migration` — таблица соответствия для `VELEC_MIGRATE`. Он хранится в `Extra` корня, поэтому
+round-trip без потерь сохраняет его в JSON и в `NOD/VELEC/INFO`. Правила переноса —
+[migration-check.md](migration-check.md#раздел-migration-схемы).
 
 ## Round-trip без потерь
 
@@ -80,7 +85,12 @@ if (!result.HasErrors) ParameterSchemaJson.WriteFile("schema.json", result.Schem
 | `InvalidFormat` | ошибка | незакрытая/неверная ссылка `@@[`, `:key` не у `Enum`, подстановка `Table` |
 | `CyclicFormat` | ошибка | цикл между `CalculatedString`, включая ссылку на себя: `A → B → A` |
 | `InvalidColumn` | ошибка | колонка `Table` — `Table` или `CalculatedString` с `persist`; `groupBy` не `Enum` |
-| `InvalidValue` | ошибка | ключ справочника с пробелами по краям или длиннее 255 байт UTF-8; пустая строка в `entityTypes` |
+| `InvalidValue` | ошибка | ключ справочника с пробелами по краям или длиннее 255 байт UTF-8; пустая строка в `entityTypes`; в `migration` — цель `Table`/`CalculatedString`, переименование в себя, цепочка переименований (предупреждение — старый `Id` из `rename` ещё описан в схеме) |
+
+Ошибки раздела `migration` выводятся под объектом «Миграция». Помимо `InvalidValue`, это коды
+`InvalidFieldType` (не объект), `UnknownReference` (параметр не описан), `Required` (нет `table`),
+`InvalidColumn` (колонка не из `Columns`), `InvalidId`/`ReservedId` (в `rename`) и `NotApplicable`
+(неизвестное поле) — [migration-check.md](migration-check.md#раздел-migration-схемы).
 
 Новый тип параметра регистрируется кодом: реализация `IParameterType` добавляется
 в `ParameterTypeRegistry` и передаётся в `Load`/`SchemaValidator`. Разбор XDATA,

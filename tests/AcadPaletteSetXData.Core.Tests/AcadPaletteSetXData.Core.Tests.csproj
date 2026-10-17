@@ -12,5 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="../../examples/schema.json" Link="examples/schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/tzxdata-stage10-load-schema.json" Link="examples/tzxdata-stage10-load-schema.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

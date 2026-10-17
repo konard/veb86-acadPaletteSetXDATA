@@ -190,7 +190,7 @@ public static class SchemaCommands
         return usage;
     }
 
-    private static string? Keyword(Editor editor, string message, string defaultKeyword, params (string Global, string Local)[] keywords)
+    internal static string? Keyword(Editor editor, string message, string defaultKeyword, params (string Global, string Local)[] keywords)
     {
         var options = new PromptKeywordOptions(message) { AllowNone = true };
         foreach (var keyword in keywords) options.Keywords.Add(keyword.Global, keyword.Local, keyword.Local);
@@ -200,7 +200,7 @@ public static class SchemaCommands
         return result.Status == PromptStatus.OK ? result.StringResult : null;
     }
 
-    private static void WriteLines(Editor editor, IEnumerable<string> lines)
+    internal static void WriteLines(Editor editor, IEnumerable<string> lines)
     {
         foreach (var line in lines) editor.WriteMessage("\n{0}", line);
         editor.WriteMessage("\n");

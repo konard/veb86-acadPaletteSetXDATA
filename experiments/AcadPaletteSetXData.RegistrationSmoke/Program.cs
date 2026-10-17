@@ -31,10 +31,11 @@ string AttributeName(CustomAttribute attribute)
 const string applicationType = "AcadPaletteSetXData.AutoCAD.PaletteApplication";
 const string schemaCommandsType = "AcadPaletteSetXData.AutoCAD.SchemaCommands";
 const string templateCommandsType = "AcadPaletteSetXData.AutoCAD.TemplateCommands";
+const string migrationCommandsType = "AcadPaletteSetXData.AutoCAD.MigrationCommands";
 foreach (var (name, targets) in new[]
 {
     ("ExtensionApplication", new[] { applicationType }),
-    ("CommandClass", new[] { applicationType, schemaCommandsType, templateCommandsType }),
+    ("CommandClass", new[] { applicationType, schemaCommandsType, templateCommandsType, migrationCommandsType }),
 })
 {
     var attributes = assembly.GetCustomAttributes().Select(metadata.GetCustomAttribute)
@@ -79,11 +80,13 @@ CheckCommand(schemaCommandsType, "Import", "VELEC_SCHEMA_IMPORT");
 CheckCommand(schemaCommandsType, "Export", "VELEC_SCHEMA_EXPORT");
 CheckCommand(schemaCommandsType, "Edit", "VELEC_SCHEMA_EDIT");
 CheckCommand(templateCommandsType, "Apply", "VELEC_TEMPLATE_APPLY");
+CheckCommand(migrationCommandsType, "Migrate", "VELEC_MIGRATE");
+CheckCommand(migrationCommandsType, "Check", "VELEC_CHECK");
 
 foreach (var reference in metadata.AssemblyReferences.Select(metadata.GetAssemblyReference))
     Check(!metadata.GetString(reference.Name).StartsWith("AcadPaletteSetXData.", StringComparison.Ordinal),
         "Single-DLL release must not depend on a separate plugin assembly.");
-foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply", "SchemaEditorViewModel", "SchemaEditorWindow" })
+foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply", "SchemaEditorViewModel", "SchemaEditorWindow", "SchemaMigration", "DrawingCheck" })
     Check(metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
         "Release must contain " + typeName + ".");
 Check(metadata.ManifestResources.Select(metadata.GetManifestResource)

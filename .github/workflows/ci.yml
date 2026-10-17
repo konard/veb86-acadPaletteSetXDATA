@@ -21,6 +21,10 @@ jobs:
         run: dotnet test tests/AcadPaletteSetXData.Core.Tests -c Release --logger "trx;LogFileName=core.trx" --results-directory artifacts/tests --blame-hang-timeout 2m
       - name: Validate the example parameter schema
         run: dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/schema.json
+      - name: Migrate the stage 3 and stage 9 samples twice and check the drawing (VELEC_MIGRATE, VELEC_CHECK)
+        run: |
+          dotnet run --project experiments/AcadPaletteSetXData.MigrationReport -c Release -- examples/schema.json
+          dotnet run --project experiments/AcadPaletteSetXData.MigrationReport -c Release -- --remove examples/schema.json
       - name: Test plugin load announcement and deferred startup
         run: dotnet test tests/AcadPaletteSetXData.AutoCAD.Tests -c Release --logger "trx;LogFileName=autocad.trx" --results-directory artifacts/tests --blame-hang-timeout 2m
       - uses: actions/upload-artifact@v4

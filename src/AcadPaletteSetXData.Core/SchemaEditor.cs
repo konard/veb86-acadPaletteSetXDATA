@@ -308,6 +308,7 @@ public sealed class SchemaEditorViewModel : ObservableObject
                 if (ParameterSchema.SameId(other.Key, old)) other.Key = value;
                 if (other.Format != null) other.Format = RenameReference(other.Format, old!, value);
             }
+            MigrationMap.RenameParameter(Draft, old!, value);
             foreach (var template in Templates) template.Reload();
             foreach (var parameter in Parameters) parameter.Refresh();
         }

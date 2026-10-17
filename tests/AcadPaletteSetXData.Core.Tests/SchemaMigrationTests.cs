@@ -384,6 +384,29 @@ public sealed class SchemaMigrationTests
     }
 
     [Fact]
+    public void TheMigrationSectionIsStoredInTheNodWithTheSchema()
+    {
+        // VELEC_MIGRATE reads the schema of the drawing: the section imported from JSON is kept in NOD/VELEC/INFO.
+        var schema = Schema(Rename("\"Old_Field\": \"Device_Class\"")).Schema!;
+        var read = SchemaNod.FromRecords(SchemaNod.ToRecords(schema, SchemaNodInfo.Now("schema.json", SchemaImportMode.Replace)));
+        Assert.DoesNotContain(read.Issues, issue => issue.Severity == SchemaIssueSeverity.Error);
+        var map = MigrationMap.Read(read.Schema);
+        Assert.Equal(MigrationMap.Read(schema).Fields, map.Fields);
+        Assert.Equal("Device_Type", map.Fields["Type"]);
+        Assert.Equal("Mat_Mark", map.Tables["Material"].Columns["Name"]);
+        Assert.Equal("Device_Class", map.Renames["Old_Field"]);
+        Assert.Equal(ParameterSchemaJson.Write(schema), ParameterSchemaJson.Write(read.Schema!));
+
+        // The rename of examples/tzxdata-stage9-migrate.lsp moves Old_Field of D3 to Device_Class.
+        var snapshot = new SchemaSnapshot(read);
+        var d3 = Device("230", Pair(XDataV2.DeviceIdKey, "{0B1C2D3E-0000-4000-8000-000000000002}"), Pair("Old_Field", "x"), Pair("Device_Type", "Щит"));
+        var result = new SchemaMigration(snapshot, false).Migrate(d3);
+        Assert.Equal(new[] { "Old_Field → Device_Class" }, result.Renamed);
+        Assert.Equal("x", XDataV2.Read(result.After, snapshot).Find("Device_Class")!.Value);
+        Assert.True(new DrawingCheck(snapshot).Run(new[] { result.After }).IsClean);
+    }
+
+    [Fact]
     public void TheMapSkipsWrongEntriesAndFollowsRenamedParameters()
     {
         var schema = Schema(text => text.Replace("\"Type\": \"Device_Type\"", "\"Type\": \"Materials\", \"Тип\": \"GC_Name\", \"Voltage\": \"Missing\""));

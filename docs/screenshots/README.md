@@ -1,5 +1,23 @@
 # Рендеры WPF-панели
 
+## Задача #39: вкладка ленты «Bobrov»
+
+`issue39-bobrov-ribbon.png` — настоящая вкладка ленты, построенная кодом плагина (`BobrovRibbon.Create`)
+в `RibbonControl` из `AdWindows.dll` (NuGet AutoCAD.NET 24.0.0) на Windows **net48**, без AutoCAD;
+`issue39-bobrov-icons.png` — значки кнопок «Включить»/«Выключить» в размерах 16, 32 и 64 px.
+Источник: [CI, commit 6d6688d](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/43164679211),
+артефакт `wpf-renders`, папка `ribbon`. Генератор: `experiments/AcadPaletteSetXData.RibbonSmoke`.
+Оформление темы ленты AutoCAD (цвета, шрифты рабочего пространства) в рендере не воспроизводится.
+Описание — [bobrov-menu-ribbon.md](../bobrov-menu-ribbon.md).
+
+| Вкладка «Bobrov», панель «Палитра XDATA» |
+| --- |
+| ![Вкладка ленты Bobrov](issue39-bobrov-ribbon.png) |
+
+| Значки кнопок |
+| --- |
+| ![Значки Bobrov](issue39-bobrov-icons.png) |
+
 ## TZXDATA, этап 8: редактор схемы
 
 `tzxdata-stage8-*.png` получены из настоящего `SchemaEditorWindow` (модальный `ShowDialog`) и меню «⚙»

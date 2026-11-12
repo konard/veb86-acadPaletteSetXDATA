@@ -81,6 +81,50 @@ public sealed class PaletteControllerTests
         Assert.Equal(1, source.Subscribers);
     }
 
+    [Fact]
+    public void BobrovOnOffButtonsShowAndHideTheSamePalette()
+    {
+        var source = new FakeThemeSource();
+        var host = new FakePaletteHost();
+        var creations = 0;
+        using var controller = new PaletteController(() => { creations++; return host; }, source);
+
+        // «Выключить» before the first «Включить» must not create the window.
+        controller.Hide();
+        Assert.Equal(0, creations);
+        Assert.False(controller.IsVisible);
+
+        controller.Show();
+        controller.Show();
+        Assert.True(host.Visible);
+        Assert.True(controller.IsVisible);
+        Assert.Equal(1, creations);
+
+        controller.Hide();
+        controller.Hide();
+        Assert.False(host.Visible);
+        Assert.False(controller.IsVisible);
+
+        // The native close button and XDATAPALETTE share the state with the buttons.
+        controller.Toggle();
+        Assert.True(host.Visible);
+        host.Visible = false;
+        controller.Show();
+        Assert.True(host.Visible);
+        Assert.Equal(1, creations);
+        Assert.Equal(1, source.Subscribers);
+    }
+
+    [Fact]
+    public void OnOffButtonsFailAfterDisposal()
+    {
+        var controller = new PaletteController(() => new FakePaletteHost(), new FakeThemeSource());
+        controller.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => controller.Show());
+        Assert.Throws<ObjectDisposedException>(() => controller.Hide());
+        Assert.False(controller.IsVisible);
+    }
+
     private sealed class FakePaletteHost : IPaletteHost
     {
         public bool Visible { get; set; }

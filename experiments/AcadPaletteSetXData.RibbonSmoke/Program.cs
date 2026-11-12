@@ -57,9 +57,9 @@ internal static class Program
                 Title = "Вкладка ленты Bobrov", Content = ribbon, Width = 640, Height = 190,
                 WindowStartupLocation = WindowStartupLocation.CenterScreen,
             };
+            SaveIcons(Path.Combine(output, "issue39-bobrov-icons.png"));
             window.Show();
             Save(ribbon, Path.Combine(output, "issue39-bobrov-ribbon.png"));
-            SaveIcons(Path.Combine(output, "issue39-bobrov-icons.png"));
             window.Close();
             application.Shutdown();
             Console.WriteLine("Ribbon checks passed: «Bobrov» tab, «Палитра XDATA» panel, «Включить»/«Выключить» start XDATAPALETTE_ON/XDATAPALETTE_OFF, no duplicate tab.");

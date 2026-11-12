@@ -15,5 +15,8 @@
     <!-- AdWindows.dll is a plain managed WPF library: unlike AcMgd it runs without AutoCAD, so its runtime asset is kept. -->
     <PackageReference Include="AutoCAD.NET" Version="24.0.0" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!-- The ribbon templates in AdWindows load Microsoft.Expression.Interactions (and System.Windows.Interactivity),
+         which AutoCAD installs next to acad.exe; this package carries the same signed 4.5.0.0 assemblies for the check only. -->
+    <PackageReference Include="The.Microsoft.Expression.Interactions" Version="4.5.0" />
   </ItemGroup>
 </Project>

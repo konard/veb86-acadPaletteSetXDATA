@@ -17,6 +17,8 @@ public sealed class PaletteApplication : IExtensionApplication
         // Keep startup independent of palette creation; defer output if no drawing is open.
         AcApplication.Idle -= OnIdle;
         if (!WriteLoadMessage()) AcApplication.Idle += OnIdle;
+        // Issue #39: the «Bobrov» menu and ribbon tab are added on the first Idle, when the main window is ready.
+        BobrovInterface.Start();
     }
 
     private static bool WriteLoadMessage()
@@ -24,7 +26,8 @@ public sealed class PaletteApplication : IExtensionApplication
         var document = AcApplication.DocumentManager.MdiActiveDocument;
         if (document == null) return false;
         document.Editor.WriteMessage(
-            "\nacadPaletteSetXDATA загружено. Команда XDATAPALETTE — показать/скрыть панель XDATA.\n");
+            "\nacadPaletteSetXDATA загружено. Команда XDATAPALETTE — показать/скрыть панель XDATA; " +
+            "меню и вкладка ленты Bobrov — включить/выключить.\n");
         return true;
     }
 
@@ -34,7 +37,20 @@ public sealed class PaletteApplication : IExtensionApplication
     }
 
     [CommandMethod("XDATAPALETTE", CommandFlags.Session | CommandFlags.UsePickSet)]
-    public static void TogglePalette()
+    public static void TogglePalette() => Run(current => current.Toggle());
+
+    // Issue #39: the «Включить»/«Выключить» buttons of the «Bobrov» menu and ribbon tab.
+    [CommandMethod(BobrovUi.ShowCommand, CommandFlags.Session | CommandFlags.UsePickSet)]
+    public static void ShowPalette() => Run(current => current.Show());
+
+    [CommandMethod(BobrovUi.HideCommand, CommandFlags.Session | CommandFlags.UsePickSet)]
+    public static void HidePalette()
+    {
+        // Nothing to hide before the palette was ever shown: do not create it just to keep it hidden.
+        if (controller != null) Run(current => current.Hide());
+    }
+
+    private static void Run(System.Action<PaletteController> action)
     {
         try
         {
@@ -44,7 +60,7 @@ public sealed class PaletteApplication : IExtensionApplication
                 controller = new PaletteController(() => new AutoCadPaletteHost(), themeSource);
             }
 
-            controller.Toggle();
+            action(controller);
         }
         catch (System.Exception error)
         {
@@ -56,6 +72,7 @@ public sealed class PaletteApplication : IExtensionApplication
     public void Terminate()
     {
         AcApplication.Idle -= OnIdle;
+        BobrovInterface.Stop();
         controller?.Dispose();
         themeSource?.Dispose();
         controller = null;

@@ -30,7 +30,7 @@ jobs:
         run: |
           dotnet run --project experiments/AcadPaletteSetXData.MigrationReport -c Release -- examples/schema.json
           dotnet run --project experiments/AcadPaletteSetXData.MigrationReport -c Release -- --remove examples/schema.json
-      - name: Test plugin load announcement and deferred startup
+      - name: Test plugin load announcement, deferred startup and the Bobrov on/off commands
         run: dotnet test tests/AcadPaletteSetXData.AutoCAD.Tests -c Release --logger "trx;LogFileName=autocad.trx" --results-directory artifacts/tests --blame-hang-timeout 2m
       - uses: actions/upload-artifact@v4
         if: always()
@@ -64,6 +64,11 @@ jobs:
       - name: Verify and render the .NET Framework 4.8 WPF editor
         timeout-minutes: 5
         run: ./experiments/AcadPaletteSetXData.WpfSmoke/bin/Release/net48/AcadPaletteSetXData.WpfSmoke.exe artifacts/screenshots/net48
+      - name: Verify and render the Bobrov ribbon tab with the real AdWindows (issue #39)
+        timeout-minutes: 5
+        run: |
+          dotnet build experiments/AcadPaletteSetXData.RibbonSmoke -c Release
+          ./experiments/AcadPaletteSetXData.RibbonSmoke/bin/Release/net48/AcadPaletteSetXData.RibbonSmoke.exe artifacts/screenshots/ribbon
       - uses: actions/upload-artifact@v4
         if: always()
         with:

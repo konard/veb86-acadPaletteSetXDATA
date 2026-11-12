@@ -76,6 +76,9 @@ void CheckCommand(string typeName, string methodName, string commandName)
 }
 
 CheckCommand(applicationType, "TogglePalette", "XDATAPALETTE");
+// Issue #39: the «Включить»/«Выключить» buttons of the «Bobrov» menu and ribbon tab.
+CheckCommand(applicationType, "ShowPalette", "XDATAPALETTE_ON");
+CheckCommand(applicationType, "HidePalette", "XDATAPALETTE_OFF");
 CheckCommand(schemaCommandsType, "Import", "VELEC_SCHEMA_IMPORT");
 CheckCommand(schemaCommandsType, "Export", "VELEC_SCHEMA_EXPORT");
 CheckCommand(schemaCommandsType, "Edit", "VELEC_SCHEMA_EDIT");
@@ -94,7 +97,7 @@ string[] autocad = { "AcMgd", "AcDbMgd", "AcCoreMgd", "AdWindows" };
 foreach (var name in references)
     Check(framework.Contains(name) || name.StartsWith("System.", StringComparison.Ordinal) || autocad.Contains(name, StringComparer.OrdinalIgnoreCase),
         "Single-DLL release must not depend on " + name + ": only .NET Framework 4.8 and the AutoCAD API are allowed.");
-foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply", "SchemaEditorViewModel", "SchemaEditorWindow", "SchemaMigration", "DrawingCheck" })
+foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply", "SchemaEditorViewModel", "SchemaEditorWindow", "SchemaMigration", "DrawingCheck", "BobrovInterface", "BobrovRibbon", "BobrovMenuInstaller" })
     Check(metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
         "Release must contain " + typeName + ".");
 Check(metadata.ManifestResources.Select(metadata.GetManifestResource)

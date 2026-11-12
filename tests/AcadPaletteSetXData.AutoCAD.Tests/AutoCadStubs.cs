@@ -21,7 +21,9 @@ namespace Autodesk.AutoCAD.Runtime
     [AttributeUsage(AttributeTargets.Method)]
     public sealed class CommandMethodAttribute : Attribute
     {
-        public CommandMethodAttribute(string name, CommandFlags flags) { }
+        public CommandMethodAttribute(string name, CommandFlags flags) { GlobalName = name; Flags = flags; }
+        public string GlobalName { get; }
+        public CommandFlags Flags { get; }
     }
 }
 
@@ -60,9 +62,19 @@ namespace AcadPaletteSetXData.AutoCAD
     internal sealed class AutoCadPaletteHost : IPaletteHost
     {
         public static int Creations { get; set; }
-        public AutoCadPaletteHost() { Creations++; }
+        public static AutoCadPaletteHost? Last { get; private set; }
+        public AutoCadPaletteHost() { Creations++; Last = this; }
         public bool Visible { get; set; }
         public void ApplyTheme(PaletteTheme theme) { }
         public void Dispose() { }
+    }
+
+    // The real menu/ribbon glue needs AcMgd and AdWindows; the tests only check when it is started and stopped.
+    internal static class BobrovInterface
+    {
+        public static bool Running { get; private set; }
+        public static int Starts { get; set; }
+        public static void Start() { if (Running) return; Running = true; Starts++; }
+        public static void Stop() => Running = false;
     }
 }

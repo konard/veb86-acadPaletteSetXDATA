@@ -42,9 +42,15 @@ jobs:
           dotnet build experiments/AcadPaletteSetXData.WpfSmoke -c Release -p:UseReleaseAssembly=true -p:Version=0.0.${{ github.run_number }}
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./experiments/AcadPaletteSetXData.WpfSmoke/bin/ReleaseAssembly/Release/net48/AcadPaletteSetXData.WpfSmoke.exe artifacts/screenshots/release
-      - name: Package only acadPaletteSetXDATA.dll
+      - name: Package acadPaletteSetXDATA.zip and the manual install acadPaletteSetXDATA.bundle
         shell: pwsh
-        run: ./scripts/New-AcadPaletteSetXDataPackage.ps1 -BuildDirectory src/acadPaletteSetXDATA/bin/Release/net48 -ZipPath artifacts/release/acadPaletteSetXDATA.zip
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: ./scripts/New-AcadPaletteSetXDataPackage.ps1 -BuildDirectory src/acadPaletteSetXDATA/bin/Release/net48 -ZipPath artifacts/release/acadPaletteSetXDATA.zip -ManualInstallZipPath artifacts/release/acadPaletteSetXDATA-manual-install-v0.0.${{ github.run_number }}.zip -Version v0.0.${{ github.run_number }} -CommitSha $env:COMMIT_SHA
+      - name: Verify install.cmd and uninstall.cmd of the manual install (issue #39)
+        timeout-minutes: 5
+        shell: pwsh
+        run: ./experiments/Test-AcadPaletteSetXDataManualInstall.ps1 -ManualInstallZipPath artifacts/release/acadPaletteSetXDATA-manual-install-v0.0.${{ github.run_number }}.zip
       - name: Write release metadata
         shell: pwsh
         env:
@@ -60,9 +66,18 @@ jobs:
           Target platform: AutoCAD 2021 / .NET Framework 4.8
           AutoCAD .NET API: 24.0.0 (NuGet, compile only)
 
+          acadPaletteSetXDATA-manual-install-v0.0.$env:RUN_NUMBER.zip - manual install without an installer
+          and without administrator rights (AutoCAD 2021). Extract the archive and run install.cmd, or copy
+          its AppData folder into %USERPROFILE%. AutoCAD then loads
+          %APPDATA%\Autodesk\ApplicationPlugins\acadPaletteSetXDATA.bundle automatically at startup.
+          See INSTALL.md in the archive (in Russian).
+
           acadPaletteSetXDATA.zip contains acadPaletteSetXDATA.dll only.
           Extract to a trusted folder and NETLOAD acadPaletteSetXDATA.dll in AutoCAD 2021.
-          A load confirmation appears in the command line. XDATAPALETTE shows/hides the XDATA palette.
+
+          A load confirmation appears in the command line. The Bobrov menu on the menu bar and the
+          Bobrov ribbon tab turn the XDATA palette on and off (XDATAPALETTE_ON / XDATAPALETTE_OFF);
+          XDATAPALETTE shows/hides it.
           "@ | Set-Content artifacts/release/release-notes.md -Encoding utf8
       - uses: actions/upload-artifact@v4
         with:
@@ -93,7 +108,7 @@ jobs:
         with:
           name: acadPaletteSetXDATA-release
           path: artifacts/release
-      - name: Create draft, upload ZIP and publish completed release
+      - name: Create draft, upload both ZIP files and publish completed release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -101,4 +116,4 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
-          ./scripts/Publish-AcadPaletteSetXDataRelease.ps1 -Repository $env:RELEASE_REPOSITORY -Version "v0.0.$env:RUN_NUMBER" -CommitSha $env:COMMIT_SHA -ZipPath artifacts/release/acadPaletteSetXDATA.zip -NotesPath artifacts/release/release-notes.md
+          ./scripts/Publish-AcadPaletteSetXDataRelease.ps1 -Repository $env:RELEASE_REPOSITORY -Version "v0.0.$env:RUN_NUMBER" -CommitSha $env:COMMIT_SHA -ZipPath artifacts/release/acadPaletteSetXDATA.zip -ManualInstallZipPath "artifacts/release/acadPaletteSetXDATA-manual-install-v0.0.$env:RUN_NUMBER.zip" -NotesPath artifacts/release/release-notes.md

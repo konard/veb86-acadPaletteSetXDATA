@@ -2,8 +2,15 @@
 
 [build-release.yml](../.github/workflows/build-release.yml) при каждом `push` в
 `main` собирает **acadPaletteSetXDATA.dll** для **AutoCAD 2021 / .NET Framework 4.8 / x64**,
-проверяет результат и публикует GitHub Release с **acadPaletteSetXDATA.zip**.
-ZIP содержит ровно один файл `acadPaletteSetXDATA.dll` в корне.
+проверяет результат и публикует GitHub Release с двумя архивами:
+
+- **acadPaletteSetXDATA.zip** — ровно один файл `acadPaletteSetXDATA.dll` в корне (для `NETLOAD`);
+- **acadPaletteSetXDATA-manual-install-v<версия>.zip** (задача #39) — ручная установка без
+  установщика и без прав администратора: папка
+  `AppData/Roaming/Autodesk/ApplicationPlugins/acadPaletteSetXDATA.bundle` с
+  `PackageContents.xml` и той же DLL в `Contents/AutoCAD2021-2024`, а также `INSTALL.md`,
+  `install.cmd`, `uninstall.cmd`, `LICENSE` и `release-manifest.txt` (версия, commit, SHA-256 файлов).
+  [Состав и устройство](bobrov-menu-ribbon.md#ручная-установка-без-установщика).
 
 `src/acadPaletteSetXDATA` компилирует общие исходники Core, AutoCAD и UI,
 включая XAML и словари тем, в одну сборку. В ней зарегистрированы
@@ -29,7 +36,8 @@ API получается из официального NuGet-пакета [AutoC
 
 ```text
 push main → NuGet restore → Release / x64 → проверки → acadPaletteSetXDATA.zip
-          → draft Release с ZIP → публикация готового Release
+          + acadPaletteSetXDATA-manual-install-v0.0.N.zip → проверка install.cmd/uninstall.cmd
+          → draft Release с обоими ZIP → публикация готового Release
 ```
 
 Ручной запуск: **Actions → Build and release acadPaletteSetXDATA → Run workflow → main**.
@@ -63,12 +71,13 @@ Pull request тоже собирает DLL и ZIP, запускает прове
 [сценарий ручной проверки](autocad-verification.md).
 
 Публикация использует `GITHUB_TOKEN` с `contents: write` только в release job.
-[GitHub CLI создаёт draft и загружает ZIP](https://cli.github.com/manual/gh_release_create);
+[GitHub CLI создаёт draft и загружает оба ZIP](https://cli.github.com/manual/gh_release_create);
 публичным Release становится только после успешной загрузки. Сбой загрузки
 оставляет неопубликованный draft. **Re-run failed jobs** повторяет публикацию
-с прежней версией: draft дополняется ZIP, уже завершённый Release того же
-commit SHA сохраняется. Совпадение версии с другим SHA или неполный уже
-опубликованный Release приводит к ошибке вместо замены существующего выпуска.
+с прежней версией: draft дополняется обоими ZIP, уже завершённый Release того же
+commit SHA сохраняется. Совпадение версии с другим SHA или уже опубликованный Release,
+в котором нет ровно этих двух архивов нужного размера, приводит к ошибке вместо замены
+существующего выпуска.
 Новый ручной запуск получает новый номер версии.
 
 ## Локальная проверка
@@ -79,8 +88,19 @@ commit SHA сохраняется. Совпадение версии с друг
 dotnet restore src/acadPaletteSetXDATA/acadPaletteSetXDATA.csproj --source https://api.nuget.org/v3/index.json
 dotnet build src/acadPaletteSetXDATA/acadPaletteSetXDATA.csproj --no-restore -c Release -p:PlatformTarget=x64 -p:Version=0.0.1
 pwsh -NoProfile -File experiments/Test-AcadPaletteSetXDataRelease.ps1
-pwsh -NoProfile -File scripts/New-AcadPaletteSetXDataPackage.ps1 -BuildDirectory src/acadPaletteSetXDATA/bin/Release/net48 -ZipPath artifacts/release/acadPaletteSetXDATA.zip
+pwsh -NoProfile -File scripts/New-AcadPaletteSetXDataPackage.ps1 -BuildDirectory src/acadPaletteSetXDATA/bin/Release/net48 -ZipPath artifacts/release/acadPaletteSetXDATA.zip -ManualInstallZipPath artifacts/release/acadPaletteSetXDATA-manual-install-v0.0.1.zip -Version v0.0.1
+# Только Windows: install.cmd/uninstall.cmd на временном %APPDATA%, профиль пользователя не меняется.
+pwsh -NoProfile -File experiments/Test-AcadPaletteSetXDataManualInstall.ps1 -ManualInstallZipPath artifacts/release/acadPaletteSetXDATA-manual-install-v0.0.1.zip
 ```
+
+С задачи #39 проверка выпуска также собирает архив ручной установки и проверяет его точный
+состав, совпадение DLL, `PackageContents.xml` (`AppVersion` выпуска, `Win64`, `R24.0`–`R24.3`,
+`LoadOnAutoCADStartup`, существующий `ModuleName`, команды `XDATAPALETTE*`), окончания строк CRLF
+в `.cmd`, SHA-256 в `release-manifest.txt`, отказ при неверной версии или DLL Autodesk в сборке,
+а также создание, возобновление и проверку Release с двумя архивами.
+`Test-AcadPaletteSetXDataManualInstall.ps1` на Windows CI запускает `install.cmd` из пути с пробелом,
+повторную установку поверх старой версии (удаление лишних файлов, снятие `Zone.Identifier`),
+`uninstall.cmd` и проверяет, что другие пакеты в `ApplicationPlugins` не затрагиваются.
 
 Проверка задачи #13 до переименования завершалась ошибкой
 `The required acadPaletteSetXDATA build target is missing.`

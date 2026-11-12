@@ -11,6 +11,9 @@ WPF-содержимое следует `COLORTHEME`: `0` — тёмная те�
 
 [Рендеры настоящей WPF-панели в обеих темах](docs/screenshots/README.md).
 
+Меню **Bobrov** в строке меню и вкладка ленты **Bobrov** включают и выключают панель
+(`XDATAPALETTE_ON` / `XDATAPALETTE_OFF`) — [меню, лента и ручная установка](docs/bobrov-menu-ribbon.md).
+
 Следующая очередь — система параметров BobrovXDATA (схема JSON → NOD → XDATA, единый VST
 во вкладке «Свойства») — описана в [TZXDATA](TZXDATA.md).
 Этап 1 выполнен: модель схемы, чтение/запись `schema.json` и проверки —
@@ -149,6 +152,8 @@ WPF-содержимое следует `COLORTHEME`: `0` — тёмная те�
 acadPaletteSetXDATA.zip → GitHub Release** после каждого push в `main` и при ручном
 запуске Actions. Версия формируется автоматически; ZIP содержит единственную
 DLL для AutoCAD 2021 / .NET Framework 4.8 / x64 без DLL Autodesk.
+С задачи #39 рядом публикуется `acadPaletteSetXDATA-manual-install-v<версия>.zip` —
+ручная установка без установщика в `%APPDATA%\Autodesk\ApplicationPlugins\acadPaletteSetXDATA.bundle`.
 `acadPaletteSetXDATA.dll` содержит весь плагин: регистрацию `XDATAPALETTE`,
 логику XDATA и WPF-панель с темами. Исходники общие с комплектом из трёх DLL
 для разработки и дополнительных версий AutoCAD.
@@ -182,14 +187,23 @@ dotnet build src/AcadPaletteSetXData.AutoCAD -c Release -f net48 -p:AutoCadNet48
 
 ## Загрузка
 
+**Ручная установка (рекомендуется, без прав администратора).** Распакуйте
+`acadPaletteSetXDATA-manual-install-v<версия>.zip` из GitHub Release и запустите `install.cmd`
+(или скопируйте папку `AppData` из архива в `%USERPROFILE%`). AutoCAD 2021 загрузит
+`%APPDATA%\Autodesk\ApplicationPlugins\acadPaletteSetXDATA.bundle` автоматически при запуске;
+`uninstall.cmd` удаляет плагин. Подробно — [INSTALL.md](installer/manual/INSTALL.md).
+
+**Загрузка через `NETLOAD`:**
+
 1. Добавьте папку плагина в доверенные расположения AutoCAD (`TRUSTEDPATHS`).
 2. Распакуйте `acadPaletteSetXDATA.zip` из GitHub Release и в AutoCAD 2021 выполните
    `NETLOAD` для **`acadPaletteSetXDATA.dll`**. Дополнительные DLL плагина не нужны.
    В командной строке появится:
-   `acadPaletteSetXDATA загружено. Команда XDATAPALETTE — показать/скрыть панель XDATA.`
+   `acadPaletteSetXDATA загружено. Команда XDATAPALETTE — показать/скрыть панель XDATA; меню и вкладка ленты Bobrov — включить/выключить.`
    При загрузке без открытого чертежа сообщение появится после открытия первой DWG.
    Панель при загрузке не открывается.
-3. Введите `XDATAPALETTE`. Повторный вызов скрывает панель.
+3. Введите `XDATAPALETTE`. Повторный вызов скрывает панель. Меню **Bobrov** и вкладка
+   ленты **Bobrov** включают и выключают панель (`XDATAPALETTE_ON` / `XDATAPALETTE_OFF`).
    Схема параметров импортируется в чертёж командой `VELEC_SCHEMA_IMPORT`
    и выгружается в JSON командой `VELEC_SCHEMA_EXPORT`.
    Шаблон выбранным объектам назначает команда `VELEC_TEMPLATE_APPLY` (или «Шаблон ▾» на панели).

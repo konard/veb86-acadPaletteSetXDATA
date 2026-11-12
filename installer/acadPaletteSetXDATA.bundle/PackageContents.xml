@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Issue #39: AutoCAD Autoloader bundle of the manual install (%APPDATA%\Autodesk\ApplicationPlugins\acadPaletteSetXDATA.bundle).
+     scripts/New-AcadPaletteSetXDataPackage.ps1 (-ManualInstallZipPath) sets AppVersion to the release version. -->
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" ProductType="Application" Name="acadPaletteSetXDATA" AppVersion="0.0.0" ProductCode="{dad36109-0e0e-411e-9681-4259d2b90a08}" UpgradeCode="{9c948433-c934-4767-9470-ae1a38762682}" Description="Панель «Свойства XDATA» для AutoCAD 2021" Author="veb86">
+  <CompanyDetails Name="veb86" Url="https://github.com/veb86/acadPaletteSetXDATA" />
+  <Components>
+    <ComponentEntry AppName="acadPaletteSetXDATA" AppType=".Net" ModuleName="./Contents/AutoCAD2021-2024/acadPaletteSetXDATA.dll" LoadOnAutoCADStartup="True" LoadOnCommandInvocation="True">
+      <!-- The DLL targets .NET Framework 4.8 and the AutoCAD 2021 API (R24.0); AutoCAD 2025+ runs .NET 8 and is excluded. -->
+      <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R24.0" SeriesMax="R24.3" />
+      <Commands GroupName="acadPaletteSetXDATA">
+        <Command Global="XDATAPALETTE" Local="XDATAPALETTE" />
+        <Command Global="XDATAPALETTE_ON" Local="XDATAPALETTE_ON" />
+        <Command Global="XDATAPALETTE_OFF" Local="XDATAPALETTE_OFF" />
+        <Command Global="VELEC_SCHEMA_IMPORT" Local="VELEC_SCHEMA_IMPORT" />
+        <Command Global="VELEC_SCHEMA_EXPORT" Local="VELEC_SCHEMA_EXPORT" />
+        <Command Global="VELEC_SCHEMA_EDIT" Local="VELEC_SCHEMA_EDIT" />
+        <Command Global="VELEC_TEMPLATE_APPLY" Local="VELEC_TEMPLATE_APPLY" />
+        <Command Global="VELEC_MIGRATE" Local="VELEC_MIGRATE" />
+        <Command Global="VELEC_CHECK" Local="VELEC_CHECK" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

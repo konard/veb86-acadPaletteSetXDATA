@@ -68,6 +68,51 @@ try {
         Assert ((Get-FileHash "$extracted/acadPaletteSetXDATA.dll").Hash -eq (Get-FileHash "$inputDirectory/acadPaletteSetXDATA.dll").Hash) 'ZIP DLL differs from the build output.'
     } finally { $archive.Dispose() }
 
+    # Issue #39: the manual install archive mirrors %USERPROFILE% (TeplovPrint style) and needs no installer.
+    $manualZip = Join-Path $temporary 'acadPaletteSetXDATA-manual-install-v0.0.1.zip'
+    $sha = '0123456789abcdef0123456789abcdef01234567'
+    $bundle = 'AppData/Roaming/Autodesk/ApplicationPlugins/acadPaletteSetXDATA.bundle'
+    & $package -BuildDirectory $inputDirectory -ZipPath $zip -ManualInstallZipPath $manualZip -Version v0.0.1 -CommitSha $sha
+    $manualEntries = @(
+        "$bundle/PackageContents.xml",
+        "$bundle/Contents/AutoCAD2021-2024/acadPaletteSetXDATA.dll",
+        'INSTALL.md', 'install.cmd', 'uninstall.cmd', 'LICENSE', 'release-manifest.txt')
+    $archive = [IO.Compression.ZipFile]::OpenRead($manualZip)
+    try {
+        Assert ((@($archive.Entries.FullName) -join '|') -ceq ($manualEntries -join '|')) "Manual install ZIP layout is unexpected: $(@($archive.Entries.FullName) -join ', ')."
+        $manualDirectory = Join-Path $temporary 'manual'
+        [IO.Compression.ZipFile]::ExtractToDirectory($manualZip, $manualDirectory)
+    } finally { $archive.Dispose() }
+    Assert ((Get-FileHash "$manualDirectory/$bundle/Contents/AutoCAD2021-2024/acadPaletteSetXDATA.dll").Hash -eq (Get-FileHash "$inputDirectory/acadPaletteSetXDATA.dll").Hash) 'Manual install DLL differs from the build output.'
+    [xml] $contents = Get-Content "$manualDirectory/$bundle/PackageContents.xml" -Raw -Encoding utf8
+    $packageNode = $contents.ApplicationPackage
+    Assert ($packageNode.AppVersion -ceq '0.0.1') 'PackageContents.xml must carry the release version.'
+    Assert ($packageNode.ProductType -ceq 'Application' -and $packageNode.AutodeskProduct -ceq 'AutoCAD') 'PackageContents.xml must describe an AutoCAD application bundle.'
+    $entry = $packageNode.Components.ComponentEntry
+    $runtime = $entry.RuntimeRequirements
+    Assert ($runtime.OS -ceq 'Win64' -and $runtime.SeriesMin -ceq 'R24.0' -and $runtime.SeriesMax -ceq 'R24.3') 'The bundle must target AutoCAD 2021-2024 x64 (R24.x, .NET Framework 4.8).'
+    Assert ($entry.LoadOnAutoCADStartup -ceq 'True' -and $entry.AppType -ceq '.Net') 'AutoCAD must load the .NET module at startup.'
+    Assert (Test-Path (Join-Path "$manualDirectory/$bundle" $entry.ModuleName) -PathType Leaf) "ModuleName $($entry.ModuleName) must point to the DLL inside the bundle."
+    $commands = @($entry.Commands.Command | ForEach-Object { $_.Global })
+    foreach ($command in @('XDATAPALETTE', 'XDATAPALETTE_ON', 'XDATAPALETTE_OFF')) { Assert ($commands -ccontains $command) "PackageContents.xml must declare $command." }
+    foreach ($script in @('install.cmd', 'uninstall.cmd')) {
+        $text = [IO.File]::ReadAllText("$manualDirectory/$script")
+        Assert ($text.Contains("`r`n") -and -not ($text -replace "`r`n", '').Contains("`n")) "$script must use CRLF line endings for cmd.exe."
+        Assert ($text.Contains('%APPDATA%\Autodesk\ApplicationPlugins') -and $text.Contains('acadPaletteSetXDATA.bundle')) "$script must target %APPDATA%\Autodesk\ApplicationPlugins\acadPaletteSetXDATA.bundle."
+    }
+    $releaseManifest = Get-Content "$manualDirectory/release-manifest.txt" -Raw
+    Assert ($releaseManifest.Contains('v0.0.1') -and $releaseManifest.Contains($sha)) 'release-manifest.txt must name the version and commit.'
+    foreach ($name in $manualEntries | Where-Object { $_ -ne 'release-manifest.txt' }) {
+        $hash = (Get-FileHash "$manualDirectory/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
+        Assert ($releaseManifest.Contains("$hash  $name")) "release-manifest.txt must contain the SHA-256 of $name."
+    }
+    Assert-Failure { & $package -BuildDirectory $inputDirectory -ZipPath $zip -ManualInstallZipPath $manualZip -Version 'latest' } 'Version|validation|pattern'
+    Set-Content "$inputDirectory/AcMgd.dll" 'SDK must not ship'
+    Assert-Failure { & $package -BuildDirectory $inputDirectory -ZipPath $zip -ManualInstallZipPath $manualZip -Version v0.0.1 } 'Unexpected runtime assembly'
+    Assert (-not (Test-Path $manualZip)) 'A rejected build must not leave a manual install ZIP.'
+    Remove-Item "$inputDirectory/AcMgd.dll"
+    & $package -BuildDirectory $inputDirectory -ZipPath $zip -ManualInstallZipPath $manualZip -Version v0.0.1 -CommitSha $sha
+
     # Mock the GitHub CLI so publication failures are tested without creating releases.
     $mock = @{ Calls = [Collections.Generic.List[object]]::new(); Existing = $null; FailCommand = '' }
     function gh {
@@ -79,7 +124,6 @@ try {
             else { $mock.Existing | ConvertTo-Json -Depth 5 -Compress }
         } elseif ($command -eq $mock.FailCommand) { $global:LASTEXITCODE = 1 }
     }
-    $sha = '0123456789abcdef0123456789abcdef01234567'
     $notes = Join-Path $temporary 'release-notes.md'
     Set-Content $notes 'Release test'
     $publish = "$root/scripts/Publish-AcadPaletteSetXDataRelease.ps1"
@@ -124,6 +168,36 @@ try {
     $mock.Existing.targetCommitish = $sha
     $mock.Existing.assets = @()
     Assert-Failure { & $publish @parameters } 'incomplete'
+
+    # Issue #39: both archives are uploaded to one draft and a published release must have exactly both.
+    $mock.Calls.Clear()
+    $mock.Existing = $null
+    $both = $parameters.Clone()
+    $both.ManualInstallZipPath = $manualZip
+    & $publish @both
+    Assert (($mock.Calls | ForEach-Object { $_[1] }) -join ',' -eq 'view,create,edit') 'The two-asset release must be created as a draft and then published.'
+    Assert ($mock.Calls[1] -contains $zip -and $mock.Calls[1] -contains $manualZip) 'The draft must include acadPaletteSetXDATA.zip and the manual install ZIP.'
+    $mock.Calls.Clear()
+    $mock.Existing = @{ isDraft = $true; targetCommitish = $sha; assets = @() }
+    & $publish @both
+    Assert ($mock.Calls[1][1] -eq 'upload' -and $mock.Calls[1] -contains $zip -and $mock.Calls[1] -contains $manualZip) 'A resumed draft must upload both ZIP files.'
+    $mock.Calls.Clear()
+    $mock.Existing = @{ isDraft = $false; targetCommitish = $sha; assets = @(
+        @{ name = 'acadPaletteSetXDATA.zip'; size = (Get-Item $zip).Length },
+        @{ name = 'acadPaletteSetXDATA-manual-install-v0.0.1.zip'; size = (Get-Item $manualZip).Length }) }
+    & $publish @both
+    Assert ($mock.Calls.Count -eq 1) 'Reruns must leave a completed two-asset release intact.'
+    Assert-Failure { & $publish @parameters } 'incomplete|unexpected'
+    $mock.Existing.assets = @($mock.Existing.assets[0])
+    Assert-Failure { & $publish @both } 'incomplete'
+    $mock.Existing = $null
+    $mock.Calls.Clear()
+    $renamed = Join-Path $temporary 'manual.zip'
+    Copy-Item $manualZip $renamed
+    $wrongName = $parameters.Clone()
+    $wrongName.ManualInstallZipPath = $renamed
+    Assert-Failure { & $publish @wrongName } 'manual-install-v0.0.1'
+    Assert ($mock.Calls.Count -eq 0) 'A misnamed manual install ZIP must not call the GitHub API.'
 
     $mock.Calls.Clear()
     Remove-Item $zip

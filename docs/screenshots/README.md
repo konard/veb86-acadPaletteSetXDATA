@@ -1,5 +1,20 @@
 # Рендеры WPF-панели
 
+## Задача #41: список выделенных объектов, `*` и `−`
+
+`issue41-*.png` — настоящий `PaletteView` на Windows **net48** без AutoCAD: семь объектов в памяти,
+три с `SYSTEMTYPE` «Опора» (v2, v1, полилиния), полилиния с пустым `SYSTEMTYPE` и объекты без него.
+Имена типов «Полилиния», «Отрезок», «Вхождение блока» в рендере заданы данными проверки — так их
+возвращает русский AutoCAD; плагин берёт их у AutoCAD. Источник:
+[CI, commit 60b139f](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/43636519842),
+артефакт `wpf-renders`, папка `net48`; те же проверки пройдены на .NET 8. Генератор —
+`VerifySelectionGroups` в `experiments/AcadPaletteSetXData.WpfSmoke`. Описание —
+[selection-groups.md](../selection-groups.md).
+
+| Список групп, `Все (7)` | `−` для «Полилиния» | `*` для «Опора» |
+| --- | --- | --- |
+| ![Список групп](issue41-selection-groups.png) | ![После −](issue41-after-exclude.png) | ![После *](issue41-after-keep.png) |
+
 ## Задача #39: вкладка ленты «Bobrov»
 
 `issue39-bobrov-ribbon.png` — настоящая вкладка ленты, построенная кодом плагина (`BobrovRibbon.Create`)

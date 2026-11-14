@@ -68,6 +68,7 @@ internal static class Program
             VerifySchemaEditor(view, model, output);
             VerifyLegacy(view, model, tabs, source, output);
             VerifyEditing(view, model, source, output);
+            VerifySelectionGroups(view, model, tabs, source, output);
             source.Select(SampleSelection());
             VerifyMinimum(window, view, model, tabs, output);
             Check(bindingErrors.Messages.Count == 0, "WPF binding failures: " + string.Join("\n", bindingErrors.Messages));
@@ -78,7 +79,7 @@ internal static class Program
             application.Shutdown();
             Console.WriteLine("WPF checks passed: VST columns and states, «Разное», table rows, control panel, filter, column menu, " +
                               "virtualization, kept expansion and scroll, template menu, assigning and changing templates, committed defaults, legacy data, editors, Enter/Esc, check boxes, × ✎ «+ Добавить», " +
-                              "«+ Параметр», write errors, ⚙ schema menu, schema editor (draft, formula preview, guards, errors, import, apply, cancel, light theme), XDATA tree, themes, resize and disposal.");
+                              "«+ Параметр», write errors, selection groups with * and − (issue #41), ⚙ schema menu, schema editor (draft, formula preview, guards, errors, import, apply, cancel, light theme), XDATA tree, themes, resize and disposal.");
             return 0;
         }
         catch (Exception error)
@@ -512,6 +513,86 @@ internal static class Program
         Pump(view);
     }
 
+    /// <summary>
+    /// Issue #41: the list above the panel groups the selection by SYSTEMTYPE or by the AutoCAD name of the object type,
+    /// «Все (N)» only for more than one group; * keeps only the chosen group selected, − removes it, «Все» + − clears.
+    /// </summary>
+    private static void VerifySelectionGroups(PaletteView view, PaletteViewModel model, TabControl tabs, MemorySelection source, string output)
+    {
+        tabs.SelectedIndex = 0;
+        source.Select(GroupSelection());
+        Pump(view);
+        var field = (ComboBox)view.FindName("SelectedGroupField");
+        var keep = (Button)view.FindName("KeepGroupButton");
+        var exclude = (Button)view.FindName("ExcludeGroupButton");
+        string[] Texts() => field.Items.Cast<SelectionGroup>().Select(group => group.Text).ToArray();
+        var expected = new[] { "Все (7)", "Опора (3)", "Полилиния (2)", "Отрезок (1)", "Вхождение блока (1)" };
+        Check(Texts().SequenceEqual(expected), "Unexpected groups: " + string.Join(", ", Texts()));
+        Check(field.IsVisible && keep.IsVisible && exclude.IsVisible && (string)keep.Content == "*" && (string)exclude.Content == "\u2212",
+            "The group list and the * and − buttons must be above the panel.");
+        Check(field.TranslatePoint(new Point(), view).X < keep.TranslatePoint(new Point(), view).X &&
+              keep.TranslatePoint(new Point(), view).X < exclude.TranslatePoint(new Point(), view).X, "* and − must be right of the list.");
+        Check(Descendants<TextBlock>(field).Any(text => text.Text == "Все (7)"), "«Все (N)» must be chosen first.");
+        Check(keep.IsEnabled && exclude.IsEnabled, "The buttons must be available for a drawing selection.");
+
+        // «Все» + * changes nothing.
+        var changes = source.Changes;
+        Invoke(keep, view);
+        Check(source.Changes == changes && model.Selection.Entities.Count == 7, "«Все» + * must keep the selection.");
+
+        field.IsDropDownOpen = true;
+        Pump(view);
+        var popup = (Popup)field.Template.FindName("PART_Popup", field);
+        SaveWithPopup(view, (FrameworkElement)popup.Child, Path.Combine(output, "issue41-selection-groups.png"));
+        field.IsDropDownOpen = false;
+        Pump(view);
+
+        // − removes the chosen group and the list is rebuilt from the new selection.
+        field.SelectedItem = field.Items.Cast<SelectionGroup>().Single(group => group.Name == "Полилиния");
+        Pump(view);
+        Invoke(exclude, view);
+        Check(source.Changes == changes + 1 && source.Handles().SequenceEqual(new[] { "10", "11", "12", "15", "16" }), "− must deselect the group.");
+        Check(Texts().SequenceEqual(new[] { "Все (5)", "Опора (3)", "Отрезок (1)", "Вхождение блока (1)" }), "The list must follow −: " + string.Join(", ", Texts()));
+        Save(view, Path.Combine(output, "issue41-after-exclude.png"));
+
+        // * keeps only the chosen group; with one group «Все» is not listed.
+        field.SelectedItem = field.Items.Cast<SelectionGroup>().Single(group => group.Name == "Опора");
+        Pump(view);
+        Invoke(keep, view);
+        Check(source.Handles().SequenceEqual(new[] { "10", "11", "12" }), "* must keep only the group.");
+        Check(Texts().SequenceEqual(new[] { "Опора (3)" }) && Descendants<TextBlock>(field).Any(text => text.Text == "Опора (3)"),
+            "A single group must be listed without «Все»: " + string.Join(", ", Texts()));
+        Save(view, Path.Combine(output, "issue41-after-keep.png"));
+        Check(source.Snapshots().Count == 3 && source.Snapshots().All(snapshot => SelectionGroups.SystemType(snapshot.XData) == "Опора"),
+            "The buttons must not change XDATA.");
+
+        // «Все» + − clears the selection; the list and the buttons are hidden.
+        source.Select(GroupSelection());
+        Pump(view);
+        Invoke(exclude, view);
+        Check(source.Handles().Length == 0 && model.Selection.Groups.Count == 0 && !field.IsVisible && !keep.IsVisible,
+            "«Все» + − must clear the selection.");
+        Check(source.Changes == changes + 3, "Every change must go through the drawing selection.");
+    }
+
+    /// <summary>
+    /// Seven objects: three with SYSTEMTYPE «Опора» (v2, v1 and a polyline), an empty SYSTEMTYPE and objects without it.
+    /// The type names stand for what AutoCAD returns in a Russian session; the plugin takes them from AutoCAD.
+    /// </summary>
+    private static EntityDataSnapshot[] GroupSelection() => new[]
+    {
+        Typed(Object("10", "DEVICE", "BlockReference", Pair("SYSTEMTYPE", "Опора")), "Вхождение блока"),
+        Typed(new EntityDataSnapshot("11", "BlockReference", new[] { V(1001, DrawingNames.RegApp), V(1000, "SYSTEMTYPE=Опора") }, Array.Empty<DataRecord>()), "Вхождение блока"),
+        Typed(Object("12", "DEVICE", "Polyline", Pair("SYSTEMTYPE", "Опора")), "Полилиния"),
+        Typed(Object("13", "DEVICE", "Polyline", Pair("SYSTEMTYPE", " ")), "Полилиния"),
+        Typed(new EntityDataSnapshot("14", "Polyline", Array.Empty<DataValue>(), Array.Empty<DataRecord>()), "Полилиния"),
+        Typed(new EntityDataSnapshot("15", "Line", Array.Empty<DataValue>(), Array.Empty<DataRecord>()), "Отрезок"),
+        Typed(new EntityDataSnapshot("16", "BlockReference", Array.Empty<DataValue>(), Array.Empty<DataRecord>()), "Вхождение блока")
+    };
+
+    private static EntityDataSnapshot Typed(EntityDataSnapshot snapshot, string typeDisplayName) =>
+        new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, snapshot.XData, snapshot.Records, typeDisplayName: typeDisplayName);
+
     private static EntityDataSnapshot Empty(string handle) =>
         new EntityDataSnapshot(handle, "BlockReference", Array.Empty<DataValue>(), Array.Empty<DataRecord>());
 
@@ -526,9 +607,11 @@ internal static class Program
         // CD35 is in the ESMT data of A1 and in the XML XRecord of B2; СВ110-5 of A1 alone is «Разное».
         Check(Descendants<TextBlock>(list).Any(text => text.Text == "CD35"), "Legacy materials must be table rows.");
         Save(view, Path.Combine(output, "tzxdata-stage6-legacy.png"));
-        var selector = (ComboBox)view.FindName("SelectedEntityField");
-        selector.SelectedIndex = 0;
         tabs.SelectedIndex = 1;
+        Pump(view);
+        // The object of the tree is chosen in the «Дерево XDATA» tab; the list above the panel groups the selection (issue #41).
+        var selector = Descendants<ComboBox>(view).Single(combo => combo.Name == "SelectedEntityField");
+        selector.SelectedIndex = 0;
         Pump(view);
         Check(selector.Items.Count == 2 && Descendants<TextBlock>(selector).Any(text => text.Text == "BlockReference [A1]"),
             "Every selected entity must be inspectable.");
@@ -841,7 +924,7 @@ internal static class Program
     /// The selection of a drawing with the example schema in its NOD, written through <see cref="XDataWriter"/> in one
     /// in-memory transaction per edit, as the AutoCAD writer does.
     /// </summary>
-    private sealed class MemorySelection : ISelectionSource, ISelectionWriter, IObjectValuesSource
+    private sealed class MemorySelection : ISelectionSource, ISelectionWriter, IObjectValuesSource, ISelectionChanger
     {
         private readonly XDataWriter writer;
         private EntityDataSnapshot[] snapshots = Array.Empty<EntityDataSnapshot>();
@@ -857,6 +940,18 @@ internal static class Program
         public event EventHandler? SelectionChanged;
         public IReadOnlyList<EntityDataSnapshot> ReadSelection() { Reads++; return snapshots; }
         public void WriteSelection(IReadOnlyList<string> handles, SelectionEdit edit) => writer.WriteSelection(handles, edit);
+        /// <summary>Changes made by * and −.</summary>
+        public int Changes { get; private set; }
+
+        /// <summary>Like <c>SetImpliedSelection</c>: selects these objects of the selection; the controller reads it again.</summary>
+        public void SetSelection(IReadOnlyList<string> handles)
+        {
+            snapshots = snapshots.Where(snapshot => handles.Contains(snapshot.Handle)).ToArray();
+            Changes++;
+        }
+
+        public string[] Handles() => snapshots.Select(snapshot => snapshot.Handle).ToArray();
+        public IReadOnlyList<EntityDataSnapshot> Snapshots() => snapshots;
 
         public void Select(EntityDataSnapshot[] next)
         {

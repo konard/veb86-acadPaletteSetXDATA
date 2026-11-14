@@ -20,11 +20,22 @@
             </HierarchicalDataTemplate>
             <DataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Selection}}">
                 <Grid Margin="6">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <TextBlock Text="Расширенные данные" FontWeight="SemiBold" Margin="0,4,0,8" />
-                    <TextBlock Grid.Row="1" Text="{Binding Diagnostics}" TextWrapping="Wrap" Margin="0,0,0,8"
+                    <!-- The object of the tree; the list above the panel groups the selection (issue #41). -->
+                    <ComboBox x:Name="SelectedEntityField" Grid.Row="1" Margin="0,0,0,8" ItemsSource="{Binding Entities}" DisplayMemberPath="DisplayName"
+                              SelectedItem="{Binding SelectedEntity, Mode=TwoWay}" IsEnabled="{Binding HasSelection}"
+                              AutomationProperties.Name="Объект для просмотра дерева XDATA" ToolTip="Выбор объекта меняет только дерево XDATA. Вкладка «Свойства» показывает всё выделение.">
+                        <ComboBox.Style><Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers><DataTrigger Binding="{Binding Entities.Count}" Value="0">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger></Style.Triggers>
+                        </Style></ComboBox.Style>
+                    </ComboBox>
+                    <TextBlock Grid.Row="2" Text="{Binding Diagnostics}" TextWrapping="Wrap" Margin="0,0,0,8"
                                Foreground="{DynamicResource PaletteMuted}" />
-                    <TreeView Grid.Row="2" ItemsSource="{Binding Tree}" IsEnabled="{Binding HasSelection}"
+                    <TreeView Grid.Row="3" ItemsSource="{Binding Tree}" IsEnabled="{Binding HasSelection}"
                               Background="{DynamicResource PaletteBackground}" Foreground="{DynamicResource PaletteForeground}"
                               BorderBrush="{DynamicResource PaletteBorder}" AutomationProperties.Name="Дерево XDATA">
                         <TreeView.Resources><Style TargetType="TreeViewItem">
@@ -45,6 +56,13 @@
                     </ScrollViewer>
                 </Grid>
             </DataTemplate>
+            <Style x:Key="GroupButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Width" Value="26" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="3,0,0,0" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            </Style>
             <Style TargetType="TabItem">
                 <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
                 <Setter Property="Background" Value="{DynamicResource PaletteTabBackground}" />
@@ -88,16 +106,27 @@
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <StackPanel Margin="6,6,6,4">
             <TextBlock Text="{Binding Selection.Status}" TextWrapping="Wrap" Margin="0,0,0,4" />
-            <ComboBox x:Name="SelectedEntityField" ItemsSource="{Binding Selection.Entities}" DisplayMemberPath="DisplayName"
-                      SelectedItem="{Binding Selection.SelectedEntity, Mode=TwoWay}" IsEnabled="{Binding Selection.HasSelection}"
-                      AutomationProperties.Name="Объект для просмотра дерева XDATA" ToolTip="Выбор объекта меняет только дерево XDATA. Вкладка «Свойства» показывает всё выделение.">
-                <ComboBox.Style><Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <!-- Issue #41: the selection grouped by SYSTEMTYPE or by the AutoCAD name of the object type, «Все (N)» for
+                 more than one group; * keeps only the chosen group selected, − removes it from the selection. -->
+            <Grid x:Name="GroupBar">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Grid.Style><Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers><DataTrigger Binding="{Binding Selection.Entities.Count}" Value="0">
+                    <Style.Triggers><DataTrigger Binding="{Binding Selection.Groups.Count}" Value="0">
                         <Setter Property="Visibility" Value="Collapsed" />
                     </DataTrigger></Style.Triggers>
-                </Style></ComboBox.Style>
-            </ComboBox>
+                </Style></Grid.Style>
+                <ComboBox x:Name="SelectedGroupField" ItemsSource="{Binding Selection.Groups}" DisplayMemberPath="Text"
+                          SelectedItem="{Binding Selection.SelectedGroup, Mode=TwoWay}"
+                          AutomationProperties.Name="Группа выделенных объектов"
+                          ToolTip="Объекты выделения по SYSTEMTYPE или по типу объекта AutoCAD; кнопки * и − работают с выбранной группой." />
+                <Button x:Name="KeepGroupButton" Grid.Column="1" Content="*" Style="{StaticResource GroupButton}"
+                        Command="{Binding Selection.KeepGroupCommand}"
+                        AutomationProperties.Name="Оставить только группу" ToolTip="Оставить выделенными только объекты выбранной группы" />
+                <Button x:Name="ExcludeGroupButton" Grid.Column="2" Content="−" Style="{StaticResource GroupButton}"
+                        Command="{Binding Selection.ExcludeGroupCommand}"
+                        AutomationProperties.Name="Исключить группу" ToolTip="Снять выделение с объектов выбранной группы" />
+            </Grid>
         </StackPanel>
     <TabControl x:Name="Tabs" Grid.Row="1" TabStripPlacement="Right"
                 ItemsSource="{Binding Tabs}" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"

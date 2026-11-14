@@ -406,7 +406,7 @@ public sealed class SchemaMigration
             if (owner.RemoveSources && !complete && sources.Count != 0) warnings.Add("перенесено не полностью: исходные данные сохраняются.");
             var after = Build(xdata, sections, app, format, nodes, remove);
             var records = remove && xml.Count != 0 ? snapshot.Records.Where(record => !xml.Contains(record)).ToArray() : snapshot.Records;
-            var result = new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, after, records, snapshot.Warning);
+            var result = new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, after, records, snapshot.Warning, snapshot.TypeDisplayName);
             if (XDataV2.FormatOf(after) == XDataFormat.V2)
             {
                 try { result = owner.patch.Apply(result, SelectionEdit.RecalculatePersisted()); }

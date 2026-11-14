@@ -8,7 +8,9 @@ namespace AcadPaletteSetXData.AutoCAD;
 /// <summary>Copies complete, detached buffers and optionally tracks native XRecord identities for writing.</summary>
 internal static class AutoCadDataReader
 {
-    public static EntityDataSnapshot ReadEntity(Transaction transaction, Entity entity, IDictionary<DataRecord, ObjectId>? recordIds = null)
+    /// <param name="typeDisplayName">The name AutoCAD shows for the object type (issue #41); <c>GetType().Name</c> when null.</param>
+    public static EntityDataSnapshot ReadEntity(Transaction transaction, Entity entity, IDictionary<DataRecord, ObjectId>? recordIds = null,
+        string? typeDisplayName = null)
     {
         var warning = new List<string>();
         var records = new List<DataRecord>();
@@ -17,7 +19,7 @@ internal static class AutoCadDataReader
         if (!entity.ExtensionDictionary.IsNull)
             ReadDictionary(transaction, entity.ExtensionDictionary, "", records, warning, 0, new HashSet<ObjectId>(), recordIds);
         return new EntityDataSnapshot(entity.Handle.ToString(), entity.GetType().Name, values, records,
-            warning.Count == 0 ? null : string.Join("\n", warning));
+            warning.Count == 0 ? null : string.Join("\n", warning), typeDisplayName);
     }
 
     internal static IReadOnlyList<DataValue> Copy(ResultBuffer? buffer, IList<string> warnings)

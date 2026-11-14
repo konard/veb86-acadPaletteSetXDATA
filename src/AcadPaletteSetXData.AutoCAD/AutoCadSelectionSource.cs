@@ -6,12 +6,13 @@ using AcadPaletteSetXData.Core;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
+using Autodesk.AutoCAD.Internal.PropertyInspector;
 using AcApplication = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
 namespace AcadPaletteSetXData.AutoCAD;
 
 /// <summary>Coalesces PICKFIRST events and reads detached snapshots on AutoCAD's idle thread.</summary>
-internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWriter, IObjectValuesSource, IDisposable
+internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWriter, ISelectionChanger, IObjectValuesSource, IDisposable
 {
     private readonly DocumentCollection documents = AcApplication.DocumentManager;
     private const int TracedCalculations = 10;
@@ -20,6 +21,7 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
     private Document? lastReadDocument;
     private bool pending = true;
     private bool disposed;
+    private bool displayNameFailed;
 
     public AutoCadSelectionSource()
     {
@@ -93,7 +95,7 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
                 try
                 {
                     if (!(transaction.GetObject(id, OpenMode.ForRead) is Entity entity)) continue;
-                    snapshots.Add(AutoCadDataReader.ReadEntity(transaction, entity));
+                    snapshots.Add(AutoCadDataReader.ReadEntity(transaction, entity, typeDisplayName: TypeDisplayName(entity)));
                 }
                 catch (Autodesk.AutoCAD.Runtime.Exception error)
                 {
@@ -117,12 +119,69 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
         return snapshots;
     }
 
-    public void WriteSelection(IReadOnlyList<string> handles, SelectionEdit edit)
+    /// <summary>
+    /// The name of the object type in the language of the installed AutoCAD: the name the Properties palette shows for the
+    /// object («Отрезок» in the Russian AutoCAD, «Line» in the English one, issue #41). AutoCAD gives it through the
+    /// Object Property Manager of the object; the plugin has no list of names. Null when AutoCAD gives no name: the snapshot
+    /// then falls back to the .NET type.
+    /// </summary>
+    private string? TypeDisplayName(Entity entity)
+    {
+        try
+        {
+            var name = ObjectPropertyManagerProperties.GetDisplayName(entity);
+            if (string.IsNullOrWhiteSpace(name) && traceEnabled)
+                document?.Editor.WriteMessage("\n[XDATAPALETTE] AutoCAD не вернул имя типа {0} [{1}].\n", entity.GetType().Name, entity.Handle);
+            return name;
+        }
+        catch (System.Exception error)
+        {
+            // Reported once per session in the trace: the list falls back to the .NET type names.
+            if (!displayNameFailed) System.Diagnostics.Trace.WriteLine(error, "XDATAPALETTE type display name");
+            if (!displayNameFailed && traceEnabled)
+                document?.Editor.WriteMessage("\n[XDATAPALETTE] Имя типа не получено от AutoCAD: {0}\n", error.Message);
+            displayNameFailed = true;
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// * and − of the group list (issue #41): selects the objects of the current PICKFIRST set with these handles through
+    /// <c>Editor.SetImpliedSelection</c>; an empty list clears the selection. Objects are not opened for
+    /// write, XDATA is not changed.
+    /// </summary>
+    public void SetSelection(IReadOnlyList<string> handles)
+    {
+        var active = Ready();
+        try
+        {
+            using (active.LockDocument())
+            {
+                var keep = new HashSet<string>(handles, StringComparer.OrdinalIgnoreCase);
+                var selection = active.Editor.SelectImplied();
+                var ids = selection.Status == PromptStatus.OK
+                    ? selection.Value.GetObjectIds().Where(id => !id.IsNull && keep.Contains(id.Handle.ToString())).ToArray()
+                    : Array.Empty<ObjectId>();
+                active.Editor.SetImpliedSelection(ids);
+                if (traceEnabled) active.Editor.WriteMessage("\n[XDATAPALETTE] Выделено объектов: {0} из {1}.\n", ids.Length, handles.Count);
+            }
+        }
+        finally { pending = true; }
+    }
+
+    /// <summary>The document read last is active and idle: the palette may write or change its selection.</summary>
+    private Document Ready()
     {
         var active = document;
         if (disposed || active == null || !ReferenceEquals(active, lastReadDocument) ||
             !ReferenceEquals(active, documents.MdiActiveDocument) || !active.Editor.IsQuiescent)
             throw new InvalidOperationException("Документ изменился или выполняется команда; повторите ввод после обновления панели.");
+        return active;
+    }
+
+    public void WriteSelection(IReadOnlyList<string> handles, SelectionEdit edit)
+    {
+        var active = Ready();
         var timer = Stopwatch.StartNew();
         try
         {

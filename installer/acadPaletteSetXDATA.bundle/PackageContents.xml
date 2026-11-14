@@ -5,8 +5,8 @@
   <CompanyDetails Name="veb86" Url="https://github.com/veb86/acadPaletteSetXDATA" />
   <Components>
     <ComponentEntry AppName="acadPaletteSetXDATA" AppType=".Net" ModuleName="./Contents/AutoCAD2021-2024/acadPaletteSetXDATA.dll" LoadOnAutoCADStartup="True" LoadOnCommandInvocation="True">
-      <!-- The DLL targets .NET Framework 4.8 and the AutoCAD 2021 API (R24.0); AutoCAD 2025+ runs .NET 8 and is excluded. -->
-      <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R24.0" SeriesMax="R24.3" />
+      <!-- The DLL targets .NET Framework 4.8 and the AutoCAD 2020 API (R23.1); AutoCAD 2025+ runs .NET 8 and is excluded. -->
+      <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R23.1" SeriesMax="R24.3" />
       <Commands GroupName="acadPaletteSetXDATA">
         <Command Global="XDATAPALETTE" Local="XDATAPALETTE" />
         <Command Global="XDATAPALETTE_ON" Local="XDATAPALETTE_ON" />

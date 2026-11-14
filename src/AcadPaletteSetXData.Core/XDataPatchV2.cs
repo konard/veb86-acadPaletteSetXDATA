@@ -128,7 +128,7 @@ public sealed partial class XDataPatch
         foreach (var node in nodes) result.AddRange(node.All);
         for (var i = app?.End ?? xdata.Count; i < xdata.Count; i++) result.Add(xdata[i]);
         // Records are kept by reference: the transaction writes only the XRecords that changed.
-        return new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, result, snapshot.Records, snapshot.Warning);
+        return new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, result, snapshot.Records, snapshot.Warning, snapshot.TypeDisplayName);
     }
 
     private (string Id, object Value) SetParameter(List<Node> nodes, SelectionEdit edit, SchemaSnapshot schema)

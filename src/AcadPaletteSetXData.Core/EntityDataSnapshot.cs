@@ -21,12 +21,18 @@ public sealed class DataRecord
 public sealed class EntityDataSnapshot
 {
     public EntityDataSnapshot(string handle, string entityType, IReadOnlyList<DataValue> xData,
-        IReadOnlyList<DataRecord> records, string? warning = null)
+        IReadOnlyList<DataRecord> records, string? warning = null, string? typeDisplayName = null)
     {
         Handle = handle; EntityType = entityType; XData = xData; Records = records; Warning = warning;
+        TypeDisplayName = string.IsNullOrWhiteSpace(typeDisplayName) ? entityType : typeDisplayName!.Trim();
     }
     public string Handle { get; }
     public string EntityType { get; }
+    /// <summary>
+    /// The name AutoCAD shows for the object type in the language of the installed AutoCAD («Отрезок», «Line»), read by
+    /// the source from AutoCAD itself (issue #41); <see cref="EntityType"/> when the source has no such name.
+    /// </summary>
+    public string TypeDisplayName { get; }
     public IReadOnlyList<DataValue> XData { get; }
     public IReadOnlyList<DataRecord> Records { get; }
     public string? Warning { get; }

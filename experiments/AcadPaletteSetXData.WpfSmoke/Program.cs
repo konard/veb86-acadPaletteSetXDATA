@@ -569,6 +569,10 @@ internal static class Program
         // «Все» + − clears the selection; the list and the buttons are hidden.
         source.Select(GroupSelection());
         Pump(view);
+        Check(((SelectionGroup)field.SelectedItem).Text == "Опора (3)", "The chosen group must stay chosen after the selection changes.");
+        field.SelectedIndex = 0;
+        Pump(view);
+        Check(((SelectionGroup)field.SelectedItem).IsAll, "«Все» must be the first item.");
         Invoke(exclude, view);
         Check(source.Handles().Length == 0 && model.Selection.Groups.Count == 0 && !field.IsVisible && !keep.IsVisible,
             "«Все» + − must clear the selection.");

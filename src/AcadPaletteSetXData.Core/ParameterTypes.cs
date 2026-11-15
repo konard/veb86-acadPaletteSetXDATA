@@ -250,13 +250,32 @@ public sealed class FormatFragment
     public static FormatFragment Parameter(string id, bool useKey) => new FormatFragment(null, id, useKey);
 }
 
-/// <summary>Parser of the <c>CalculatedString</c> syntax (TZXDATA 7.1): <c>@@[Id]</c>, <c>@@[Id:key]</c>, <c>@@@@</c>.</summary>
+/// <summary>
+/// Parser of the <c>CalculatedString</c> syntax (TZXDATA 7.1): <c>@@[Id]</c>, <c>@@[Id:key]</c>, <c>@@@@</c>.
+/// A format that starts with <c>=</c> is a formula (<see cref="FormulaExpression"/>, issue #43); a leading <c>\=</c> is the text <c>=</c>.
+/// </summary>
 public static class CalculatedFormat
 {
-    /// <summary>Returns fragments; <paramref name="error"/> is set for an unclosed or malformed reference.</summary>
+    /// <summary>The format is an NCalc expression: it starts with <c>=</c>.</summary>
+    public static bool IsFormula(string? format) => format != null && format.Length != 0 && format[0] == '=';
+
+    /// <summary>
+    /// Returns fragments; <paramref name="error"/> is set for an unclosed or malformed reference.
+    /// For a formula the fragments are its references (outside string literals) and the error is a syntax error.
+    /// </summary>
     public static IReadOnlyList<FormatFragment> Parse(string format, out string? error)
     {
+        if (IsFormula(format))
+        {
+            var expression = FormulaExpression.Compile(format);
+            error = expression.Error;
+            return expression.References;
+        }
         error = null;
+        // \= at the start is the text =; \\= is the text \= and so on: the first backslash escapes the marker.
+        var escaped = 0;
+        while (escaped < format.Length && format[escaped] == '\\') escaped++;
+        if (escaped != 0 && escaped < format.Length && format[escaped] == '=') format = format.Substring(1);
         var fragments = new List<FormatFragment>();
         var literal = new StringBuilder();
         var index = 0;

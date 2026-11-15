@@ -317,7 +317,8 @@ public sealed class SchemaEditorViewModel : ObservableObject
     }
 
     private static string RenameReference(string format, string old, string value) =>
-        Regex.Replace(format, @"(?<!@)((?:@@@@)*)@@\[" + Regex.Escape(old) + @"(:key)?\]",
+        // A formula keeps the text of its string literals: ="@@[Old]" is a text, not a reference (issue #43).
+        CalculatedFormat.IsFormula(format) ? FormulaExpression.RenameReference(format, old, value) : Regex.Replace(format, @"(?<!@)((?:@@@@)*)@@\[" + Regex.Escape(old) + @"(:key)?\]",
             match => match.Groups[1].Value + "@@[" + value + match.Groups[2].Value + "]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     // ---- Enums -------------------------------------------------------------------------------------------------------

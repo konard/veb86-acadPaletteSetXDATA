@@ -15,6 +15,7 @@ public sealed class PaletteApplicationTests : IDisposable
     public PaletteApplicationTests()
     {
         Application.DocumentManager.MdiActiveDocument = null;
+        Application.IsQuiescent = true;
         AutoCadPaletteHost.Creations = 0;
         BobrovInterface.Starts = 0;
     }
@@ -66,6 +67,64 @@ public sealed class PaletteApplicationTests : IDisposable
         Application.DocumentManager.MdiActiveDocument = document;
         Application.RaiseIdle();
         Assert.Empty(document.Editor.Messages);
+    }
+
+    // Issue #47: the bundle loads the plugin while AutoCAD opens the startup drawing; the plugin must not touch
+    // the command line until the drawing is open and nothing runs.
+    [Fact]
+    public void LoadingDuringTheStartupDrawingOpenWaitsForAQuietIdle()
+    {
+        var document = new FakeDocument();
+        Application.DocumentManager.MdiActiveDocument = document;
+        Application.IsQuiescent = false;
+        application.Initialize();
+        Assert.Empty(document.Editor.Messages);
+        Assert.Equal(1, Application.IdleSubscribers);
+
+        Application.IsQuiescent = true;
+        Application.DocumentManager.RaiseCreateStarted(document);
+        Application.RaiseIdle();
+        Assert.Empty(document.Editor.Messages);
+
+        Application.DocumentManager.RaiseCreated(document);
+        document.Editor.IsQuiescent = false;
+        Application.RaiseIdle();
+        document.Editor.IsQuiescent = true;
+        document.CommandInProgress = "SELECT";
+        Application.RaiseIdle();
+        Assert.Empty(document.Editor.Messages);
+        Assert.Equal(1, Application.IdleSubscribers);
+
+        document.CommandInProgress = "";
+        Application.RaiseIdle();
+        Assert.Contains("XDATAPALETTE", Assert.Single(document.Editor.Messages));
+        Assert.Equal(0, Application.IdleSubscribers);
+        Assert.Equal(0, AutoCadPaletteHost.Creations);
+    }
+
+    [Fact]
+    public void ACanceledDrawingOpenDoesNotBlockTheStartup()
+    {
+        var document = new FakeDocument();
+        application.Initialize();
+        Application.DocumentManager.RaiseCreateStarted(document);
+        Application.DocumentManager.MdiActiveDocument = document;
+        Application.RaiseIdle();
+        Assert.Empty(document.Editor.Messages);
+        Application.DocumentManager.RaiseCreationCanceled(document);
+        Application.RaiseIdle();
+        Assert.Single(document.Editor.Messages);
+    }
+
+    [Fact]
+    public void TerminationStopsWatchingTheDrawingOpen()
+    {
+        application.Initialize();
+        Assert.Equal(3, Application.DocumentManager.CreationSubscribers);
+        application.Initialize();
+        Assert.Equal(3, Application.DocumentManager.CreationSubscribers);
+        application.Terminate();
+        Assert.Equal(0, Application.DocumentManager.CreationSubscribers);
     }
 
     [Fact]
@@ -126,5 +185,6 @@ public sealed class PaletteApplicationTests : IDisposable
     {
         application.Terminate();
         Application.DocumentManager.MdiActiveDocument = null;
+        Application.IsQuiescent = true;
     }
 }

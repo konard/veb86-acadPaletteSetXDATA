@@ -79,10 +79,8 @@ public static class BobrovMenuInstaller
     public static string? Install(object? menuGroups, object? menuBar)
     {
         if (menuGroups == null || menuBar == null) return "AutoCAD не предоставляет строку меню.";
-        var group = Invoke(menuGroups, "Item", PreferredMenuGroup) ?? Invoke(menuGroups, "Item", 0);
-        if (group == null) return "нет группы меню.";
-        var menus = Get(group, "Menus");
-        if (menus == null) return "нет коллекции меню группы.";
+        var menus = FindMenus(menuGroups, out var failure);
+        if (menus == null) return failure;
         var menu = Invoke(menus, "Item", BobrovUi.MenuName) ?? Invoke(menus, "Add", BobrovUi.MenuName);
         if (menu == null) return "не удалось создать меню " + BobrovUi.MenuName + ".";
 
@@ -101,6 +99,33 @@ public static class BobrovMenuInstaller
 
         if (!OnMenuBar(menu)) Call(menu, "InsertInMenuBar", Count(menuBar));
         return OnMenuBar(menu) ? null : "меню не удалось добавить в строку меню.";
+    }
+
+    /// <summary>
+    /// True when the «Bobrov» menu is on the menu bar with all its items (issue #47). Only reads the COM
+    /// objects: a repeated check after <c>WSCURRENT</c> changes nothing when the menu is already in place.
+    /// </summary>
+    public static bool IsInstalled(object? menuGroups)
+    {
+        if (menuGroups == null) return false;
+        var menus = FindMenus(menuGroups, out _);
+        var menu = menus == null ? null : Invoke(menus, "Item", BobrovUi.MenuName);
+        return menu != null && OnMenuBar(menu) && Count(menu) == BobrovUi.PaletteCommands.Count;
+    }
+
+    private static object? FindMenus(object menuGroups, out string? failure)
+    {
+        failure = null;
+        var group = Invoke(menuGroups, "Item", PreferredMenuGroup) ?? Invoke(menuGroups, "Item", 0);
+        if (group == null)
+        {
+            failure = "нет группы меню.";
+            return null;
+        }
+
+        var menus = Get(group, "Menus");
+        if (menus == null) failure = "нет коллекции меню группы.";
+        return menus;
     }
 
     private static bool OnMenuBar(object menu)

@@ -82,7 +82,7 @@ internal static class Program
             Console.WriteLine("WPF checks passed: VST columns and states, «Разное», table rows, control panel, filter, column menu, " +
                               "virtualization, kept expansion and scroll, template menu, assigning and changing templates, committed defaults, legacy data, editors, Enter/Esc, check boxes, × ✎ «+ Добавить», " +
                               "«+ Параметр», write errors, selection groups with * and − (issue #41), ⚙ schema menu, " +
-                              "hidden SYSTEM group and the settings window, theme background of the empty lists (issue #48), schema editor (draft, formula preview, guards, errors, import, apply, cancel, light theme), XDATA tree, themes, resize and disposal.");
+                              "hidden SYSTEM group and the settings window, theme background of the empty lists (issue #48), schema editor (draft, formula preview, NCalc formulas (issue #43), guards, errors, import, apply, cancel, light theme), XDATA tree, themes, resize and disposal.");
             return 0;
         }
         catch (Exception error)
@@ -479,8 +479,20 @@ internal static class Program
                 "The template tab must show the parameters of the template and the others.");
             Save(root, Path.Combine(output, "tzxdata-stage8-templates.png"));
 
-            // A new parameter with an invalid Id: the error is listed and «Применить» stays disabled.
+            // Issue #43: a format with = is an NCalc formula; NCalc comes from the embedded resources of the release DLL.
             window.SelectTab(0);
+            editor.SelectedParameter = editor.FindParameter("GC_Name");
+            var format = editor.SelectedParameter!.Format;
+            editor.SelectedParameter.Format = "=\"Щит \" & @@[GC_HeadDevice] & \".\" & @@[GC_HDGroup] & IF(@@[Power] > 2 AND @@[Power] < 10, \" P>2\", \"\")";
+            Pump(root);
+            Check(editor.SelectedParameter.FormulaPreview == "«Щит ЩУ1.3 P>2» (BlockReference [A1])",
+                "The formula preview must evaluate an NCalc formula: " + editor.SelectedParameter.FormulaPreview);
+            Save(root, Path.Combine(output, "issue43-formula-preview.png"));
+            VerifyFormulaEngine();
+            editor.SelectedParameter.Format = format;
+            Pump(root);
+
+            // A new parameter with an invalid Id: the error is listed and «Применить» stays disabled.
             editor.AddParameterCommand.Execute(null);
             var added = editor.SelectedParameter!;
             added.Id = "1st";
@@ -1290,6 +1302,24 @@ internal static class Program
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var stream = File.Create(path);
         encoder.Save(stream);
+    }
+
+    /// <summary>
+    /// Issue #43: the formula engine is loaded. The release <c>acadPaletteSetXDATA.dll</c> is the only file of the
+    /// plugin, so NCalc must be loaded from its embedded resources, not from a file.
+    /// </summary>
+    private static void VerifyFormulaEngine()
+    {
+        // NCalc 7 keeps the evaluator (NCalc.Expression) in NCalc.Core.dll.
+        var engine = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(assembly => assembly.GetName().Name == "NCalc.Core");
+        Check(engine != null, "The formula preview must load NCalc.Core: " +
+            string.Join(", ", AppDomain.CurrentDomain.GetAssemblies().Select(assembly => assembly.GetName().Name).OrderBy(name => name)));
+        if (typeof(PaletteView).Assembly.GetName().Name != "acadPaletteSetXDATA") return;
+        var files = Directory.GetFiles(AppContext.BaseDirectory, "*.dll").Select(Path.GetFileName).ToArray();
+        Check(engine!.Location.Length == 0 && EmbeddedAssemblies.Names.Contains("NCalc.Core"),
+            "The release DLL must load NCalc.Core from its embedded resources: " + engine.Location);
+        Check(files.SequenceEqual(new[] { "acadPaletteSetXDATA.dll" }, StringComparer.OrdinalIgnoreCase),
+            "The release must need no DLL next to acadPaletteSetXDATA.dll: " + string.Join(", ", files));
     }
 
     private static BitmapSource Render(FrameworkElement element)

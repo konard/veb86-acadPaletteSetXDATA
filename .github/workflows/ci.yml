@@ -23,6 +23,7 @@ jobs:
         run: |
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/schema.json
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/tzxdata-stage10-load-schema.json
+          dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/issue43-formula-schema.json
       - name: Load report of 1000 objects × 50 parameters (TZXDATA 10.6)
         timeout-minutes: 3
         run: dotnet run --project experiments/AcadPaletteSetXData.LoadReport -c Release -- examples/tzxdata-stage10-load-schema.json
@@ -53,8 +54,13 @@ jobs:
       - name: Verify that AutoCAD SDK assemblies are not deployed
         shell: pwsh
         run: |
-          $sdkFiles = Get-ChildItem src/AcadPaletteSetXData.AutoCAD/bin/Release -Recurse -Filter *.dll | Where-Object { $_.Name -notlike 'AcadPaletteSetXData.*' }
-          if ($sdkFiles) { throw "Unexpected runtime assemblies: $($sdkFiles.Name -join ', ')" }
+          # AutoCAD loads its own API; NCalc and its dependencies (issue #43) are deployed next to the plugin.
+          $sdk = 'AcCoreMgd', 'AcCui', 'AcDbMgd', 'acdbmgdbrep', 'AcDx', 'AcMgd', 'AcMr', 'AcSeamless', 'AcTcMgd', 'AcWindows', 'AdUIMgd', 'AdUiPalettes', 'AdWindows'
+          $sdkFiles = Get-ChildItem src/AcadPaletteSetXData.AutoCAD/bin/Release -Recurse -Filter *.dll | Where-Object { $sdk -contains $_.BaseName -or $_.BaseName -like 'Autodesk.*' }
+          if ($sdkFiles) { throw "AutoCAD SDK assemblies must not be deployed: $($sdkFiles.Name -join ', ')" }
+          foreach ($folder in Get-ChildItem src/AcadPaletteSetXData.AutoCAD/bin/Release -Directory) {
+            if (-not (Test-Path (Join-Path $folder.FullName 'NCalc.dll'))) { throw "The formula engine NCalc.dll is missing in $($folder.Name)" }
+          }
       - name: Build WPF verification tool for both runtimes
         run: dotnet build experiments/AcadPaletteSetXData.WpfSmoke -c Release
       - name: Verify and render the .NET 8 WPF editor

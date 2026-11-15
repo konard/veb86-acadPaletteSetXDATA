@@ -1,0 +1,43 @@
+{
+  "format": "BobrovXDATA.schema",
+  "version": 1,
+  "parameters": [
+    { "id": "Number", "type": "String", "caption": "Номер щита", "group": "Обозначение" },
+    { "id": "Group", "type": "String", "caption": "Группа", "group": "Обозначение" },
+    { "id": "Name", "type": "String", "caption": "Наименование", "group": "Обозначение" },
+    { "id": "Power", "type": "Double", "caption": "Мощность", "group": "Электрика", "default": 0, "editor": { "unit": "кВт", "precision": 2, "min": 0 } },
+    { "id": "Reserve", "type": "Double", "caption": "Резерв", "group": "Электрика", "default": 0, "editor": { "unit": "кВт", "precision": 2, "min": 0 } },
+    { "id": "Count", "type": "Integer", "caption": "Количество", "group": "Электрика", "default": 1, "editor": { "min": 1 } },
+    { "id": "Length", "type": "Double", "caption": "Длина", "group": "Геометрия", "editor": { "unit": "мм" } },
+    { "id": "Angle", "type": "Double", "caption": "Угол наклона", "group": "Геометрия", "default": 0, "editor": { "unit": "°" } },
+    { "id": "Enabled", "type": "Boolean", "caption": "Включено", "group": "Электрика", "default": true },
+    { "id": "Voltage", "type": "Enum", "caption": "Напряжение", "group": "Электрика", "enum": "Voltage", "default": "_AC_220V_50Hz" },
+    { "id": "Designation", "type": "CalculatedString", "caption": "Обозначение", "description": "текстовый шаблон (режим 1)", "group": "Формулы", "format": "ЩУ@@[Number].@@[Group]" },
+    { "id": "Label", "type": "CalculatedString", "caption": "Подпись", "description": "объединение строк через &", "group": "Формулы", "format": "=\"ЩУ\" & @@[Number] & \".\" & @@[Group] & \" — \" & @@[Name]" },
+    { "id": "Total", "type": "CalculatedString", "caption": "Расчётная мощность", "description": "арифметика", "group": "Формулы", "format": "=(@@[Power] + @@[Reserve]) * @@[Count]", "persist": true },
+    { "id": "TotalText", "type": "CalculatedString", "caption": "Мощность, текст", "description": "ссылка на другой CalculatedString", "group": "Формулы", "format": "=\"P=\" & @@[Total] & \" кВт\"" },
+    { "id": "Load", "type": "CalculatedString", "caption": "Нагрузка", "description": "IF и логика", "group": "Формулы", "format": "=IF(NOT @@[Enabled], \"отключено\", IF(@@[Total] > 10 AND @@[Voltage:key] == \"_AC_220V_50Hz\", \"большая\", \"норма\"))" },
+    { "id": "LengthM", "type": "CalculatedString", "caption": "Длина, м", "description": "математика", "group": "Формулы", "format": "=ROUND(@@[Length] / 1000, 2)" },
+    { "id": "Rise", "type": "CalculatedString", "caption": "Подъём, мм", "description": "тригонометрия в градусах", "group": "Формулы", "format": "=TEXT(@@[Length] * SIN(@@[Angle]), \"0.0\")" },
+    { "id": "Literal", "type": "CalculatedString", "caption": "Текст с =", "description": "\\= — обычный текст", "group": "Формулы", "format": "\\=@@[Number]" }
+  ],
+  "enums": [
+    {
+      "id": "Voltage",
+      "caption": "Напряжение",
+      "items": [
+        { "key": "_AC_220V_50Hz", "caption": "220 В" },
+        { "key": "_AC_380V_50Hz", "caption": "380 В" }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "PANEL",
+      "caption": "Щит",
+      "entityTypes": [ "Line", "BlockReference" ],
+      "parameters": [ "Number", "Group", "Name", "Power", "Reserve", "Count", "Length", "Angle", "Enabled", "Voltage",
+                      "Designation", "Label", "Total", "TotalText", "Load", "LengthM", "Rise", "Literal" ]
+    }
+  ]
+}

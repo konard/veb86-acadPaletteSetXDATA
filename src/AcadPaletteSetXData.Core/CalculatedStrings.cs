@@ -12,14 +12,19 @@ public sealed class Formula
     private readonly List<string> errors = new List<string>();
     private readonly List<string> references = new List<string>();
 
-    internal Formula(SchemaParameter parameter, IReadOnlyList<FormatFragment> fragments)
+    internal Formula(SchemaParameter parameter, IReadOnlyList<FormatFragment> fragments, FormulaExpression? expression = null)
     {
-        Parameter = parameter; Fragments = fragments;
+        Parameter = parameter; Fragments = fragments; Expression = expression;
     }
 
     public string Id => Parameter.Id!;
     public SchemaParameter Parameter { get; }
+    /// <summary>The text and the references of the string mode; for a formula only its references.</summary>
     public IReadOnlyList<FormatFragment> Fragments { get; }
+    /// <summary>The format starts with <c>=</c>: an NCalc expression evaluated with typed values (issue #43).</summary>
+    public bool IsExpression => Expression != null;
+    /// <summary>The compiled expression of the formula mode, parsed once per schema snapshot; null in the string mode.</summary>
+    public FormulaExpression? Expression { get; }
     /// <summary>The result is also written to XDATA (TZXDATA 7.4).</summary>
     public bool Persist => Parameter.Persist == true;
     /// <summary>Referenced parameters of the schema, in the schema spelling, without repetitions.</summary>
@@ -89,8 +94,11 @@ public sealed class FormulaSet
             if (parameter.Id is null || set.byId.ContainsKey(parameter.Id) || !ReferenceEquals(schema.Parameters[parameter.Id], parameter)) continue;
             if (types.Find(parameter.Type)?.Kind != ParameterKind.CalculatedString) continue;
             string? error = null;
-            var fragments = string.IsNullOrEmpty(parameter.Format) ? Array.Empty<FormatFragment>() : CalculatedFormat.Parse(parameter.Format!, out error);
-            var formula = new Formula(parameter, fragments);
+            var expression = CalculatedFormat.IsFormula(parameter.Format) ? FormulaExpression.Compile(parameter.Format!) : null;
+            var fragments = expression != null ? expression.References
+                : string.IsNullOrEmpty(parameter.Format) ? Array.Empty<FormatFragment>() : CalculatedFormat.Parse(parameter.Format!, out error);
+            error ??= expression?.Error;
+            var formula = new Formula(parameter, fragments, expression);
             if (string.IsNullOrEmpty(parameter.Format)) formula.AddError("не задан format");
             if (error != null) formula.AddError(error);
             set.byId.Add(parameter.Id, formula);
@@ -196,20 +204,28 @@ public sealed class FormulaSet
 /// <summary>The result of a <c>CalculatedString</c> on one object.</summary>
 public sealed class CalculatedValue
 {
-    internal CalculatedValue(Formula formula, string text, string? stored) { Formula = formula; Text = text; Stored = stored; }
+    internal CalculatedValue(Formula formula, string text, string? stored, string? evaluationError = null)
+    {
+        Formula = formula; Text = text; Stored = stored; EvaluationError = evaluationError;
+    }
     public Formula Formula { get; }
     public string Id => Formula.Id;
     /// <summary>The computed text; unknown references stay as <c>@@[Id]</c> (TZXDATA 7.3).</summary>
     public string Text { get; }
     /// <summary>The text stored in XDATA when it was read; for <c>Persist</c> it is derived and not used (TZXDATA 7.4).</summary>
     public string? Stored { get; }
-    public bool IsError => Formula.IsError;
-    public string? Error => Formula.IsError ? Formula.Error : null;
+    /// <summary>
+    /// The formula failed on this object only (division by zero, a text where a number is expected — issue #43);
+    /// <see cref="Text"/> is then <see cref="FormulaExpression.ErrorText"/>.
+    /// </summary>
+    public string? EvaluationError { get; }
+    public bool IsError => Formula.IsError || EvaluationError != null;
+    public string? Error => Formula.IsError ? Formula.Error : EvaluationError;
     /// <summary>
     /// A stored <c>Persist</c> value whose text differs from the computed one; a missing value is not stale, it is written
     /// with the next change of a source or by <see cref="SelectionEdit.RecalculatePersisted"/>.
     /// </summary>
-    public bool IsStale => Formula.Persist && !Formula.IsError && Stored != null && Stored != Text;
+    public bool IsStale => Formula.Persist && !IsError && Stored != null && Stored != Text;
 }
 
 /// <summary>
@@ -375,7 +391,12 @@ public sealed class ObjectCalculation
             var formula = formulas[i];
             EvaluationCount++;
             var stored = Source.Find(formula.Id);
-            var value = new CalculatedValue(formula, Evaluate(formula), stored != null && !stored.IsTable && stored.Value is string text ? text : null);
+            // A referenced formula that failed on this object (formula mode): its text is not a value.
+            var failed = formula.IsError ? null : formula.References.Select(Formulas.Find).OfType<Formula>()
+                .FirstOrDefault(used => used.Component != formula.Component && results.TryGetValue(used.Id, out var result) && result.EvaluationError != null);
+            var error = failed is null ? null : "зависит от ошибочного параметра " + failed.Id;
+            var computed = error != null ? FormulaExpression.ErrorText : formula.IsExpression ? Calculate(formula, out error) : Evaluate(formula);
+            var value = new CalculatedValue(formula, computed, stored != null && !stored.IsTable && stored.Value is string text ? text : null, error);
             results[formula.Id] = value;
             recalculated[i] = value;
         }
@@ -403,6 +424,42 @@ public sealed class ObjectCalculation
             text.Append(FormatValue(Schema, parameter, Value(parameter.Id!), fragment.UseKey, culture, types));
         }
         return text.ToString();
+    }
+
+    /// <summary>
+    /// The formula mode (issue #43): the expression parsed with the schema is evaluated with the typed values of the
+    /// object — <c>String</c> as a string, <c>Integer</c> and <c>Double</c> as numbers, <c>Boolean</c> as true/false,
+    /// <c>Enum</c> as the caption (the key with <c>:key</c>), <c>CalculatedString</c> as its computed text.
+    /// A formula with an error of its text, and a value it cannot be computed from, give <see cref="FormulaExpression.ErrorText"/>.
+    /// </summary>
+    private string Calculate(Formula formula, out string? error)
+    {
+        error = null;
+        if (formula.IsError || formula.Expression is null) return FormulaExpression.ErrorText;
+        try
+        {
+            return formula.Expression.Evaluate(Typed, Text, culture);
+        }
+        catch (FormulaException failure)
+        {
+            error = failure.Message;
+            return FormulaExpression.ErrorText;
+        }
+
+        object? Typed(FormatFragment fragment)
+        {
+            var parameter = Schema.Parameters[fragment.Reference!];
+            if (Formulas.Find(parameter.Id) is Formula used) return results.TryGetValue(used.Id, out var result) ? result.Text : null;
+            var value = Value(parameter.Id!);
+            return types.Find(parameter.Type)?.Kind == ParameterKind.Enum && value is string ? FormatValue(Schema, parameter, value, fragment.UseKey, culture, types) : value;
+        }
+
+        string Text(FormatFragment fragment)
+        {
+            var parameter = Schema.Parameters[fragment.Reference!];
+            if (Formulas.Find(parameter.Id) is Formula used) return results.TryGetValue(used.Id, out var result) ? result.Text : "";
+            return FormatValue(Schema, parameter, Value(parameter.Id!), fragment.UseKey, culture, types);
+        }
     }
 
     /// <summary>The template default overrides the parameter default; no default gives an empty value (TZXDATA 7.2).</summary>

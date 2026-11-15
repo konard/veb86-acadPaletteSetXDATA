@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -315,6 +316,47 @@ public sealed class FormulaExpressionTests
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
         for (var i = 0; i < formats.Length - 1; i++) Assert.NotNull(errors[i]);
         Assert.Null(errors[formats.Length - 1]);
+    }
+
+    [Fact]
+    public void TheExampleSchemaCalculates()
+    {
+        // examples/issue43-formula-schema.json: both modes, &, IF with logic, math, degrees and a formula over a formula.
+        var example = ParameterSchemaJson.LoadFile(Path.Combine(AppContext.BaseDirectory, "examples", "issue43-formula-schema.json"));
+        Assert.False(example.HasErrors);
+        Assert.Empty(new SchemaValidator().Validate(example.Schema!));
+        var snapshot = new SchemaSnapshot(new SchemaNodReadResult(example.Schema, null, example.Issues));
+        Assert.Empty(snapshot.Formulas.Diagnostics);
+        var values = V2("A", Pair("TEMPLATE", "PANEL"), Pair("Number", "1"), Pair("Group", "3"), Pair("Name", "Освещение"), Pair("Power", 12.5),
+            Pair("Reserve", 0.5), Pair("Count", 2), Pair("Length", 12345.0), Pair("Angle", 30.0));
+        var calculation = new ObjectCalculation(XDataV2.Read(values, snapshot), Comma);
+        var expected = new Dictionary<string, string>
+        {
+            ["Designation"] = "ЩУ1.3",
+            ["Label"] = "ЩУ1.3 — Освещение",
+            ["Total"] = "26",
+            ["TotalText"] = "P=26 кВт",
+            ["Load"] = "большая",
+            ["LengthM"] = "12,35",
+            ["Rise"] = "6172,5",
+            ["Literal"] = "=1",
+        };
+        foreach (var pair in expected) Assert.Equal(pair.Value, calculation.Text(pair.Key));
+        Assert.DoesNotContain(calculation.Results, result => result.IsError);
+
+        // Total is the text "5" of a CalculatedString: it compares with 10 as a number, not as text ("5" > "10").
+        Assert.Equal(new[] { "Total", "TotalText", "Load" }, calculation.SetValue("Power", 2.0).Select(result => result.Id));
+        Assert.Equal("P=5 кВт", calculation.Text("TotalText"));
+        Assert.Equal("норма", calculation.Text("Load"));
+        Assert.Equal(new[] { "Load" }, calculation.SetValue("Enabled", false).Select(result => result.Id));
+        Assert.Equal("отключено", calculation.Text("Load"));
+
+        // Object B of examples/issue43-formulas.lsp: the defaults of Count and Angle, a disabled panel.
+        values = V2("B", Pair("TEMPLATE", "PANEL"), Pair("Number", "2"), Pair("Group", "1"), Pair("Name", "Розетки"), Pair("Power", 4.5),
+            Pair("Reserve", 0.5), Pair("Enabled", false), Pair("Length", 1000.0));
+        calculation = new ObjectCalculation(XDataV2.Read(values, snapshot), Comma);
+        Assert.Equal(new[] { "ЩУ2.1", "5", "отключено", "1", "0,0" },
+            new[] { "Designation", "Total", "Load", "LengthM", "Rise" }.Select(calculation.Text));
     }
 
     private static void AssertFormulaError(string format, string error)

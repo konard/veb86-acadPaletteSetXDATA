@@ -23,6 +23,7 @@ jobs:
         run: |
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/schema.json
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/tzxdata-stage10-load-schema.json
+          dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/issue43-formula-schema.json
       - name: Load report of 1000 objects × 50 parameters (TZXDATA 10.6)
         timeout-minutes: 3
         run: dotnet run --project experiments/AcadPaletteSetXData.LoadReport -c Release -- examples/tzxdata-stage10-load-schema.json

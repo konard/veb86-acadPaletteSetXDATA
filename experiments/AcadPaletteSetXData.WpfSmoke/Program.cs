@@ -1310,12 +1310,14 @@ internal static class Program
     /// </summary>
     private static void VerifyFormulaEngine()
     {
-        var engine = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(assembly => assembly.GetName().Name == "NCalc");
-        Check(engine != null, "The formula preview must load NCalc.");
+        // NCalc 7 keeps the evaluator (NCalc.Expression) in NCalc.Core.dll.
+        var engine = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(assembly => assembly.GetName().Name == "NCalc.Core");
+        Check(engine != null, "The formula preview must load NCalc.Core: " +
+            string.Join(", ", AppDomain.CurrentDomain.GetAssemblies().Select(assembly => assembly.GetName().Name).OrderBy(name => name)));
         if (typeof(PaletteView).Assembly.GetName().Name != "acadPaletteSetXDATA") return;
         var files = Directory.GetFiles(AppContext.BaseDirectory, "*.dll").Select(Path.GetFileName).ToArray();
-        Check(engine!.Location.Length == 0 && EmbeddedAssemblies.Names.Contains("NCalc"),
-            "The release DLL must load NCalc from its embedded resources: " + engine.Location);
+        Check(engine!.Location.Length == 0 && EmbeddedAssemblies.Names.Contains("NCalc.Core"),
+            "The release DLL must load NCalc.Core from its embedded resources: " + engine.Location);
         Check(files.SequenceEqual(new[] { "acadPaletteSetXDATA.dll" }, StringComparer.OrdinalIgnoreCase),
             "The release must need no DLL next to acadPaletteSetXDATA.dll: " + string.Join(", ", files));
     }

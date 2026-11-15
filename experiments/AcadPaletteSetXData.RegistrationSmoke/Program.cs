@@ -89,21 +89,50 @@ CheckCommand(migrationCommandsType, "Check", "VELEC_CHECK");
 foreach (var reference in metadata.AssemblyReferences.Select(metadata.GetAssemblyReference))
     Check(!metadata.GetString(reference.Name).StartsWith("AcadPaletteSetXData.", StringComparison.Ordinal),
         "Single-DLL release must not depend on a separate plugin assembly.");
-// TZXDATA stage 10: the release adds no dependencies; it references only .NET Framework 4.8 and the AutoCAD API.
+// TZXDATA stage 10: the release references only .NET Framework 4.8 and the AutoCAD API; issue #43 adds NCalc, which the
+// DLL carries as the resources Embedded.<name>.dll together with every dependency it needs (EmbeddedAssemblies).
 var references = metadata.AssemblyReferences.Select(handle => metadata.GetString(metadata.GetAssemblyReference(handle).Name)).OrderBy(name => name, StringComparer.Ordinal).ToArray();
 Console.WriteLine("Assembly references: " + string.Join(", ", references) + ".");
-string[] framework = { "mscorlib", "System", "WindowsBase", "PresentationCore", "PresentationFramework", "Microsoft.CSharp" };
+var embedded = EmbeddedAssemblies(pe, metadata);
+Console.WriteLine("Embedded assemblies: " + string.Join(", ", embedded.Keys.OrderBy(name => name, StringComparer.Ordinal)) + ".");
+Check(embedded.ContainsKey("NCalc.Core"), "Release must embed the formula engine NCalc.Core (issue #43).");
+string[] framework = { "mscorlib", "netstandard", "System", "WindowsBase", "PresentationCore", "PresentationFramework", "Microsoft.CSharp" };
 string[] autocad = { "AcMgd", "AcDbMgd", "AcCoreMgd", "AdWindows" };
+bool Available(string name) => embedded.ContainsKey(name) || framework.Contains(name) || name.StartsWith("System.", StringComparison.Ordinal);
 foreach (var name in references)
-    Check(framework.Contains(name) || name.StartsWith("System.", StringComparison.Ordinal) || autocad.Contains(name, StringComparer.OrdinalIgnoreCase),
-        "Single-DLL release must not depend on " + name + ": only .NET Framework 4.8 and the AutoCAD API are allowed.");
+    Check(Available(name) || autocad.Contains(name, StringComparer.OrdinalIgnoreCase),
+        "Single-DLL release must not depend on " + name + ": only .NET Framework 4.8, the AutoCAD API and embedded assemblies are allowed.");
+foreach (var pair in embedded)
+{
+    using var embeddedPe = new PEReader(System.Collections.Immutable.ImmutableArray.Create(pair.Value));
+    var embeddedMetadata = embeddedPe.GetMetadataReader();
+    Check(embeddedMetadata.GetString(embeddedMetadata.GetAssemblyDefinition().Name) == pair.Key, "Embedded." + pair.Key + ".dll must be the assembly " + pair.Key + ".");
+    foreach (var name in embeddedMetadata.AssemblyReferences.Select(handle => embeddedMetadata.GetString(embeddedMetadata.GetAssemblyReference(handle).Name)))
+        Check(Available(name), "The embedded " + pair.Key + " depends on " + name + ", which the release neither embeds nor gets from .NET Framework 4.8.");
+}
 foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply", "SchemaEditorViewModel", "SchemaEditorWindow", "SchemaMigration", "DrawingCheck", "BobrovInterface", "BobrovRibbon", "BobrovMenuInstaller" })
     Check(metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
         "Release must contain " + typeName + ".");
 Check(metadata.ManifestResources.Select(metadata.GetManifestResource)
     .Any(resource => metadata.GetString(resource.Name) == "acadPaletteSetXDATA.g.resources"),
     "Release must contain compiled WPF resources.");
-Console.WriteLine("Passed release command registration, shared implementation and WPF resource checks.");
+Console.WriteLine("Passed release command registration, shared implementation, embedded NCalc and WPF resource checks.");
+
+// The manifest resources Embedded.<name>.dll: a 4-byte length and the bytes, at the offset from the CLI resources directory.
+static System.Collections.Generic.Dictionary<string, byte[]> EmbeddedAssemblies(PEReader pe, MetadataReader metadata)
+{
+    var result = new System.Collections.Generic.Dictionary<string, byte[]>(StringComparer.Ordinal);
+    var directory = pe.PEHeaders.CorHeader!.ResourcesDirectory;
+    foreach (var resource in metadata.ManifestResources.Select(metadata.GetManifestResource))
+    {
+        var name = metadata.GetString(resource.Name);
+        if (!name.StartsWith("Embedded.", StringComparison.Ordinal) || !name.EndsWith(".dll", StringComparison.Ordinal)) continue;
+        var data = pe.GetSectionData(directory.RelativeVirtualAddress).GetReader((int)resource.Offset, directory.Size - (int)resource.Offset);
+        var length = data.ReadInt32();
+        result[name.Substring("Embedded.".Length, name.Length - "Embedded.".Length - ".dll".Length)] = data.ReadBytes(length);
+    }
+    return result;
+}
 
 static void Check(bool condition, string message)
 {

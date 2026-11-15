@@ -14,15 +14,19 @@ public sealed class PaletteApplication : IExtensionApplication
 
     public void Initialize()
     {
-        // Keep startup independent of palette creation; defer output if no drawing is open.
+        // Keep startup independent of palette creation.
+        // Issue #47: the bundle loads the plugin at AutoCAD startup, while the startup drawing is still being
+        // opened; the message and the «Bobrov» menu wait for an Idle where no drawing opens and nothing runs.
+        AutoCadStartup.Start();
         AcApplication.Idle -= OnIdle;
         if (!WriteLoadMessage()) AcApplication.Idle += OnIdle;
-        // Issue #39: the «Bobrov» menu and ribbon tab are added on the first Idle, when the main window is ready.
+        // Issue #39: the «Bobrov» menu and ribbon tab are added on a quiet Idle, when the main window is ready.
         BobrovInterface.Start();
     }
 
     private static bool WriteLoadMessage()
     {
+        if (!AutoCadStartup.IsReady("сообщение о загрузке")) return false;
         var document = AcApplication.DocumentManager.MdiActiveDocument;
         if (document == null) return false;
         document.Editor.WriteMessage(
@@ -73,6 +77,7 @@ public sealed class PaletteApplication : IExtensionApplication
     {
         AcApplication.Idle -= OnIdle;
         BobrovInterface.Stop();
+        AutoCadStartup.Stop();
         controller?.Dispose();
         themeSource?.Dispose();
         controller = null;

@@ -10,5 +10,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <ProjectReference Include="../../src/AcadPaletteSetXData.Core/AcadPaletteSetXData.Core.csproj" />
     <Compile Include="../../src/AcadPaletteSetXData.AutoCAD/PaletteApplication.cs" Link="PaletteApplication.cs" />
+    <Compile Include="../../src/AcadPaletteSetXData.AutoCAD/AutoCadStartup.cs" Link="AutoCadStartup.cs" />
   </ItemGroup>
 </Project>

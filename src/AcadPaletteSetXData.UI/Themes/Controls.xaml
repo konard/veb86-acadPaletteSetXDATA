@@ -87,7 +87,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="MinHeight" Value="27" />
         <!-- Issue #44: the text, the editable box and «Разное» use Padding, so a low editor (the 21 px enum of the VST) gives
-             them its whole height instead of the fixed 5,3 that left 13 px for a 16 px line and cut the letters. -->
+             them its whole height instead of the fixed 5,3 that left 13 px for a 17 px line and cut the letters. -->
         <Setter Property="Padding" Value="5,3" />
         <Setter Property="Template">
             <Setter.Value>

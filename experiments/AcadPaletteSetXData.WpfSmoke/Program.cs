@@ -1104,10 +1104,17 @@ internal static class Program
     /// <summary>Renders an element four times larger, so that a few pixels of clipped text are visible in a review.</summary>
     private static void SaveZoomed(FrameworkElement element, string path)
     {
+        // A VisualBrush draws the element at the origin; RenderTargetBitmap.Render would keep its offset in the parent.
         const double scale = 4;
-        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(element.ActualWidth * scale), (int)Math.Ceiling(element.ActualHeight * scale),
-            96 * scale, 96 * scale, PixelFormats.Pbgra32);
-        bitmap.Render(element);
+        var size = new Rect(0, 0, element.ActualWidth * scale, element.ActualHeight * scale);
+        var scene = new DrawingVisual();
+        using (var context = scene.RenderOpen())
+        {
+            context.DrawRectangle(new SolidColorBrush(Resource(element, "PaletteBackground")), null, size);
+            context.DrawRectangle(new VisualBrush(element) { Stretch = Stretch.Fill }, null, size);
+        }
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(size.Width), (int)Math.Ceiling(size.Height), 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(scene);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var stream = File.Create(path);

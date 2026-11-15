@@ -263,6 +263,130 @@ public sealed class SelectionGroupsTests
         return (model, source, controller);
     }
 
+    /// <summary>
+    /// Issue #41, comment of 2026-11-14: <c>SYSTEMTYPE</c> given by the template of the object (TZXDATA 6.2, not written to
+    /// XDATA) names the group as a stored one. Schema: <c>CABLE</c> sets the template default, <c>PIPE</c> lists the
+    /// parameter and uses its default, <c>BARE</c> does not list it.
+    /// </summary>
+    private const string TemplateSchema = @"{
+  ""format"": ""BobrovXDATA.schema"", ""version"": 1,
+  ""parameters"": [
+    { ""id"": ""SYSTEMTYPE"", ""type"": ""String"", ""caption"": ""Тип системы"", ""default"": ""Pipe"" },
+    { ""id"": ""Name"", ""type"": ""String"", ""caption"": ""Название"" }
+  ],
+  ""templates"": [
+    { ""id"": ""CABLE"", ""caption"": ""Кабель"", ""parameters"": [ ""Name"", { ""id"": ""SYSTEMTYPE"", ""default"": ""Cable"" } ] },
+    { ""id"": ""PIPE"", ""caption"": ""Труба"", ""parameters"": [ ""SYSTEMTYPE"", ""Name"" ] },
+    { ""id"": ""BARE"", ""caption"": ""Без типа"", ""parameters"": [ ""Name"" ] }
+  ]
+}";
+
+    [Fact]
+    public void SystemTypeOfTheTemplateNamesTheGroup()
+    {
+        var selection = new[]
+        {
+            Snapshot("C1", "Line", LineName, V2(("TEMPLATE", V(1000, "CABLE")))),
+            Snapshot("C2", "Polyline", PolylineName, V2(("TEMPLATE", V(1000, "cable")), ("Name", V(1000, "W1")))),
+            Snapshot("P1", "Line", LineName, V2(("TEMPLATE", V(1000, "PIPE")))),
+            Snapshot("B1", "BlockReference", BlockName, V2(("TEMPLATE", V(1000, "BARE")))),
+            Snapshot("N1", "Line", LineName, V2(("Name", V(1000, "без шаблона")))),
+            Snapshot("L1", "Line", LineName),
+        };
+        // The template default wins over the parameter default; a template without SYSTEMTYPE and objects without a
+        // template keep the AutoCAD name (the parameter default alone does not name a group).
+        Assert.Equal(new[] { "Все (6)", "Cable (2)", "Отрезок (2)", "Pipe (1)", "Вхождение блока (1)" }, TemplateTexts(selection));
+        var calculations = Calculations(selection);
+        Assert.Equal("Cable", SelectionGroups.TemplateSystemType(calculations[0]));
+        Assert.Equal("Pipe", SelectionGroups.TemplateSystemType(calculations[2]));
+        Assert.Null(SelectionGroups.TemplateSystemType(calculations[3]));
+        Assert.Null(SelectionGroups.TemplateSystemType(calculations[4]));
+        Assert.Null(SelectionGroups.TemplateSystemType(null));
+        Assert.Equal("Отрезок", SelectionGroups.DisplayName(selection[0]));
+        Assert.Equal("Cable", SelectionGroups.DisplayName(selection[0], calculations[0]));
+    }
+
+    [Fact]
+    public void AStoredSystemTypeWinsOverTheTemplateAndTheTemplateOverAForeignRegApp()
+    {
+        var foreign = new[] { V(1001, "ESMT_LEP_v1.0"), V(1000, "SYSTEMTYPE=Foreign") };
+        var selection = new[]
+        {
+            Snapshot("S1", "Line", LineName, V2(("TEMPLATE", V(1000, "CABLE")), ("SYSTEMTYPE", V(1000, "Stored")))),
+            Snapshot("F1", "Line", LineName, foreign.Concat(V2(("TEMPLATE", V(1000, "CABLE")))).ToArray()),
+            Snapshot("F2", "Line", LineName, foreign.Concat(V2(("TEMPLATE", V(1000, "BARE")))).ToArray()),
+            // A stored blank value is what the «Свойства» tab shows: the template default does not replace it.
+            Snapshot("E1", "Line", LineName, V2(("TEMPLATE", V(1000, "CABLE")), ("SYSTEMTYPE", V(1000, " ")))),
+            // A template missing in the schema gives nothing.
+            Snapshot("U1", "Line", LineName, V2(("TEMPLATE", V(1000, "UNKNOWN")))),
+        };
+        Assert.Equal(new[] { "Все (5)", "Отрезок (2)", "Stored (1)", "Cable (1)", "Foreign (1)" }, TemplateTexts(selection));
+    }
+
+    [Fact]
+    public void KeepAndExcludeUseTheSystemTypeOfTheTemplate()
+    {
+        var cache = TemplateCache();
+        var drawing = new[]
+        {
+            Snapshot("C1", "Line", LineName, V2(("TEMPLATE", V(1000, "CABLE")))),
+            Snapshot("C2", "Polyline", PolylineName, V2(("TEMPLATE", V(1000, "CABLE")))),
+            Snapshot("P1", "Line", LineName, V2(("TEMPLATE", V(1000, "PIPE")))),
+            Snapshot("L1", "Line", LineName),
+        };
+        var before = drawing.Select(snapshot => Dump(snapshot.XData)).ToArray();
+        var model = new PaletteViewModel();
+        var source = new ChangingSource(drawing, cache);
+        using var controller = new SelectionController(source, model.Selection);
+        var selection = model.Selection;
+        Assert.Equal(new[] { "Все (4)", "Cable (2)", "Pipe (1)", "Отрезок (1)" }, selection.Groups.Select(group => group.Text));
+        selection.SelectedGroup = selection.Groups.Single(group => group.Name == "Pipe");
+        selection.ExcludeGroupCommand.Execute(null);
+        Assert.Equal(new[] { "C1", "C2", "L1" }, source.Selected);
+        Assert.Equal(new[] { "Все (3)", "Cable (2)", "Отрезок (1)" }, selection.Groups.Select(group => group.Text));
+        selection.SelectedGroup = selection.Groups.Single(group => group.Name == "Cable");
+        selection.KeepGroupCommand.Execute(null);
+        Assert.Equal(new[] { "C1", "C2" }, source.Selected);
+        Assert.Equal(new[] { "Cable (2)" }, selection.Groups.Select(group => group.Text));
+        // SYSTEMTYPE of the template is read only: XDATA is not written.
+        Assert.Equal(0, source.Writes);
+        Assert.Equal(before, drawing.Select(snapshot => Dump(snapshot.XData)).ToArray());
+    }
+
+    [Fact]
+    public void TheExampleSchemaGroupsTheFixtureOfTheManualCheck()
+    {
+        // examples/issue41-template-systemtype-schema.json and the objects of examples/issue41-template-systemtype.lsp.
+        var result = ParameterSchemaJson.LoadFile(System.IO.Path.Combine(AppContext.BaseDirectory, "examples", "issue41-template-systemtype-schema.json"));
+        Assert.False(result.HasErrors, string.Join("; ", result.Issues));
+        var cache = new ObjectValuesCache(new SchemaCache(() => new SchemaNodReadResult(result.Schema, null, result.Issues)));
+        var selection = new[]
+        {
+            Snapshot("L1", "Line", LineName, V2(("TEMPLATE", V(1000, "CABLE")))),
+            Snapshot("L2", "Line", LineName, V2(("TEMPLATE", V(1000, "CABLE")), ("Name", V(1000, "W2")))),
+            Snapshot("P1", "Polyline", PolylineName, V2(("TEMPLATE", V(1000, "CABLE")))),
+            Snapshot("L3", "Line", LineName, V2(("SYSTEMTYPE", V(1000, "Кабель")))),
+            Snapshot("B1", "BlockReference", BlockName, V2(("TEMPLATE", V(1000, "SUPPORT")))),
+            Snapshot("L4", "Line", LineName),
+        };
+        var calculations = cache.Get(selection).Select(values => new ObjectCalculation(values)).ToArray();
+        Assert.Equal(new[] { "Все (6)", "Кабель (4)", "Опора (1)", "Отрезок (1)" },
+            SelectionGroups.Build(selection, calculations).Select(group => group.Text));
+    }
+
+    private static ObjectValuesCache TemplateCache()
+    {
+        var result = ParameterSchemaJson.Load(TemplateSchema);
+        Assert.NotNull(result.Schema);
+        return new ObjectValuesCache(new SchemaCache(() => new SchemaNodReadResult(result.Schema, null, result.Issues)));
+    }
+
+    private static ObjectCalculation[] Calculations(IReadOnlyList<EntityDataSnapshot> selection) =>
+        TemplateCache().Get(selection).Select(values => new ObjectCalculation(values)).ToArray();
+
+    private static string[] TemplateTexts(IReadOnlyList<EntityDataSnapshot> selection) =>
+        SelectionGroups.Build(selection, Calculations(selection)).Select(group => group.Text).ToArray();
+
     private static string[] Texts(IEnumerable<EntityDataSnapshot> selection) => SelectionGroups.Build(selection.ToArray()).Select(group => group.Text).ToArray();
 
     private static IEnumerable<EntityDataSnapshot> Lines(string prefix, int count, string? systemType = null) =>
@@ -286,11 +410,16 @@ public sealed class SelectionGroupsTests
     private static string Dump(IReadOnlyList<DataValue> values) => string.Join("|", values.Select(value => value.TypeCode + ":" + value.Value));
 
     /// <summary>A drawing with PICKFIRST: * and − select a part of it, writes are counted to prove there are none.</summary>
-    private sealed class ChangingSource : ISelectionSource, ISelectionChanger, ISelectionWriter
+    private sealed class ChangingSource : ISelectionSource, ISelectionChanger, ISelectionWriter, IObjectValuesSource
     {
         private readonly EntityDataSnapshot[] drawing;
 
-        public ChangingSource(EntityDataSnapshot[] drawing) { this.drawing = drawing; Selected = drawing.Select(item => item.Handle).ToArray(); }
+        public ChangingSource(EntityDataSnapshot[] drawing, ObjectValuesCache? values = null)
+        {
+            this.drawing = drawing; Values = values; Selected = drawing.Select(item => item.Handle).ToArray();
+        }
+        /// <summary>The value cache of the schema: templates give <c>SYSTEMTYPE</c>; null without a schema.</summary>
+        public ObjectValuesCache? Values { get; }
         public EntityDataSnapshot[] Snapshot => drawing;
         public IReadOnlyList<string> Selected { get; private set; }
         public int Changes { get; private set; }

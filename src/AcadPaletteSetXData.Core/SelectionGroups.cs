@@ -59,14 +59,23 @@ public static class SelectionGroups
     /// The groups in the order of the list: «Все» first when there is more than one group, then the groups by count
     /// (the larger first) and, for the same count, in the order of the first object in the selection.
     /// </summary>
-    public static IReadOnlyList<SelectionGroup> Build(IReadOnlyList<EntityDataSnapshot> snapshots)
+    public static IReadOnlyList<SelectionGroup> Build(IReadOnlyList<EntityDataSnapshot> snapshots) => Build(snapshots, null);
+
+    /// <summary>
+    /// The groups of <see cref="Build(IReadOnlyList{EntityDataSnapshot})"/>; <paramref name="calculations"/> (by handle) give
+    /// the <c>SYSTEMTYPE</c> of the object template when XDATA does not store it (<see cref="SystemType(IReadOnlyList{DataValue}, ObjectCalculation)"/>).
+    /// </summary>
+    public static IReadOnlyList<SelectionGroup> Build(IReadOnlyList<EntityDataSnapshot> snapshots, IReadOnlyList<ObjectCalculation>? calculations)
     {
         if (snapshots is null) throw new ArgumentNullException(nameof(snapshots));
+        var byHandle = new Dictionary<string, ObjectCalculation>(StringComparer.OrdinalIgnoreCase);
+        foreach (var calculation in calculations ?? Array.Empty<ObjectCalculation>())
+            if (!byHandle.ContainsKey(calculation.Handle)) byHandle.Add(calculation.Handle, calculation);
         var order = new List<string>();
         var members = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var snapshot in snapshots)
         {
-            var name = DisplayName(snapshot);
+            var name = DisplayName(snapshot, byHandle.TryGetValue(snapshot.Handle, out var calculation) ? calculation : null);
             if (!members.TryGetValue(name, out var handles))
             {
                 members.Add(name, handles = new List<string>());
@@ -82,13 +91,14 @@ public static class SelectionGroups
     }
 
     /// <summary>
-    /// The name of the group of an object: the non-empty <c>SYSTEMTYPE</c> value, otherwise the name AutoCAD shows for the
+    /// The name of the group of an object: the non-empty <c>SYSTEMTYPE</c> value — stored in XDATA or, with
+    /// <paramref name="calculation"/>, given by the template of the object — otherwise the name AutoCAD shows for the
     /// object type in the current language (<see cref="EntityDataSnapshot.TypeDisplayName"/>).
     /// </summary>
-    public static string DisplayName(EntityDataSnapshot snapshot)
+    public static string DisplayName(EntityDataSnapshot snapshot, ObjectCalculation? calculation = null)
     {
         if (snapshot is null) throw new ArgumentNullException(nameof(snapshot));
-        return SystemType(snapshot.XData) ?? snapshot.TypeDisplayName;
+        return SystemType(snapshot.XData, calculation) ?? snapshot.TypeDisplayName;
     }
 
     /// <summary>
@@ -101,17 +111,53 @@ public static class SelectionGroups
     /// </list>
     /// The Id is compared without case, as Ids of the schema.
     /// </summary>
-    public static string? SystemType(IReadOnlyList<DataValue> xdata)
+    public static string? SystemType(IReadOnlyList<DataValue> xdata) => SystemType(xdata, null);
+
+    /// <summary>
+    /// <see cref="SystemType(IReadOnlyList{DataValue})"/> that also reads <c>SYSTEMTYPE</c> of the object template
+    /// (<see cref="TemplateSystemType"/>): the plugin RegApp first, then the template, then the other RegApps — the value
+    /// the «Свойства» tab shows for the object wins over a foreign RegApp.
+    /// </summary>
+    public static string? SystemType(IReadOnlyList<DataValue> xdata, ObjectCalculation? calculation)
     {
         if (xdata is null) throw new ArgumentNullException(nameof(xdata));
         var sections = Sections(xdata);
-        foreach (var section in sections.OrderBy(section => IsPluginApp(section.App) ? 0 : 1))
-        {
-            var value = Find(xdata, section.App, section.Start, section.End);
-            if (value != null) return value;
-        }
+        foreach (var section in sections.Where(section => IsPluginApp(section.App)))
+            if (Find(xdata, section.App, section.Start, section.End) is string value) return value;
+        if (TemplateSystemType(calculation) is string fromTemplate) return fromTemplate;
+        foreach (var section in sections.Where(section => !IsPluginApp(section.App)))
+            if (Find(xdata, section.App, section.Start, section.End) is string value) return value;
         return null;
     }
+
+    /// <summary>
+    /// The trimmed non-empty <c>SYSTEMTYPE</c> the object gets from its template (XDATA v2 <c>TEMPLATE</c>, TZXDATA 6.2):
+    /// when the template lists <c>SYSTEMTYPE</c>, the value shown for it in the «Свойства» tab — the stored one, otherwise
+    /// the <c>Default</c> of the template, otherwise the <c>Default</c> of the parameter. Null without a template, when the
+    /// template does not list <c>SYSTEMTYPE</c> or the value is empty. Defaults are not written to XDATA.
+    /// </summary>
+    public static string? TemplateSystemType(ObjectCalculation? calculation)
+    {
+        if (calculation?.Template is null || !calculation.Schema.Templates.TryGetValue(calculation.Template, out var template)) return null;
+        var item = template.Parameters.FirstOrDefault(parameter => ParameterSchema.SameId(parameter.Id, SystemTypeKey));
+        if (item is null) return null;
+        // A template that refers to a parameter missing in the schema (an invalid schema) still gives its own default.
+        var value = calculation.Schema.Parameters.ContainsKey(SystemTypeKey) ? calculation.Value(SystemTypeKey) : calculation.Source.Find(SystemTypeKey)?.Value ?? JsonScalar(item.Default);
+        return value switch
+        {
+            null => null,
+            string text => NonEmpty(text),
+            _ => NonEmpty(XDataV2.FormatValue(value))
+        };
+    }
+
+    private static object? JsonScalar(JsonValue? value) => value switch
+    {
+        JsonString text => text.Value,
+        JsonNumber number => number.Text,
+        JsonBoolean flag => flag.Value,
+        _ => null
+    };
 
     private static List<(string App, int Start, int End)> Sections(IReadOnlyList<DataValue> xdata)
     {

@@ -76,7 +76,7 @@ AutoCAD автоматически загружает пакеты из папк
 `%APPDATA%\Autodesk\ApplicationPlugins\acadPaletteSetXDATA.bundle\Contents\AutoCAD2021-2024\acadPaletteSetXDATA.dll`.
 В поле имени файла можно вставить путь целиком — `%APPDATA%` будет раскрыт.
 
-`PackageContents.xml` разрешает загрузку в AutoCAD 2021–2024 (`R24.0`–`R24.3`, .NET Framework 4.8);
+`PackageContents.xml` разрешает загрузку в AutoCAD 2020–2024 (`R23.1`–`R24.3`, .NET Framework 4.8);
 проверенной целевой версией остаётся AutoCAD 2021. AutoCAD 2025 и новее работают на .NET 8
 и этот пакет не загружают.
 

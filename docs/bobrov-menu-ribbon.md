@@ -75,7 +75,7 @@ release-manifest.txt
 
 [PackageContents.xml](../installer/acadPaletteSetXDATA.bundle/PackageContents.xml):
 
-- `RuntimeRequirements OS="Win64" SeriesMin="R24.0" SeriesMax="R24.3"` — AutoCAD 2021–2024
+- `RuntimeRequirements OS="Win64" SeriesMin="R23.1" SeriesMax="R24.3"` — AutoCAD 2020–2024
   x64 с .NET Framework 4.8; основная проверенная цель — AutoCAD 2021. AutoCAD 2025 и новее
   (.NET 8) пакет не загружают.
 - `LoadOnAutoCADStartup="True"` — плагин загружается при запуске, поэтому меню и вкладка

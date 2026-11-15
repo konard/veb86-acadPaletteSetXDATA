@@ -94,7 +94,7 @@ pwsh -NoProfile -File experiments/Test-AcadPaletteSetXDataManualInstall.ps1 -Man
 ```
 
 С задачи #39 проверка выпуска также собирает архив ручной установки и проверяет его точный
-состав, совпадение DLL, `PackageContents.xml` (`AppVersion` выпуска, `Win64`, `R24.0`–`R24.3`,
+состав, совпадение DLL, `PackageContents.xml` (`AppVersion` выпуска, `Win64`, `R23.1`–`R24.3`,
 `LoadOnAutoCADStartup`, существующий `ModuleName`, команды `XDATAPALETTE*`), окончания строк CRLF
 в `.cmd`, SHA-256 в `release-manifest.txt`, отказ при неверной версии или DLL Autodesk в сборке,
 а также создание, возобновление и проверку Release с двумя архивами.

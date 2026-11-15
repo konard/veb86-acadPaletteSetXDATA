@@ -1,0 +1,22 @@
+{
+  "format": "BobrovXDATA.schema",
+  "version": 1,
+  "parameters": [
+    { "id": "SYSTEMTYPE", "type": "String", "caption": "Тип системы", "group": "Общие" },
+    { "id": "Name", "type": "String", "caption": "Название", "group": "Общие" }
+  ],
+  "templates": [
+    {
+      "id": "CABLE",
+      "caption": "Кабель",
+      "entityTypes": [ "Line", "Polyline" ],
+      "parameters": [ { "id": "SYSTEMTYPE", "default": "Кабель" }, "Name" ]
+    },
+    {
+      "id": "SUPPORT",
+      "caption": "Опора",
+      "entityTypes": [ "BlockReference" ],
+      "parameters": [ { "id": "SYSTEMTYPE", "default": "Опора" }, "Name" ]
+    }
+  ]
+}

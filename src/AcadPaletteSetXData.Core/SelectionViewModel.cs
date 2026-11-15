@@ -42,8 +42,9 @@ public sealed class SelectionViewModel : ObservableObject
     public bool CanWrite { get => canWrite; private set => SetProperty(ref canWrite, value); }
 
     /// <summary>
-    /// The list above the panel (issue #41): the selection grouped by <c>SYSTEMTYPE</c> or by the AutoCAD name of the object
-    /// type, «Все» first when there is more than one group. Rebuilt by every <see cref="Apply"/>.
+    /// The list above the panel (issue #41): the selection grouped by <c>SYSTEMTYPE</c> (stored in XDATA or given by the
+    /// object template) or by the AutoCAD name of the object type, «Все» first when there is more than one group. Rebuilt by
+    /// every <see cref="Apply"/>.
     /// </summary>
     public ObservableCollection<SelectionGroup> Groups { get; } = new ObservableCollection<SelectionGroup>();
 
@@ -171,18 +172,21 @@ public sealed class SelectionViewModel : ObservableObject
         foreach (var entity in parsed) Entities.Add(entity);
         HasSelection = Entities.Count != 0;
         SelectedEntity = Entities.FirstOrDefault(entity => entity.Handle == previousHandle) ?? Entities.FirstOrDefault();
-        ApplyGroups(snapshots);
+        ApplyGroups(snapshots, calculations);
         editor.LoadSelection(Entities);
         Error = error;
         Status = error ?? (HasSelection ? "Выделено объектов: " + Entities.Count + " • Групповые свойства" : "Выберите объекты в чертеже");
         Applied?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Rebuilds <see cref="Groups"/>; the chosen group stays chosen while a group with its name is in the list.</summary>
-    private void ApplyGroups(IReadOnlyList<EntityDataSnapshot> snapshots)
+    /// <summary>
+    /// Rebuilds <see cref="Groups"/>; the chosen group stays chosen while a group with its name is in the list. The
+    /// calculations give <c>SYSTEMTYPE</c> of the object template when XDATA does not store it.
+    /// </summary>
+    private void ApplyGroups(IReadOnlyList<EntityDataSnapshot> snapshots, IReadOnlyList<ObjectCalculation> calculations)
     {
         var previous = SelectedGroup;
-        var groups = SelectionGroups.Build(snapshots);
+        var groups = SelectionGroups.Build(snapshots, calculations);
         SelectedGroup = null;
         Groups.Clear();
         foreach (var group in groups) Groups.Add(group);

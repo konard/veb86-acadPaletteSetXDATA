@@ -1,5 +1,19 @@
 # Рендеры WPF-панели
 
+## Задача #43: формула NCalc в редакторе схемы
+
+`issue43-formula-preview.png` — редактор схемы с формулой
+`="Щит " & @@[GC_HeadDevice] & "." & @@[GC_HDGroup] & IF(@@[Power] > 2 AND @@[Power] < 10, " P>2", "")`
+у `GC_Name`: предпросмотр на выделенном объекте — «Щит ЩУ1.3 P>2». Рендер единственной Release DLL
+(`acadPaletteSetXDATA.dll`, NCalc загружен из встроенного ресурса) на Windows **net48** без AutoCAD из
+[CI, commit 51d7b68](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/43689183622), артефакт
+`release-wpf-renders`; те же проверки пройдены на net48 и .NET 8 со сборкой для разработки
+([CI](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/43689183529), `wpf-renders`). Генератор —
+`VerifySchemaEditor` и `VerifyFormulaEngine` в `experiments/AcadPaletteSetXData.WpfSmoke`. Описание —
+[calculated-string.md](../calculated-string.md#формульный-режим-задача-43).
+
+![Формула в редакторе схемы](issue43-formula-preview.png)
+
 ## Задача #48: скрытая группа `SYSTEM`, окно настроек и фон пустого VST
 
 `issue48-*.png` — настоящий `PaletteView` и `SettingsWindow` на Windows **net48** без AutoCAD.

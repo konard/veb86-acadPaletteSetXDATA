@@ -84,7 +84,7 @@ try {
     $manifest = [Collections.Generic.List[string]]::new()
     $manifest.Add("acadPaletteSetXDATA manual install v$appVersion")
     $manifest.Add("Commit SHA: $CommitSha")
-    $manifest.Add('Target: AutoCAD 2021 x64 / .NET Framework 4.8 (PackageContents SeriesMin R24.0, SeriesMax R24.3)')
+    $manifest.Add('Target: AutoCAD 2020-2024 x64 / .NET Framework 4.8 (PackageContents SeriesMin R23.1, SeriesMax R24.3)')
     $manifest.Add('Install path: %APPDATA%\Autodesk\ApplicationPlugins\acadPaletteSetXDATA.bundle')
     $manifest.Add('')
     $manifest.Add('SHA-256:')

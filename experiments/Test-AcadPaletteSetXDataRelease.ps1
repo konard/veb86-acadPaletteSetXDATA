@@ -90,7 +90,7 @@ try {
     Assert ($packageNode.ProductType -ceq 'Application' -and $packageNode.AutodeskProduct -ceq 'AutoCAD') 'PackageContents.xml must describe an AutoCAD application bundle.'
     $entry = $packageNode.Components.ComponentEntry
     $runtime = $entry.RuntimeRequirements
-    Assert ($runtime.OS -ceq 'Win64' -and $runtime.SeriesMin -ceq 'R24.0' -and $runtime.SeriesMax -ceq 'R24.3') 'The bundle must target AutoCAD 2021-2024 x64 (R24.x, .NET Framework 4.8).'
+    Assert ($runtime.OS -ceq 'Win64' -and $runtime.SeriesMin -ceq 'R23.1' -and $runtime.SeriesMax -ceq 'R24.3') 'The bundle must target AutoCAD 2020-2024 x64 (R23.1-R24.3, .NET Framework 4.8).'
     Assert ($entry.LoadOnAutoCADStartup -ceq 'True' -and $entry.AppType -ceq '.Net') 'AutoCAD must load the .NET module at startup.'
     Assert (Test-Path (Join-Path "$manualDirectory/$bundle" $entry.ModuleName) -PathType Leaf) "ModuleName $($entry.ModuleName) must point to the DLL inside the bundle."
     $commands = @($entry.Commands.Command | ForEach-Object { $_.Global })

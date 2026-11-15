@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using AcadPaletteSetXData.Core;
 using AcadPaletteSetXData.AutoCAD;
 using Autodesk.AutoCAD.ApplicationServices.Core;
 using Autodesk.AutoCAD.Runtime;
@@ -17,7 +16,6 @@ public sealed class PaletteApplicationTests : IDisposable
         Application.DocumentManager.MdiActiveDocument = null;
         Application.IsQuiescent = true;
         AutoCadPaletteHost.Creations = 0;
-        BobrovInterface.Starts = 0;
     }
 
     [Fact]
@@ -30,6 +28,9 @@ public sealed class PaletteApplicationTests : IDisposable
         Assert.Contains("acadPaletteSetXDATA", message);
         Assert.Contains("загружено", message);
         Assert.Contains("XDATAPALETTE", message);
+        // Issue #53: the plugin no longer offers a «Bobrov» menu or ribbon tab.
+        Assert.DoesNotContain("Bobrov", message);
+        Assert.DoesNotContain("XDATAPALETTE_O", message);
         Assert.Equal(0, AutoCadPaletteHost.Creations);
         Assert.Equal(0, Application.IdleSubscribers);
         Application.RaiseIdle();
@@ -127,58 +128,44 @@ public sealed class PaletteApplicationTests : IDisposable
         Assert.Equal(0, Application.DocumentManager.CreationSubscribers);
     }
 
+    // Issue #53: menus and ribbon tabs belong to a separate module; this plugin keeps only the command line
+    // toggle XDATAPALETTE (XDATAPALETTE_ON/XDATAPALETTE_OFF of the removed «Bobrov» buttons are gone).
     [Fact]
-    public void LoadingStartsTheBobrovMenuAndRibbonAndTerminationRemovesTheirHandlers()
-    {
-        application.Initialize();
-        Assert.True(BobrovInterface.Running);
-        Assert.Equal(1, BobrovInterface.Starts);
-        Assert.Equal(0, AutoCadPaletteHost.Creations);
-        application.Terminate();
-        Assert.False(BobrovInterface.Running);
-    }
-
-    [Fact]
-    public void BobrovOnAndOffCommandsShowAndHideOnePalette()
-    {
-        var document = new FakeDocument();
-        Application.DocumentManager.MdiActiveDocument = document;
-
-        PaletteApplication.HidePalette();
-        Assert.Equal(0, AutoCadPaletteHost.Creations);
-
-        PaletteApplication.ShowPalette();
-        PaletteApplication.ShowPalette();
-        Assert.Equal(1, AutoCadPaletteHost.Creations);
-        Assert.True(AutoCadPaletteHost.Last!.Visible);
-
-        PaletteApplication.HidePalette();
-        PaletteApplication.HidePalette();
-        Assert.False(AutoCadPaletteHost.Last.Visible);
-
-        PaletteApplication.TogglePalette();
-        Assert.True(AutoCadPaletteHost.Last.Visible);
-        Assert.Equal(1, AutoCadPaletteHost.Creations);
-        Assert.Empty(document.Editor.Messages);
-    }
-
-    [Fact]
-    public void BobrovButtonsCallRegisteredSessionCommands()
+    public void OnlyTheXDataPaletteToggleCommandIsRegistered()
     {
         var commands = typeof(PaletteApplication).GetMethods()
             .SelectMany(method => method.GetCustomAttributes(typeof(CommandMethodAttribute), false)
                 .Cast<CommandMethodAttribute>()
                 .Select(attribute => (attribute.GlobalName, attribute.Flags, method.Name)))
-            .ToDictionary(item => item.GlobalName);
+            .ToList();
 
-        Assert.Equal(new[] { "XDATAPALETTE", "XDATAPALETTE_OFF", "XDATAPALETTE_ON" }, commands.Keys.OrderBy(name => name));
-        foreach (var button in BobrovUi.PaletteCommands)
-        {
-            Assert.True(commands.ContainsKey(button.Command), button.Command);
-            Assert.True(commands[button.Command].Flags.HasFlag(CommandFlags.Session), button.Command);
-        }
-        Assert.Equal(nameof(PaletteApplication.ShowPalette), commands[BobrovUi.ShowCommand].Name);
-        Assert.Equal(nameof(PaletteApplication.HidePalette), commands[BobrovUi.HideCommand].Name);
+        var command = Assert.Single(commands);
+        Assert.Equal("XDATAPALETTE", command.GlobalName);
+        Assert.Equal(nameof(PaletteApplication.TogglePalette), command.Name);
+        Assert.True(command.Flags.HasFlag(CommandFlags.Session));
+        Assert.True(command.Flags.HasFlag(CommandFlags.UsePickSet));
+    }
+
+    [Fact]
+    public void TheToggleCommandShowsAndHidesOnePalette()
+    {
+        var document = new FakeDocument();
+        Application.DocumentManager.MdiActiveDocument = document;
+
+        PaletteApplication.TogglePalette();
+        Assert.Equal(1, AutoCadPaletteHost.Creations);
+        Assert.True(AutoCadPaletteHost.Last!.Visible);
+
+        PaletteApplication.TogglePalette();
+        Assert.False(AutoCadPaletteHost.Last.Visible);
+
+        // The palette closed by its title bar is shown again by the next toggle.
+        PaletteApplication.TogglePalette();
+        AutoCadPaletteHost.Last.Visible = false;
+        PaletteApplication.TogglePalette();
+        Assert.True(AutoCadPaletteHost.Last.Visible);
+        Assert.Equal(1, AutoCadPaletteHost.Creations);
+        Assert.Empty(document.Editor.Messages);
     }
 
     public void Dispose()

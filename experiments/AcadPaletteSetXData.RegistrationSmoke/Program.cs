@@ -76,9 +76,14 @@ void CheckCommand(string typeName, string methodName, string commandName)
 }
 
 CheckCommand(applicationType, "TogglePalette", "XDATAPALETTE");
-// Issue #39: the «Включить»/«Выключить» buttons of the «Bobrov» menu and ribbon tab.
-CheckCommand(applicationType, "ShowPalette", "XDATAPALETTE_ON");
-CheckCommand(applicationType, "HidePalette", "XDATAPALETTE_OFF");
+// Issue #53: the «Bobrov» menu and ribbon tab of issue #39 were removed together with their XDATAPALETTE_ON/OFF
+// buttons; menus belong to a separate module, which calls XDATAPALETTE.
+foreach (var removed in new[] { "ShowPalette", "HidePalette" })
+    Check(!metadata.TypeDefinitions.Select(metadata.GetTypeDefinition)
+            .Where(item => metadata.GetString(item.Namespace) + "." + metadata.GetString(item.Name) == applicationType)
+            .SelectMany(item => item.GetMethods().Select(metadata.GetMethodDefinition))
+            .Any(item => metadata.GetString(item.Name) == removed),
+        "Release must not register the removed " + removed + " command handler (issue #53).");
 CheckCommand(schemaCommandsType, "Import", "VELEC_SCHEMA_IMPORT");
 CheckCommand(schemaCommandsType, "Export", "VELEC_SCHEMA_EXPORT");
 CheckCommand(schemaCommandsType, "Edit", "VELEC_SCHEMA_EDIT");
@@ -97,7 +102,9 @@ var embedded = EmbeddedAssemblies(pe, metadata);
 Console.WriteLine("Embedded assemblies: " + string.Join(", ", embedded.Keys.OrderBy(name => name, StringComparer.Ordinal)) + ".");
 Check(embedded.ContainsKey("NCalc.Core"), "Release must embed the formula engine NCalc.Core (issue #43).");
 string[] framework = { "mscorlib", "netstandard", "System", "WindowsBase", "PresentationCore", "PresentationFramework", "Microsoft.CSharp" };
-string[] autocad = { "AcMgd", "AcDbMgd", "AcCoreMgd", "AdWindows" };
+// Issue #53: AdWindows (the ribbon API) is no longer used — the plugin adds no ribbon tab.
+string[] autocad = { "AcMgd", "AcDbMgd", "AcCoreMgd" };
+Check(!references.Contains("AdWindows", StringComparer.OrdinalIgnoreCase), "Release must not reference AdWindows: the ribbon tab was removed (issue #53).");
 bool Available(string name) => embedded.ContainsKey(name) || framework.Contains(name) || name.StartsWith("System.", StringComparison.Ordinal);
 foreach (var name in references)
     Check(Available(name) || autocad.Contains(name, StringComparer.OrdinalIgnoreCase),
@@ -110,9 +117,12 @@ foreach (var pair in embedded)
     foreach (var name in embeddedMetadata.AssemblyReferences.Select(handle => embeddedMetadata.GetString(embeddedMetadata.GetAssemblyReference(handle).Name)))
         Check(Available(name), "The embedded " + pair.Key + " depends on " + name + ", which the release neither embeds nor gets from .NET Framework 4.8.");
 }
-foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply", "SchemaEditorViewModel", "SchemaEditorWindow", "SchemaMigration", "DrawingCheck", "BobrovInterface", "BobrovRibbon", "BobrovMenuInstaller" })
+foreach (var typeName in new[] { "PaletteView", "PropertyGridView", "XDataWriter", "AutoCadPaletteHost", "SchemaNodWriter", "AutoCadSchemaNodTransaction", "TemplateApply", "SchemaEditorViewModel", "SchemaEditorWindow", "SchemaMigration", "DrawingCheck" })
     Check(metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
         "Release must contain " + typeName + ".");
+foreach (var typeName in new[] { "BobrovInterface", "BobrovRibbon", "BobrovMenuInstaller", "BobrovUi", "BobrovInstallScheduler" })
+    Check(!metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Any(type => metadata.GetString(type.Name) == typeName),
+        "Release must not contain " + typeName + ": the «Bobrov» menu and ribbon tab were removed (issue #53).");
 Check(metadata.ManifestResources.Select(metadata.GetManifestResource)
     .Any(resource => metadata.GetString(resource.Name) == "acadPaletteSetXDATA.g.resources"),
     "Release must contain compiled WPF resources.");

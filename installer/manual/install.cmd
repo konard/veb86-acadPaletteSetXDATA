@@ -26,7 +26,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPa
 echo.
 echo Готово.
 echo   AutoCAD 2021: %TARGET%
-echo Запустите AutoCAD 2021: меню и вкладка ленты Bobrov включают и выключают панель XDATA.
+echo Запустите AutoCAD 2021: команда XDATAPALETTE показывает и скрывает панель XDATA.
 echo Подробности - в файле INSTALL.md.
 pause
 exit /b 0

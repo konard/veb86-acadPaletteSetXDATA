@@ -75,9 +75,8 @@ jobs:
           acadPaletteSetXDATA.zip contains acadPaletteSetXDATA.dll only (NCalc for formulas is embedded in it).
           Extract to a trusted folder and NETLOAD acadPaletteSetXDATA.dll in AutoCAD 2021.
 
-          A load confirmation appears in the command line. The Bobrov menu on the menu bar and the
-          Bobrov ribbon tab turn the XDATA palette on and off (XDATAPALETTE_ON / XDATAPALETTE_OFF);
-          XDATAPALETTE shows/hides it.
+          A load confirmation appears in the command line. The XDATAPALETTE command shows/hides
+          the XDATA palette. The plugin adds no menu and no ribbon tab (issue #53).
           "@ | Set-Content artifacts/release/release-notes.md -Encoding utf8
       - uses: actions/upload-artifact@v4
         with:

@@ -9,8 +9,6 @@
       <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R23.1" SeriesMax="R24.3" />
       <Commands GroupName="acadPaletteSetXDATA">
         <Command Global="XDATAPALETTE" Local="XDATAPALETTE" />
-        <Command Global="XDATAPALETTE_ON" Local="XDATAPALETTE_ON" />
-        <Command Global="XDATAPALETTE_OFF" Local="XDATAPALETTE_OFF" />
         <Command Global="VELEC_SCHEMA_IMPORT" Local="VELEC_SCHEMA_IMPORT" />
         <Command Global="VELEC_SCHEMA_EXPORT" Local="VELEC_SCHEMA_EXPORT" />
         <Command Global="VELEC_SCHEMA_EDIT" Local="VELEC_SCHEMA_EDIT" />

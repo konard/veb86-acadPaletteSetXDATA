@@ -13,6 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="../../examples/schema.json" Link="examples/schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/issue48-system-group-schema.json" Link="examples/issue48-system-group-schema.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />

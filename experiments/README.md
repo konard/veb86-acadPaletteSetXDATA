@@ -9,16 +9,6 @@ GitHub CLI без создания Release; команды и описание �
 `Test-AcadPaletteSetXDataManualInstall.ps1` (Windows) запускает его `install.cmd`/`uninstall.cmd`
 на временном `%APPDATA%`.
 
-`AcadPaletteSetXData.RibbonSmoke` (задача #39, Windows, .NET Framework 4.8 x64) строит вкладку
-ленты **Bobrov** из исходников `BobrovRibbon.cs` с настоящим `AdWindows.dll` из пакета AutoCAD.NET 24.0.0,
-проверяет панель, подписи, значки и макросы кнопок `XDATAPALETTE_ON` / `XDATAPALETTE_OFF` и
-сохраняет рендеры `issue39-bobrov-ribbon.png` и `issue39-bobrov-icons.png`:
-
-```powershell
-dotnet build experiments/AcadPaletteSetXData.RibbonSmoke -c Release
-./experiments/AcadPaletteSetXData.RibbonSmoke/bin/Release/net48/AcadPaletteSetXData.RibbonSmoke.exe artifacts/screenshots/ribbon
-```
-
 `AcadPaletteSetXData.WpfSmoke` — воспроизводимый пример UI без установленного AutoCAD.
 Нужны Windows и .NET SDK 8; проверяются `net48` и `net8.0-windows`.
 Команды сборки и запуска приведены в основном [README](../README.md).

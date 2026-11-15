@@ -16,8 +16,8 @@ AutoCAD загружает плагин автоматически при зап
 | `release-manifest.txt` | версия, commit и SHA-256 файлов архива | — |
 | `INSTALL.md`, `LICENSE` | эта инструкция и лицензия | — |
 
-Плагин состоит из одной DLL; библиотеки AutoCAD (`AcMgd.dll`, `AcDbMgd.dll`, `AcCoreMgd.dll`,
-`AdWindows.dll`) предоставляет сам AutoCAD и в архив не входят.
+Плагин состоит из одной DLL; библиотеки AutoCAD (`AcMgd.dll`, `AcDbMgd.dll`, `AcCoreMgd.dll`)
+предоставляет сам AutoCAD и в архив не входят.
 
 ## 1. Распаковка
 

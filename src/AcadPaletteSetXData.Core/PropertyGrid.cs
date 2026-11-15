@@ -249,9 +249,10 @@ public sealed class PropertyGridViewModel : ObservableObject
     private bool hasDefaults;
     private bool showActions = true, showState = true, showNote = true;
 
-    public PropertyGridViewModel(SelectionViewModel selection, CultureInfo? culture = null, ParameterTypeRegistry? types = null)
+    public PropertyGridViewModel(SelectionViewModel selection, CultureInfo? culture = null, ParameterTypeRegistry? types = null, PaletteSettings? settings = null)
     {
         this.selection = selection ?? throw new ArgumentNullException(nameof(selection));
+        Settings = settings ?? new PaletteSettings();
         this.culture = culture ?? CultureInfo.CurrentCulture;
         this.types = types ?? ParameterTypeRegistry.Default;
         ExpandAllCommand = new DelegateCommand(_ => SetAllExpanded(true));
@@ -271,8 +272,19 @@ public sealed class PropertyGridViewModel : ObservableObject
         SchemaCommand = new DelegateCommand(command => RunSchemaCommand(command as string ?? SchemaEdit), _ => CanRunSchemaCommands);
         selection.Applied += (_, _) => Rebuild();
         selection.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(SelectionViewModel.CanWrite)) Rebuild(); };
+        Settings.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(PaletteSettings.ShowSystemGroup)) Rebuild(); };
         Rebuild();
     }
+
+    /// <summary>General settings of the palette (issue #48): the group <see cref="PaletteSettings.SystemGroup"/> is hidden unless shown here.</summary>
+    public PaletteSettings Settings { get; }
+
+    /// <summary>
+    /// The parameter is hidden from the user: its group is <see cref="PaletteSettings.SystemGroup"/> and
+    /// <see cref="PaletteSettings.ShowSystemGroup"/> is off (issue #48).
+    /// </summary>
+    public bool IsHidden(SchemaParameter parameter) =>
+        parameter != null && !Settings.ShowSystemGroup && PaletteSettings.IsSystemGroup(parameter.Group);
 
     /// <summary>Visible rows of the tree in display order: the items of the virtualized list.</summary>
     public ObservableCollection<PropertyRow> Rows { get => rows; private set => SetProperty(ref rows, value); }
@@ -908,6 +920,7 @@ public sealed class PropertyGridViewModel : ObservableObject
             {
                 var parameter = schema!.Parameters.TryGetValue(id, out var found) ? found : null;
                 if (parameter is null) { outside.Add(id); continue; }
+                if (owner.IsHidden(parameter)) continue;
                 if (!inTemplate.Contains(id) && storedWithTemplate.Contains(id)) { extra.Add(id); continue; }
                 var name = parameter.EffectiveGroup;
                 var group = groups.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
@@ -1080,6 +1093,7 @@ public sealed class PropertyGridViewModel : ObservableObject
             return schema.Schema!.Parameters
                 .Where(parameter => !string.IsNullOrEmpty(parameter.Id) && !shown.Contains(parameter.Id!) && !columns.Contains(parameter.Id!) &&
                     !ParameterSchema.ReservedIds.Contains(parameter.Id!, StringComparer.OrdinalIgnoreCase) && parameter.Editor?.ReadOnly != true &&
+                    !owner.IsHidden(parameter) &&
                     Kind(parameter) is ParameterKind kind && kind != ParameterKind.Table && kind != ParameterKind.CalculatedString)
                 .Select(parameter => new PropertyOption(parameter.Id!, Caption(parameter) == parameter.Id ? parameter.Id! : Caption(parameter) + " (" + parameter.Id + ")"))
                 .ToArray();

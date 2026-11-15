@@ -13,7 +13,7 @@ JSON: параметры, справочники ENUM, шаблоны и имп�
 | `src/AcadPaletteSetXData.Core/SchemaUsage.cs` | Кроме числа объектов на параметр и шаблон — число объектов с текстовым значением параметра (ключи ENUM, ячейки таблиц). |
 | `src/AcadPaletteSetXData.Core/PropertyGrid.cs` | `SchemaCommandRunner`, `CanRunSchemaCommands`, `RunSchemaCommand` — кнопка «⚙» запускает только `VELEC_SCHEMA_EDIT/IMPORT/EXPORT`. |
 | `src/AcadPaletteSetXData.UI/SchemaEditorWindow.xaml(.cs)` | Окно: вкладки «Параметры», «ENUM», «Шаблоны», «Импорт/экспорт JSON», список ошибок и изменений, «Применить»/«Отмена»; тема AutoCAD. |
-| `src/AcadPaletteSetXData.UI/PropertyGridView.xaml(.cs)` | Кнопка «⚙» на панели управления и её меню. |
+| `src/AcadPaletteSetXData.UI/PropertyGridView.xaml(.cs)` | Кнопка «⚙» на панели управления и её меню (с задачи #48 — и «Настройки…», [settings.md](settings.md)). |
 | `src/AcadPaletteSetXData.AutoCAD/SchemaCommands.cs` | Команда `VELEC_SCHEMA_EDIT`: черновик из кэша схемы, `Application.ShowModalWindow`, запись через `AutoCadSchemaNodTransaction`. |
 | `src/AcadPaletteSetXData.AutoCAD/AutoCadPaletteHost.cs` | Запуск команд меню «⚙» через `SendStringToExecute`. |
 | `tests/AcadPaletteSetXData.Core.Tests/SchemaEditorTests.cs` | Тесты этапа 8 (таблица ниже). |
@@ -85,7 +85,7 @@ VELEC_SCHEMA_EDIT (UsePickSet, Redraw) → схема из кэша докуме
 
 | Тест | Проверка |
 | --- | --- |
-| `TheGearButtonRunsOnlySchemaCommandsThroughTheHost` | Кнопка «⚙» доступна только с запуском команд от хоста и запускает только три команды схемы. |
+| `TheGearButtonRunsOnlySchemaCommandsThroughTheHost` | Команды схемы меню «⚙» доступны только с запуском команд от хоста; запускаются только три команды схемы. |
 | `CreatedParameterEnumAndTemplateAreAvailableInVstAfterApply` | Новые ENUM, параметр и шаблон без изменения кода: одна транзакция, после сброса кэша строка в VST с умолчанием и ключами, шаблон в меню «Шаблон ▾», `INFO` редактора. |
 | `ObjectsUsedByTheDrawingCannotBeDeleted` | Запрет удаления используемых параметров, справочников и шаблонов, смены `Id` хранимого параметра; удаление неиспользуемых. |
 | `AnEnumKeyStoredInObjectsIsDeletedOnlyAfterConfirmationWithTheNumberOfObjects` | Удаление/переименование ключа ENUM только после подтверждения с числом объектов; порядок ключей. |
@@ -106,7 +106,8 @@ DOTNET_ROLL_FORWARD=Major dotnet test tests/AcadPaletteSetXData.Core.Tests -c Re
 dotnet run --project experiments/AcadPaletteSetXData.WpfSmoke -c Release -f net48 -- artifacts/screenshots/net48
 ```
 
-WPF smoke (CI, net48 и net8) проверяет: кнопку «⚙» без хоста и с ним, меню из трёх команд и запуск
+WPF smoke (CI, net48 и net8) проверяет: меню «⚙» без хоста (команды схемы недоступны, «Настройки…» доступны) и с ним,
+меню из трёх команд и «Настройки…», запуск
 `VELEC_SCHEMA_EDIT`; настоящее окно в `ShowDialog` — первый параметр при открытии, предпросмотр
 `GC_Name` = «ЩУ1.3» на выбранном объекте, отказ удалить используемый `Power`, ключи ENUM, списки
 шаблона, ошибку `Id` с недоступным «Применить», импорт «Объединить» с отчётом, «Применить» →

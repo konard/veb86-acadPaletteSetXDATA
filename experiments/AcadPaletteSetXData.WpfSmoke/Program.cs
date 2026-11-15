@@ -22,6 +22,7 @@ namespace AcadPaletteSetXData.WpfSmoke;
 internal static class Program
 {
     private static readonly string SchemaPath = Path.Combine(AppContext.BaseDirectory, "examples", "schema.json");
+    private static readonly string SystemSchemaPath = Path.Combine(AppContext.BaseDirectory, "examples", "issue48-system-group-schema.json");
 
     [STAThread]
     private static int Main(string[] args)
@@ -56,7 +57,7 @@ internal static class Program
             Check(tabs.TabStripPlacement == Dock.Right, "Tabs must be on the right.");
             Check(tabs.Items.Count == 3, "Expected three tabs.");
             Pump(view);
-            VerifyEmpty(view, model, output);
+            VerifyEmpty(view, model, tabs, output);
             source.Select(SampleSelection());
             Pump(view);
             VerifyThemes(view, model, tabs, output);
@@ -66,6 +67,7 @@ internal static class Program
             VerifyVirtualization(view, model, source, output);
             VerifyTemplates(view, model, source, output);
             VerifySchemaEditor(view, model, output);
+            VerifySettings(view, model, source, output);
             VerifyLegacy(view, model, tabs, source, output);
             VerifyEditing(view, model, source, output);
             VerifySelectionGroups(view, model, tabs, source, output);
@@ -79,7 +81,8 @@ internal static class Program
             application.Shutdown();
             Console.WriteLine("WPF checks passed: VST columns and states, «Разное», table rows, control panel, filter, column menu, " +
                               "virtualization, kept expansion and scroll, template menu, assigning and changing templates, committed defaults, legacy data, editors, Enter/Esc, check boxes, × ✎ «+ Добавить», " +
-                              "«+ Параметр», write errors, selection groups with * and − (issue #41), ⚙ schema menu, schema editor (draft, formula preview, guards, errors, import, apply, cancel, light theme), XDATA tree, themes, resize and disposal.");
+                              "«+ Параметр», write errors, selection groups with * and − (issue #41), ⚙ schema menu, " +
+                              "hidden SYSTEM group and the settings window, theme background of the empty lists (issue #48), schema editor (draft, formula preview, guards, errors, import, apply, cancel, light theme), XDATA tree, themes, resize and disposal.");
             return 0;
         }
         catch (Exception error)
@@ -89,8 +92,8 @@ internal static class Program
         }
     }
 
-    /// <summary>TZXDATA 8.5: no selection — the VST is disabled and empty.</summary>
-    private static void VerifyEmpty(PaletteView view, PaletteViewModel model, string output)
+    /// <summary>TZXDATA 8.5: no selection — the VST is disabled and empty, in the theme colors (issue #48).</summary>
+    private static void VerifyEmpty(PaletteView view, PaletteViewModel model, TabControl tabs, string output)
     {
         var grid = Grid(view);
         var list = List(grid);
@@ -99,6 +102,54 @@ internal static class Program
         Check(((TextBlock)grid.FindName("MessageText")).Text == "Выберите объекты в чертеже" && ((TextBlock)grid.FindName("MessageText")).IsVisible,
             "The empty selection must explain what to do.");
         Save(view, Path.Combine(output, "tzxdata-stage6-empty.png"));
+
+        // Issue #48: the disabled empty lists keep the theme background; the system templates painted them white.
+        foreach (var theme in new[] { PaletteTheme.Dark, PaletteTheme.Light })
+        {
+            model.Theme = theme;
+            tabs.SelectedIndex = 0;
+            Pump(view);
+            var background = Resource(view, "PaletteBackground");
+            var name = theme == PaletteTheme.Dark ? "dark" : "light";
+            list = List(Grid(view));
+            Check(!list.IsEnabled, "Without a selection the VST must stay disabled.");
+            CheckBackground(view, list, background, "The empty VST (" + name + ")");
+            Save(view, Path.Combine(output, "issue48-empty-properties-" + name + ".png"));
+
+            tabs.SelectedIndex = 1;
+            Pump(view);
+            var tree = Descendants<TreeView>(view).Single();
+            Check(!tree.IsEnabled && tree.Items.Count == 0, "Without a selection the XDATA tree must be disabled and empty.");
+            CheckBackground(view, tree, background, "The empty XDATA tree (" + name + ")");
+            Save(view, Path.Combine(output, "issue48-empty-tree-" + name + ".png"));
+        }
+        model.Theme = PaletteTheme.Dark;
+        tabs.SelectedIndex = 0;
+        Pump(view);
+    }
+
+    /// <summary>The template border and the rendered pixels of a disabled list are the theme background.</summary>
+    private static void CheckBackground(FrameworkElement view, Control list, Color background, string name)
+    {
+        var border = (Border)list.Template.FindName("Bd", list);
+        Check(border != null && border.Background is SolidColorBrush brush && brush.Color == background,
+            name + " must use the theme template: " + (border?.Background?.ToString() ?? "no border"));
+        foreach (var point in new[] { new Point(8, list.ActualHeight - 8), new Point(list.ActualWidth / 2, list.ActualHeight - 8), new Point(list.ActualWidth - 8, list.ActualHeight / 2) })
+        {
+            var pixel = Pixel(view, list, point);
+            Check(pixel == background, name + " must be painted with " + background + ", not " + pixel + " at " + point + ".");
+        }
+    }
+
+    /// <summary>The rendered color of <paramref name="view"/> at <paramref name="point"/> of <paramref name="element"/>.</summary>
+    private static Color Pixel(FrameworkElement view, FrameworkElement element, Point point)
+    {
+        Pump(view);
+        var at = element.TranslatePoint(point, view);
+        var bitmap = Render(view);
+        var pixel = new byte[4];
+        bitmap.CopyPixels(new Int32Rect((int)at.X, (int)at.Y, 1, 1), pixel, 4, 0);
+        return Color.FromArgb(pixel[3], pixel[2], pixel[1], pixel[0]);
     }
 
     private static void VerifyThemes(PaletteView view, PaletteViewModel model, TabControl tabs, string output)
@@ -200,8 +251,8 @@ internal static class Program
         Check(Math.Abs(toolbar.ActualHeight - 32) < 0.5, "The control panel must reserve 32 px.");
         Check(Descendants<TextBlock>((DependencyObject)grid.FindName("TemplateIndicator")).Any(text => text.Text.Contains("Устройство")),
             "The template indicator must show the template of the selection.");
-        Check(((Button)grid.FindName("AddParameterButton")).IsEnabled && !((Button)grid.FindName("SchemaButton")).IsEnabled,
-            "«+ Параметр» edits a writable selection; «⚙ Схема» is reserved for a later stage.");
+        Check(((Button)grid.FindName("AddParameterButton")).IsEnabled && ((Button)grid.FindName("SchemaButton")).IsEnabled,
+            "«+ Параметр» edits a writable selection; ⚙ opens the settings even without AutoCAD (issue #48).");
         var reads = source.Reads;
         Invoke((Button)grid.FindName("RefreshButton"), view);
         Check(source.Reads == reads + 1, "⟳ must re-read the selection.");
@@ -367,16 +418,23 @@ internal static class Program
     {
         var grid = Grid(view);
         var button = (Button)grid.FindName("SchemaButton");
-        Check(!button.IsEnabled, "Without AutoCAD the ⚙ button must be disabled.");
+        var schemaCommands = new[] { PropertyGridViewModel.SchemaEdit, PropertyGridViewModel.SchemaImport, PropertyGridViewModel.SchemaExport };
+        // Issue #48: ⚙ also opens the settings, so it is enabled without AutoCAD; only the schema commands are disabled.
+        Check(button.IsEnabled, "Without AutoCAD the ⚙ button must still open the settings.");
+        Invoke(button, view);
+        var menu = (ContextMenu)grid.FindName("SchemaMenu");
+        Check(menu.IsOpen && schemaCommands.All(tag => !Item(menu, tag).IsEnabled) && Item(menu, PropertyGridView.SettingsCommand).IsEnabled,
+            "Without AutoCAD the ⚙ menu must offer only «Настройки…».");
+        menu.IsOpen = false;
+        Pump(view);
         var started = new List<string>();
         model.Grid.SchemaCommandRunner = started.Add;
         Pump(view);
-        Check(button.IsEnabled, "The host runner must enable the ⚙ button.");
         Invoke(button, view);
-        var menu = (ContextMenu)grid.FindName("SchemaMenu");
         var commands = menu.Items.OfType<MenuItem>().Select(item => (string)item.Tag).ToArray();
-        Check(menu.IsOpen && commands.SequenceEqual(new[] { PropertyGridViewModel.SchemaEdit, PropertyGridViewModel.SchemaImport, PropertyGridViewModel.SchemaExport }),
-            "The ⚙ menu must offer the editor, import and export: " + string.Join(", ", commands));
+        Check(menu.IsOpen && commands.SequenceEqual(schemaCommands.Concat(new[] { PropertyGridView.SettingsCommand })) &&
+              menu.Items.OfType<MenuItem>().All(item => item.IsEnabled),
+            "The ⚙ menu must offer the editor, import, export and the settings: " + string.Join(", ", commands));
         Pump(view);
         SaveWithPopup(view, menu, Path.Combine(output, "tzxdata-stage8-schema-menu.png"));
         Click(Item(menu, PropertyGridViewModel.SchemaEdit), menu, view);
@@ -470,6 +528,115 @@ internal static class Program
             Invoke((Button)window.FindName("CancelButton"), root);
         });
         Check(result == false && asked.Count == 1 && asked[0].Contains("без записи в чертёж"), "«Отмена» of a changed draft must ask and return false.");
+    }
+
+    /// <summary>
+    /// Issue #48: parameters of the schema group SYSTEM are hidden in the «Свойства» tab; «Настройки…» of the ⚙ menu
+    /// opens the settings window, whose checkbox shows them. «Отмена» keeps the settings.
+    /// </summary>
+    private static void VerifySettings(PaletteView view, PaletteViewModel model, MemorySelection source, string output)
+    {
+        var grid = Grid(view);
+        var list = List(grid);
+        var button = (Button)grid.FindName("SchemaButton");
+        var menu = (ContextMenu)grid.FindName("SchemaMenu");
+        var system = new[] { "SYS_Guid", "SYS_Revision", "SYS_Source" };
+        var changes = new List<bool>();
+        model.Settings.PropertyChanged += (_, _) => changes.Add(model.Settings.ShowSystemGroup);
+        Check(!model.Settings.ShowSystemGroup, "SYSTEM must be hidden by default.");
+        model.Selection.Apply(new[]
+        {
+            Object("S1", "DEVICE", "BlockReference", Pair("Name", "Щит ЩР1"), Pair("Mark", "ЩРн-24"), Pair("Power", 4.5),
+                Pair("SYS_Guid", "7F3C-21A9"), Pair("SYS_Revision", 3), Pair("SYS_Source", "БД проекта"))
+        }, cache: Cache(SystemSchemaPath));
+        Invoke((Button)grid.FindName("ExpandAllButton"), view);
+        Check(model.Grid.Rows.Any(row => row.Id == "Power") && !model.Grid.Rows.Any(row => row.Id != null && system.Contains(row.Id)) &&
+              !Descendants<TextBlock>(list).Any(text => text.Text == "SYSTEM" || text.Text.StartsWith("Ревизия")),
+            "The parameters of the SYSTEM group must be hidden: " + string.Join(", ", model.Grid.Rows.Select(row => row.Id)));
+        Check(!model.Grid.AvailableParameters.Any(option => system.Contains(option.Key)), "«+ Параметр» must not offer the hidden parameters.");
+        Save(view, Path.Combine(output, "issue48-system-hidden.png"));
+
+        var shown = 0;
+        var previous = SettingsWindow.ShowModal;
+        try
+        {
+            // «ОК» with the checkbox ticked: the grid shows SYSTEM at once.
+            SettingsWindow.ShowModal = window => ShowSettings((SettingsWindow)window, root =>
+            {
+                shown++;
+                var box = (CheckBox)window.FindName("ShowSystemGroupBox");
+                Check(box.IsVisible && box.IsChecked == false, "The checkbox must show the current setting.");
+                Check(((SolidColorBrush)window.Background).Color == Resource(view, "PaletteBackground"), "The settings window must use the dark theme of the palette.");
+                Check(window.Owner == Window.GetWindow(view), "The settings window must belong to the palette window.");
+                ((IToggleProvider)new CheckBoxAutomationPeer(box).GetPattern(PatternInterface.Toggle)).Toggle();
+                Pump(root);
+                Check(box.IsChecked == true && !model.Settings.ShowSystemGroup, "The checkbox must change only the draft until «ОК».");
+                Save(Client(window), Path.Combine(output, "issue48-settings-dark.png"));
+                Invoke((Button)window.FindName("OkButton"), root);
+            });
+            Invoke(button, view);
+            Click(Item(menu, PropertyGridView.SettingsCommand), menu, view);
+            Invoke((Button)grid.FindName("ExpandAllButton"), view);
+            Check(shown == 1 && model.Settings.ShowSystemGroup && changes.SequenceEqual(new[] { true }), "«ОК» must apply the checkbox.");
+            Check(system.All(id => model.Grid.Rows.Any(row => row.Id == id)) && model.Grid.Roots.Any(row => row.Caption == "SYSTEM") &&
+                  Descendants<TextBlock>(list).Any(text => text.Text == "SYSTEM"),
+                "The ticked checkbox must show the SYSTEM group: " + string.Join(", ", model.Grid.Rows.Select(row => row.Id)));
+            Save(view, Path.Combine(output, "issue48-system-shown.png"));
+
+            // «Отмена» drops the draft.
+            SettingsWindow.ShowModal = window => ShowSettings((SettingsWindow)window, root =>
+            {
+                shown++;
+                var box = (CheckBox)window.FindName("ShowSystemGroupBox");
+                Check(box.IsChecked == true, "The checkbox must show the applied setting.");
+                ((IToggleProvider)new CheckBoxAutomationPeer(box).GetPattern(PatternInterface.Toggle)).Toggle();
+                Pump(root);
+                Invoke((Button)window.FindName("CancelButton"), root);
+            });
+            Invoke(button, view);
+            Click(Item(menu, PropertyGridView.SettingsCommand), menu, view);
+            Check(shown == 2 && model.Settings.ShowSystemGroup && changes.Count == 1, "«Отмена» must keep the settings.");
+
+            // The light theme of the palette gives a light window.
+            model.Theme = PaletteTheme.Light;
+            Pump(view);
+            SettingsWindow.ShowModal = window => ShowSettings((SettingsWindow)window, root =>
+            {
+                shown++;
+                Check(((SolidColorBrush)window.Background).Color == Resource(view, "PaletteBackground"), "The settings window must use the light theme of the palette.");
+                Save(Client(window), Path.Combine(output, "issue48-settings-light.png"));
+                Invoke((Button)window.FindName("CancelButton"), root);
+            });
+            Check(!grid.OpenSettings() && shown == 3 && model.Settings.ShowSystemGroup, "«Отмена» must return false.");
+        }
+        finally
+        {
+            SettingsWindow.ShowModal = previous;
+            model.Theme = PaletteTheme.Dark;
+        }
+
+        model.Settings.ShowSystemGroup = false;
+        Pump(view);
+        Check(!model.Grid.Rows.Any(row => row.Id != null && system.Contains(row.Id)), "Clearing the setting must hide SYSTEM again.");
+        source.Select(SampleSelection());
+        Pump(view);
+    }
+
+    /// <summary>The client area of a window with its background, without the frame.</summary>
+    private static FrameworkElement Client(Window window) => (FrameworkElement)VisualTreeHelper.GetChild(window, 0);
+
+    /// <summary>Shows the modal settings window and runs <paramref name="checks"/> inside its dialog loop.</summary>
+    private static bool? ShowSettings(SettingsWindow window, Action<FrameworkElement> checks)
+    {
+        Exception? failure = null;
+        window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            try { checks((FrameworkElement)window.FindName("Root")); }
+            catch (Exception error) { failure = error; window.Close(); }
+        }));
+        var result = window.ShowDialog();
+        if (failure != null) throw new InvalidOperationException("Settings window: " + failure.Message, failure);
+        return result;
     }
 
     /// <summary>Shows the modal editor and runs <paramref name="checks"/> inside its dialog loop on the content.</summary>
@@ -879,9 +1046,9 @@ internal static class Program
 
     private static Color Fore(Control control) => ((SolidColorBrush)control.Foreground).Color;
 
-    private static ObjectValuesCache Cache()
+    private static ObjectValuesCache Cache(string? path = null)
     {
-        var result = ParameterSchemaJson.Load(File.ReadAllText(SchemaPath));
+        var result = ParameterSchemaJson.Load(File.ReadAllText(path ?? SchemaPath));
         Check(result.Schema != null && !result.HasErrors, "The example schema must load.");
         return new ObjectValuesCache(new SchemaCache(() => new SchemaNodReadResult(result.Schema, null, result.Issues)));
     }

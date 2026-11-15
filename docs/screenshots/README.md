@@ -1,5 +1,24 @@
 # Рендеры WPF-панели
 
+## Задача #48: скрытая группа `SYSTEM`, окно настроек и фон пустого VST
+
+`issue48-*.png` — настоящий `PaletteView` и `SettingsWindow` на Windows **net48** без AutoCAD.
+«До» (`issue48-empty-before.png`) — рендер `tzxdata-stage6-empty.png` из
+[CI, commit 87fcb72](https://github.com/konard/veb86-acadPaletteSetXDATA/actions/runs/43684344921)
+до исправления: неактивный пустой VST белый в тёмной теме. «После» —
+[CI, commit 63df5a5](https://github.com/konard/veb86-acadPaletteSetXDATA/actions/runs/43685434423),
+артефакт `wpf-renders`, папка `net48`; те же проверки пройдены на .NET 8 (там же рендеры светлой темы
+и вкладки «XDATA»). Генераторы — `VerifyEmpty` и `VerifySettings` в `experiments/AcadPaletteSetXData.WpfSmoke`.
+Описание — [settings.md](../settings.md).
+
+| Пустой VST, до | Пустой VST, после | Пустой VST, светлая тема | Пустое дерево XDATA |
+| --- | --- | --- | --- |
+| ![До](issue48-empty-before.png) | ![После](issue48-empty-properties-dark.png) | ![Светлая](issue48-empty-properties-light.png) | ![Дерево](issue48-empty-tree-dark.png) |
+
+| `SYSTEM` скрыта | Окно настроек | `SYSTEM` показана | Окно, светлая тема |
+| --- | --- | --- | --- |
+| ![Скрыта](issue48-system-hidden.png) | ![Настройки](issue48-settings-dark.png) | ![Показана](issue48-system-shown.png) | ![Светлая](issue48-settings-light.png) |
+
 ## Задача #44: текст выпадающего списка `Enum` в VST
 
 `issue44-enum-*.png` — строка «Фаза» настоящего `PropertyGridView` на Windows **net8**, увеличенная в 4 раза

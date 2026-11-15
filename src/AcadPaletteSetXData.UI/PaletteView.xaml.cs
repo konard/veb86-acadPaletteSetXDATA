@@ -19,6 +19,9 @@ public partial class PaletteView : UserControl, IDisposable
         viewModel.PropertyChanged += OnViewModelChanged;
     }
 
+    /// <summary>The AutoCAD theme of the palette: windows opened from it use the same colors.</summary>
+    public PaletteTheme Theme => viewModel.Theme;
+
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName == nameof(PaletteViewModel.Theme))

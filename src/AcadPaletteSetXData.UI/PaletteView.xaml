@@ -35,7 +35,7 @@
                     </ComboBox>
                     <TextBlock Grid.Row="2" Text="{Binding Diagnostics}" TextWrapping="Wrap" Margin="0,0,0,8"
                                Foreground="{DynamicResource PaletteMuted}" />
-                    <TreeView Grid.Row="3" ItemsSource="{Binding Tree}" IsEnabled="{Binding HasSelection}"
+                    <TreeView Grid.Row="3" ItemsSource="{Binding Tree}" IsEnabled="{Binding HasSelection}" Style="{StaticResource ThemedTreeView}"
                               Background="{DynamicResource PaletteBackground}" Foreground="{DynamicResource PaletteForeground}"
                               BorderBrush="{DynamicResource PaletteBorder}" AutomationProperties.Name="Дерево XDATA">
                         <TreeView.Resources><Style TargetType="TreeViewItem">

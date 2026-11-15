@@ -13,7 +13,7 @@ public sealed class PaletteViewModel : INotifyPropertyChanged
     public PaletteViewModel(bool enableDraftPreview = false)
     {
         Selection = new SelectionViewModel(Properties, enableDraftPreview);
-        Grid = new PropertyGridViewModel(Selection);
+        Grid = new PropertyGridViewModel(Selection, settings: Settings);
         Tabs = Array.AsReadOnly(new[]
         {
             new PaletteTab("Свойства", "Свойства объектов", "", Grid),
@@ -24,6 +24,8 @@ public sealed class PaletteViewModel : INotifyPropertyChanged
     }
 
     public PropertyEditorViewModel Properties { get; } = new PropertyEditorViewModel();
+    /// <summary>General settings of the palette (issue #48): the «Настройки…» window of the ⚙ menu.</summary>
+    public PaletteSettings Settings { get; } = new PaletteSettings();
     public SelectionViewModel Selection { get; }
     /// <summary>The read-only VST of the «Свойства» tab (TZXDATA 8, stage 5).</summary>
     public PropertyGridViewModel Grid { get; }

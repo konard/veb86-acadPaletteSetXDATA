@@ -10,7 +10,9 @@
 Для каждого объекта выделения имя группы:
 
 1. непустое значение параметра `SYSTEMTYPE` в XDATA, если оно есть;
-2. иначе — имя типа объекта, которое возвращает **AutoCAD** в текущей локализации
+2. иначе — непустое значение `SYSTEMTYPE` из **шаблона** объекта (`TEMPLATE`), если шаблон содержит
+   этот параметр (см. ниже);
+3. иначе — имя типа объекта, которое возвращает **AutoCAD** в текущей локализации
    (то же, что показывает палитра «Свойства»: в русской версии «Полилиния», «Отрезок»,
    «Вхождение блока», в английской — «Polyline», «Line», «Block Reference»).
 
@@ -22,8 +24,27 @@
 | строки `ключ=значение` (v1, ESMT и др.) | `(1000 . "SYSTEMTYPE=Опора")` |
 | отдельный RegApp | `(1001 . "SYSTEMTYPE") (1000 . "Опора")` |
 
-Сначала проверяются RegApp `BobrovXDATA` и `BobrovXDATA_V1`, затем остальные. `Id` сравнивается
-без учёта регистра, значение обрезается по краям; пустое или из пробелов считается отсутствующим.
+Сначала проверяются RegApp `BobrovXDATA` и `BobrovXDATA_V1`, затем шаблон объекта, затем остальные
+RegApp. `Id` сравнивается без учёта регистра, значение обрезается по краям; пустое или из пробелов
+считается отсутствующим.
+
+### `SYSTEMTYPE` из шаблона
+
+Объект с `(1000 . "TEMPLATE") (1000 . "CABLE")` в `BobrovXDATA` может не хранить `SYSTEMTYPE`: значение
+по умолчанию шаблона показывается во вкладке «Свойства» с `○` и не записывается в XDATA (TZXDATA 6.2).
+Список групп берёт то же значение, что и вкладка «Свойства», из схемы чертежа (NOD):
+
+| Шаблон объекта | Имя группы |
+| --- | --- |
+| `{ "id": "SYSTEMTYPE", "default": "Кабель" }` в `parameters` шаблона | «Кабель» — `Default` шаблона |
+| `"SYSTEMTYPE"` в `parameters` шаблона без `default`, у параметра `"default": "Труба"` | «Труба» — `Default` параметра |
+| `SYSTEMTYPE` сохранён в XDATA объекта | сохранённое значение (шаблон не учитывается) |
+| `SYSTEMTYPE` нет в `parameters` шаблона, шаблона нет в схеме или у объекта нет шаблона | имя типа AutoCAD (`Default` параметра без шаблона не используется) |
+
+`SYSTEMTYPE` шаблона только читается: значения по умолчанию в XDATA не записываются, кнопки `*` и `−`
+по-прежнему меняют только выделение. Список перестраивается при каждом чтении выделения, поэтому
+назначение или смена шаблона (`VELEC_TEMPLATE_APPLY`, «Шаблон ▾»), импорт схемы и правка `SYSTEMTYPE`
+сразу меняют группы.
 
 Имя типа плагин получает вызовом
 `Autodesk.AutoCAD.Internal.PropertyInspector.ObjectPropertyManagerProperties.GetDisplayName(DBObject)`
@@ -61,14 +82,17 @@
 
 ## Код
 
-- `Core/SelectionGroups.cs` — `SelectionGroups.Build`/`DisplayName`/`SystemType`, `SelectionGroup`,
-  `ISelectionChanger`.
-- `Core/SelectionViewModel.cs` — `Groups`, `SelectedGroup`, `KeepGroupCommand`, `ExcludeGroupCommand`.
+- `Core/SelectionGroups.cs` — `SelectionGroups.Build`/`DisplayName`/`SystemType`/`TemplateSystemType`,
+  `SelectionGroup`, `ISelectionChanger`.
+- `Core/SelectionViewModel.cs` — `Groups`, `SelectedGroup`, `KeepGroupCommand`, `ExcludeGroupCommand`;
+  группы строятся по `ObjectCalculation` выделения (значения кэша с шаблоном и умолчаниями).
 - `Core/SelectionController.cs` — применяет `SelectionChangeRequested` через `ISelectionChanger`
   и перечитывает выделение.
 - `AutoCAD/AutoCadSelectionSource.cs` — `GetDisplayName` и `SetImpliedSelection`.
 - `UI/PaletteView.xaml` — `SelectedGroupField`, `KeepGroupButton`, `ExcludeGroupButton`.
 
-Тесты — `tests/AcadPaletteSetXData.Core.Tests/SelectionGroupsTests.cs`; WPF-проверка
+Тесты — `tests/AcadPaletteSetXData.Core.Tests/SelectionGroupsTests.cs` (`SYSTEMTYPE` шаблона —
+`SystemTypeOfTheTemplateNamesTheGroup`, `AStoredSystemTypeWinsOverTheTemplateAndTheTemplateOverAForeignRegApp`,
+`KeepAndExcludeUseTheSystemTypeOfTheTemplate`, `TheExampleSchemaGroupsTheFixtureOfTheManualCheck`); WPF-проверка
 `VerifySelectionGroups` в `experiments/AcadPaletteSetXData.WpfSmoke`. Ручная проверка в AutoCAD —
 [autocad-verification.md](autocad-verification.md#список-выделенных-объектов-задача-41).

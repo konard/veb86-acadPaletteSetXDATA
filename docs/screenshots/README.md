@@ -1,5 +1,18 @@
 # Рендеры WPF-панели
 
+## Задача #50: кнопка «Ок» значения по умолчанию в шаблоне
+
+`issue50-template-default-ok.png` — вкладка «Шаблоны» настоящего `SchemaEditorWindow` на Windows **net48**
+без AutoCAD: у параметра `Power` шаблона `DEVICE` введено `7.5` и нажата «Ок» справа от поля
+«По умолчанию в шаблоне» (высотой с поле, шириной в две его высоты) — значение назначено без перехода
+фокуса в списки параметров («переопределено: 7.5»). Источник —
+[CI, commit 96f7465](https://github.com/konard/veb86-acadPaletteSetXDATA/actions/runs/43699550752),
+артефакт `wpf-renders`, папка `net48`; те же проверки пройдены на .NET 8. Генератор —
+`VerifyTemplateDefaultButton` в `experiments/AcadPaletteSetXData.WpfSmoke`. Описание —
+[schema-editor.md](../schema-editor.md#вкладки-раздел-9).
+
+![«Ок» значения по умолчанию в шаблоне](issue50-template-default-ok.png)
+
 ## Задача #43: формула NCalc в редакторе схемы
 
 `issue43-formula-preview.png` — редактор схемы с формулой

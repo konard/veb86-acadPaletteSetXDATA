@@ -23,5 +23,18 @@
   <ItemGroup>
     <PackageReference Include="AutoCAD.NET" Version="[24.0.0]" PrivateAssets="all" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!-- Formula mode of CalculatedString (issue #43): the same pinned version as AcadPaletteSetXData.Core. -->
+    <PackageReference Include="NCalc" Version="[7.4.0]" PrivateAssets="all" />
   </ItemGroup>
+  <!--
+    The release stays the single acadPaletteSetXDATA.dll (issue #43): NCalc and its dependencies are embedded as
+    resources Embedded.<file name> instead of being copied next to it, and Core/EmbeddedAssemblies.cs loads them.
+  -->
+  <Target Name="EmbedRuntimeAssemblies" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <_RuntimeAssemblyToEmbed Include="@(ReferenceCopyLocalPaths)" Condition="'%(Extension)' == '.dll'" />
+      <EmbeddedResource Include="@(_RuntimeAssemblyToEmbed)" LogicalName="Embedded.%(Filename)%(Extension)" WithCulture="false" Type="Non-Resx" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" />
+    </ItemGroup>
+  </Target>
 </Project>

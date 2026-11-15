@@ -369,6 +369,9 @@ public sealed class SelectionGroupsTests
             Snapshot("B1", "BlockReference", BlockName, V2(("TEMPLATE", V(1000, "SUPPORT")))),
             Snapshot("L4", "Line", LineName),
         };
+        // Without the calculations only XDATA names the groups: the list the issue comment reports.
+        Assert.Equal(new[] { "Все (6)", "Отрезок (3)", "Полилиния (1)", "Кабель (1)", "Вхождение блока (1)" },
+            SelectionGroups.Build(selection).Select(group => group.Text));
         var calculations = cache.Get(selection).Select(values => new ObjectCalculation(values)).ToArray();
         Assert.Equal(new[] { "Все (6)", "Кабель (4)", "Опора (1)", "Отрезок (1)" },
             SelectionGroups.Build(selection, calculations).Select(group => group.Text));

@@ -694,10 +694,12 @@ internal static class Program
         var choice = Editor<ComboBox>(list, phase);
         var option = phase.Options.Last();
         Check(choice.Items.Count == phase.Options.Count && phase.Options.Count > 1, "The list must offer the values of the enum.");
-        VerifyChoiceText(view, Container(list, phase), choice, "«Разное»", output, "issue44-enum-mixed");
-        choice.Text = phase.Options.First().Caption;
+        // Issue #44: both states are rendered before the check, so a failure still leaves the two review images.
+        var mixedText = ChoiceTextProblem(view, Container(list, phase), choice, "«Разное»", output, "issue44-enum-mixed");
+        choice.Text = option.Caption; // «ABC (3 фазы)»: the brackets and «ф» reach the top and the bottom of the line
         Pump(view);
-        VerifyChoiceText(view, Container(list, phase), choice, "the value", output, "issue44-enum-value");
+        var valueText = ChoiceTextProblem(view, Container(list, phase), choice, "the value", output, "issue44-enum-value");
+        Check(mixedText == null && valueText == null, string.Join(" ", new[] { mixedText, valueText }.Where(problem => problem != null)));
         choice.IsDropDownOpen = true;
         Pump(view);
         choice.SelectedItem = option;
@@ -811,8 +813,9 @@ internal static class Program
     /// <summary>
     /// Issue #44: the text of the 21 px enum editor must fit vertically. The editable text box and the «Разное»
     /// placeholder must get at least one line of the font, otherwise the tops and bottoms of the letters are cut off.
+    /// Saves the view and the zoomed row; returns the problem or null.
     /// </summary>
-    private static void VerifyChoiceText(FrameworkElement view, ListViewItem row, ComboBox choice, string shown, string output, string name)
+    private static string? ChoiceTextProblem(FrameworkElement view, ListViewItem row, ComboBox choice, string shown, string output, string name)
     {
         choice.ApplyTemplate();
         var box = (TextBox)choice.Template.FindName("PART_EditableTextBox", choice);
@@ -827,10 +830,11 @@ internal static class Program
         var bounds = text.TransformToAncestor(choice).TransformBounds(new Rect(text.RenderSize));
         Save(view, Path.Combine(output, name + ".png"));
         SaveZoomed(row, Path.Combine(output, name + "-zoom.png"));
-        Check(choice.ActualHeight >= line && room >= line - 0.5 && text.ActualHeight >= line - 0.5 &&
-              bounds.Top >= -0.5 && bounds.Bottom <= choice.ActualHeight + 0.5,
-            $"The enum editor must show {shown} without cutting the letters: editor {choice.ActualHeight:0.#} px, " +
-            $"room {room:0.#} px, text {text.ActualHeight:0.#} px at {bounds.Top:0.#}–{bounds.Bottom:0.#}, line {line:0.#} px.");
+        return choice.ActualHeight >= line && room >= line - 0.5 && text.ActualHeight >= line - 0.5 &&
+               bounds.Top >= -0.5 && bounds.Bottom <= choice.ActualHeight + 0.5
+            ? null
+            : $"The enum editor must show {shown} without cutting the letters: editor {choice.ActualHeight:0.#} px, " +
+              $"room {room:0.#} px, text {text.ActualHeight:0.#} px at {bounds.Top:0.#}–{bounds.Bottom:0.#}, line {line:0.#} px.";
     }
 
     private static Button Action(ListView list, PropertyRow row, string name)

@@ -94,7 +94,9 @@ try {
     Assert ($entry.LoadOnAutoCADStartup -ceq 'True' -and $entry.AppType -ceq '.Net') 'AutoCAD must load the .NET module at startup.'
     Assert (Test-Path (Join-Path "$manualDirectory/$bundle" $entry.ModuleName) -PathType Leaf) "ModuleName $($entry.ModuleName) must point to the DLL inside the bundle."
     $commands = @($entry.Commands.Command | ForEach-Object { $_.Global })
-    foreach ($command in @('XDATAPALETTE', 'XDATAPALETTE_ON', 'XDATAPALETTE_OFF')) { Assert ($commands -ccontains $command) "PackageContents.xml must declare $command." }
+    Assert ($commands -ccontains 'XDATAPALETTE') 'PackageContents.xml must declare XDATAPALETTE.'
+    # Issue #53: the Bobrov menu and ribbon tab and their XDATAPALETTE_ON/OFF commands were removed.
+    foreach ($command in @('XDATAPALETTE_ON', 'XDATAPALETTE_OFF')) { Assert (-not ($commands -ccontains $command)) "PackageContents.xml must not declare the removed $command." }
     foreach ($script in @('install.cmd', 'uninstall.cmd')) {
         $text = [IO.File]::ReadAllText("$manualDirectory/$script")
         Assert ($text.Contains("`r`n") -and -not ($text -replace "`r`n", '').Contains("`n")) "$script must use CRLF line endings for cmd.exe."

@@ -91,13 +91,4 @@ namespace AcadPaletteSetXData.AutoCAD
         public void ApplyTheme(PaletteTheme theme) { }
         public void Dispose() { }
     }
-
-    // The real menu/ribbon glue needs AcMgd and AdWindows; the tests only check when it is started and stopped.
-    internal static class BobrovInterface
-    {
-        public static bool Running { get; private set; }
-        public static int Starts { get; set; }
-        public static void Start() { if (Running) return; Running = true; Starts++; }
-        public static void Stop() => Running = false;
-    }
 }

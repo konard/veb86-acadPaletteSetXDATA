@@ -138,7 +138,7 @@ python3 experiments/scripts/speedscope-top.py experiments/logs/cold.speedscope.j
 
 Release собирает одну `acadPaletteSetXDATA.dll` ([build-release.md](build-release.md)). Этап 10 не добавил
 зависимостей. `RegistrationSmoke` печатает ссылки выпускаемой DLL («Assembly references: …») и падает, если
-среди них есть что-то кроме сборок .NET Framework/WPF и AutoCAD (`AcMgd`, `AcDbMgd`, `AcCoreMgd`, `AdWindows`).
+среди них есть что-то кроме сборок .NET Framework/WPF и AutoCAD (`AcMgd`, `AcDbMgd`, `AcCoreMgd`; `AdWindows` с задачи #53 не используется).
 
 ## Ограничения
 

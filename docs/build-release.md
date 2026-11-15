@@ -10,7 +10,7 @@
   `AppData/Roaming/Autodesk/ApplicationPlugins/acadPaletteSetXDATA.bundle` с
   `PackageContents.xml` и той же DLL в `Contents/AutoCAD2021-2024`, а также `INSTALL.md`,
   `install.cmd`, `uninstall.cmd`, `LICENSE` и `release-manifest.txt` (версия, commit, SHA-256 файлов).
-  [Состав и устройство](bobrov-menu-ribbon.md#ручная-установка-без-установщика).
+  [Состав и устройство](manual-install.md#ручная-установка-без-установщика).
 
 `src/acadPaletteSetXDATA` компилирует общие исходники Core, AutoCAD и UI,
 включая XAML и словари тем, в одну сборку. В ней зарегистрированы
@@ -64,8 +64,8 @@ Pull request тоже собирает DLL и ZIP, запускает прове
 наличие реализации панели и WPF-ресурсов, отсутствие зависимости от отдельных DLL
 плагина. С этапа 10 TZXDATA проверка печатает ссылки DLL («Assembly references: …») и завершается
 ошибкой, если среди них есть сборка, отличная от .NET Framework/WPF (`mscorlib`, `System*`, `WindowsBase`,
-`PresentationCore`, `PresentationFramework`, `Microsoft.CSharp`) и AutoCAD (`AcMgd`, `AcDbMgd`, `AcCoreMgd`,
-`AdWindows`): новая зависимость не попадёт в выпуск незамеченной. С задачи #43 разрешены также сборки,
+`PresentationCore`, `PresentationFramework`, `Microsoft.CSharp`) и AutoCAD (`AcMgd`, `AcDbMgd`, `AcCoreMgd`;
+с задачи #53 `AdWindows` запрещена — вкладки ленты нет): новая зависимость не попадёт в выпуск незамеченной. С задачи #43 разрешены также сборки,
 встроенные в DLL ресурсами `Embedded.<имя>.dll` (NCalc и его зависимости, «Embedded assemblies: …»): проверка
 требует `NCalc.Core` и проверяет, что ссылки встроенных сборок тоже закрыты .NET Framework или встроенными
 сборками. Windows запускает полный WPF smoke-сценарий с этой сборкой и сохраняет

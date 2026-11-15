@@ -3,8 +3,9 @@
 AutoCAD itself is not available in CI, so the issue is checked with models of the startup in the unit tests:
 
 - `tests/AcadPaletteSetXData.Core.Tests/StartupSchedulingTests.cs`: the readiness gate
-  (`StartupReadiness`), the scheduler that ignores its own `WSCURRENT` (`BobrovInstallScheduler`),
-  and a model of AutoCAD where every menu bar change raises `WSCURRENT` on the next Idle.
+  (`StartupReadiness`). Issue #53 removed the menu and the ribbon tab, so the scheduler that ignored its
+  own `WSCURRENT` (`BobrovInstallScheduler`), `BobrovMenuInstaller` and their tests are gone; only the
+  load message waits for a quiet Idle now.
 - `tests/AcadPaletteSetXData.AutoCAD.Tests/PaletteApplicationTests.cs`: the production
   `PaletteApplication.cs` and `AutoCadStartup.cs` compiled against stubs. The load message waits while
   the drawing opens (`DocumentCreateStarted`), while `Application.IsQuiescent`/`Editor.IsQuiescent`
@@ -31,7 +32,8 @@ AutoCAD.Tests: Failed: 2, Passed: 7
   PaletteApplicationTests.ACanceledDrawingOpenDoesNotBlockTheStartup
 ```
 
-With the fix: Core.Tests 415 passed, AutoCAD.Tests 9 passed.
+With the fix: Core.Tests 415 passed, AutoCAD.Tests 9 passed. (The numbers are from issue #47; the three
+Core tests of the menu installation were removed with the menu in issue #53.)
 
 ## Tracing in AutoCAD
 

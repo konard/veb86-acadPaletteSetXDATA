@@ -16,12 +16,12 @@ public sealed class PaletteApplication : IExtensionApplication
     {
         // Keep startup independent of palette creation.
         // Issue #47: the bundle loads the plugin at AutoCAD startup, while the startup drawing is still being
-        // opened; the message and the «Bobrov» menu wait for an Idle where no drawing opens and nothing runs.
+        // opened; the message waits for an Idle where no drawing opens and nothing runs.
+        // Issue #53: the plugin adds no menu and no ribbon tab; menus are built by a separate module
+        // that calls the XDATAPALETTE command (see docs/menu-module-spec.md).
         AutoCadStartup.Start();
         AcApplication.Idle -= OnIdle;
         if (!WriteLoadMessage()) AcApplication.Idle += OnIdle;
-        // Issue #39: the «Bobrov» menu and ribbon tab are added on a quiet Idle, when the main window is ready.
-        BobrovInterface.Start();
     }
 
     private static bool WriteLoadMessage()
@@ -30,8 +30,7 @@ public sealed class PaletteApplication : IExtensionApplication
         var document = AcApplication.DocumentManager.MdiActiveDocument;
         if (document == null) return false;
         document.Editor.WriteMessage(
-            "\nacadPaletteSetXDATA загружено. Команда XDATAPALETTE — показать/скрыть панель XDATA; " +
-            "меню и вкладка ленты Bobrov — включить/выключить.\n");
+            "\nacadPaletteSetXDATA загружено. Команда XDATAPALETTE — показать/скрыть панель XDATA.\n");
         return true;
     }
 
@@ -42,17 +41,6 @@ public sealed class PaletteApplication : IExtensionApplication
 
     [CommandMethod("XDATAPALETTE", CommandFlags.Session | CommandFlags.UsePickSet)]
     public static void TogglePalette() => Run(current => current.Toggle());
-
-    // Issue #39: the «Включить»/«Выключить» buttons of the «Bobrov» menu and ribbon tab.
-    [CommandMethod(BobrovUi.ShowCommand, CommandFlags.Session | CommandFlags.UsePickSet)]
-    public static void ShowPalette() => Run(current => current.Show());
-
-    [CommandMethod(BobrovUi.HideCommand, CommandFlags.Session | CommandFlags.UsePickSet)]
-    public static void HidePalette()
-    {
-        // Nothing to hide before the palette was ever shown: do not create it just to keep it hidden.
-        if (controller != null) Run(current => current.Hide());
-    }
 
     private static void Run(System.Action<PaletteController> action)
     {
@@ -76,7 +64,6 @@ public sealed class PaletteApplication : IExtensionApplication
     public void Terminate()
     {
         AcApplication.Idle -= OnIdle;
-        BobrovInterface.Stop();
         AutoCadStartup.Stop();
         controller?.Dispose();
         themeSource?.Dispose();

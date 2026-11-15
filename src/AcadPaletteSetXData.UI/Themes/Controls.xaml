@@ -86,6 +86,9 @@
         <Setter Property="BorderBrush" Value="{DynamicResource PaletteBorder}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="MinHeight" Value="27" />
+        <!-- Issue #44: the text, the editable box and «Разное» use Padding, so a low editor (the 21 px enum of the VST) gives
+             them its whole height instead of the fixed 5,3 that left 13 px for a 17 px line and cut the letters. -->
+        <Setter Property="Padding" Value="5,3" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
@@ -100,11 +103,11 @@
                                                   ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                                   ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
                                                   ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                                  Margin="5,3" VerticalAlignment="Center" />
-                                <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" BorderThickness="0"
-                                         Background="Transparent" IsReadOnly="{TemplateBinding IsReadOnly}" />
+                                                  Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                                <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" BorderThickness="0" Padding="{TemplateBinding Padding}"
+                                         VerticalAlignment="Center" Background="Transparent" IsReadOnly="{TemplateBinding IsReadOnly}" />
                                 <TextBlock x:Name="MixedPlaceholder" Text="Разное" FontStyle="Italic" Foreground="{DynamicResource PaletteMuted}"
-                                           Margin="5,3,0,3" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" />
+                                           Margin="{TemplateBinding Padding}" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" />
                                 <ToggleButton Grid.Column="1" Focusable="False"
                                               IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
                                     <ToggleButton.Template>

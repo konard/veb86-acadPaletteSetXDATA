@@ -694,6 +694,12 @@ internal static class Program
         var choice = Editor<ComboBox>(list, phase);
         var option = phase.Options.Last();
         Check(choice.Items.Count == phase.Options.Count && phase.Options.Count > 1, "The list must offer the values of the enum.");
+        // Issue #44: both states are rendered before the check, so a failure still leaves the two review images.
+        var mixedText = ChoiceTextProblem(view, Container(list, phase), choice, "«Разное»", output, "issue44-enum-mixed");
+        choice.Text = option.Caption; // «ABC (3 фазы)»: the brackets and «ф» reach the top and the bottom of the line
+        Pump(view);
+        var valueText = ChoiceTextProblem(view, Container(list, phase), choice, "the value", output, "issue44-enum-value");
+        Check(mixedText == null && valueText == null, string.Join(" ", new[] { mixedText, valueText }.Where(problem => problem != null)));
         choice.IsDropDownOpen = true;
         Pump(view);
         choice.SelectedItem = option;
@@ -802,6 +808,33 @@ internal static class Program
     {
         var name = typeof(T) == typeof(ComboBox) ? "Список значений" : "Редактор значения";
         return Descendants<T>(Container(list, row)).Single(control => control.IsVisible && AutomationProperties.GetName(control) == name);
+    }
+
+    /// <summary>
+    /// Issue #44: the text of the 21 px enum editor must fit vertically. The editable text box and the «Разное»
+    /// placeholder must get at least one line of the font, otherwise the tops and bottoms of the letters are cut off.
+    /// Saves the view and the zoomed row; returns the problem or null.
+    /// </summary>
+    private static string? ChoiceTextProblem(FrameworkElement view, ListViewItem row, ComboBox choice, string shown, string output, string name)
+    {
+        choice.ApplyTemplate();
+        var box = (TextBox)choice.Template.FindName("PART_EditableTextBox", choice);
+        box.ApplyTemplate();
+        var host = (ScrollViewer)box.Template.FindName("PART_ContentHost", box);
+        var placeholder = (TextBlock)choice.Template.FindName("MixedPlaceholder", choice);
+        var line = new FormattedText("Ёйрщ", System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+            new Typeface(box.FontFamily, box.FontStyle, box.FontWeight, box.FontStretch), box.FontSize, Brushes.Black,
+            VisualTreeHelper.GetDpi(box).PixelsPerDip).Height;
+        var text = placeholder.IsVisible ? placeholder : (FrameworkElement)host;
+        var room = LayoutInformation.GetLayoutSlot(text).Height - text.Margin.Top - text.Margin.Bottom;
+        var bounds = text.TransformToAncestor(choice).TransformBounds(new Rect(text.RenderSize));
+        Save(view, Path.Combine(output, name + ".png"));
+        SaveZoomed(row, Path.Combine(output, name + "-zoom.png"));
+        return choice.ActualHeight >= line && room >= line - 0.5 && text.ActualHeight >= line - 0.5 &&
+               bounds.Top >= -0.5 && bounds.Bottom <= choice.ActualHeight + 0.5
+            ? null
+            : $"The enum editor must show {shown} without cutting the letters: editor {choice.ActualHeight:0.#} px, " +
+              $"room {room:0.#} px, text {text.ActualHeight:0.#} px at {bounds.Top:0.#}–{bounds.Bottom:0.#}, line {line:0.#} px.";
     }
 
     private static Button Action(ListView list, PropertyRow row, string name)
@@ -1065,6 +1098,26 @@ internal static class Program
             context.DrawImage(Render(popup), new Rect(offset.X, offset.Y, popup.ActualWidth, popup.ActualHeight));
         }
         var bitmap = new RenderTargetBitmap((int)view.ActualWidth, (int)view.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(scene);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
+    }
+
+    /// <summary>Renders an element four times larger, so that a few pixels of clipped text are visible in a review.</summary>
+    private static void SaveZoomed(FrameworkElement element, string path)
+    {
+        // A VisualBrush draws the element at the origin; RenderTargetBitmap.Render would keep its offset in the parent.
+        const double scale = 4;
+        var size = new Rect(0, 0, element.ActualWidth * scale, element.ActualHeight * scale);
+        var scene = new DrawingVisual();
+        using (var context = scene.RenderOpen())
+        {
+            context.DrawRectangle(new SolidColorBrush(Resource(element, "PaletteBackground")), null, size);
+            context.DrawRectangle(new VisualBrush(element) { Stretch = Stretch.Fill }, null, size);
+        }
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(size.Width), (int)Math.Ceiling(size.Height), 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(scene);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));

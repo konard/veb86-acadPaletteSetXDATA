@@ -255,6 +255,10 @@ public partial class PropertyGridView : UserControl
     }
 
     /// <summary>«⚙» (TZXDATA 8.4, 9): «Редактор схемы…», «Импорт JSON…», «Экспорт JSON…»; the menu opens leftwards under the button.</summary>
+    /// <summary>
+    /// «⚙»: the schema commands of the document (TZXDATA 9), available inside AutoCAD only, and the general settings of
+    /// the palette (issue #48), available always.
+    /// </summary>
     private void OnSchemaMenu(object sender, RoutedEventArgs args)
     {
         if (model == null) return;
@@ -267,15 +271,31 @@ public partial class PropertyGridView : UserControl
                      ("Экспорт JSON…", PropertyGridViewModel.SchemaExport),
                  })
         {
-            var item = new MenuItem { Header = header, Tag = command, ToolTip = command };
+            var item = new MenuItem { Header = header, Tag = command, ToolTip = command, IsEnabled = grid.CanRunSchemaCommands };
+            ToolTipService.SetShowOnDisabled(item, true);
             item.Click += (_, _) => grid.RunSchemaCommand(command);
             SchemaMenu.Items.Add(item);
             if (command == PropertyGridViewModel.SchemaEdit) SchemaMenu.Items.Add(new Separator());
         }
+        SchemaMenu.Items.Add(new Separator());
+        var settings = new MenuItem { Header = "Настройки…", Tag = SettingsCommand, ToolTip = "Общие настройки панели: скрытая группа SYSTEM" };
+        settings.Click += (_, _) => OpenSettings();
+        SchemaMenu.Items.Add(settings);
         SchemaMenu.PlacementTarget = SchemaButton;
         SchemaMenu.CustomPopupPlacementCallback = (popup, target, _) =>
             new[] { new CustomPopupPlacement(new Point(target.Width - popup.Width, target.Height), PopupPrimaryAxis.Horizontal) };
         SchemaMenu.IsOpen = true;
+    }
+
+    /// <summary><see cref="MenuItem.Tag"/> of «Настройки…» in the ⚙ menu.</summary>
+    public const string SettingsCommand = "settings";
+
+    /// <summary>«Настройки…» (issue #48): the modal settings window in the theme of the palette.</summary>
+    public bool OpenSettings()
+    {
+        if (model == null) return false;
+        var palette = Up(this).OfType<PaletteView>().FirstOrDefault();
+        return SettingsWindow.Edit(model.Settings, palette?.Theme ?? PaletteTheme.Dark, this);
     }
 
     private static PropertyRow? RowOf(object sender) => (sender as FrameworkElement)?.DataContext as PropertyRow;

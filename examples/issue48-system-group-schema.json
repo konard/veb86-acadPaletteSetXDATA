@@ -1,0 +1,20 @@
+{
+  "format": "BobrovXDATA.schema",
+  "version": 1,
+  "parameters": [
+    { "id": "Name", "type": "String", "caption": "Наименование", "group": "Общие" },
+    { "id": "Mark", "type": "String", "caption": "Марка", "group": "Общие" },
+    { "id": "Power", "type": "Double", "caption": "Мощность", "group": "Электрика", "default": 0, "editor": { "unit": "кВт", "precision": 2, "min": 0 } },
+    { "id": "SYS_Guid", "type": "String", "caption": "Идентификатор экспорта", "description": "Служебное значение обмена с базой данных", "group": "SYSTEM" },
+    { "id": "SYS_Revision", "type": "Integer", "caption": "Ревизия расчёта", "group": "SYSTEM", "default": 1 },
+    { "id": "SYS_Source", "type": "String", "caption": "Источник данных", "group": "SYSTEM" }
+  ],
+  "templates": [
+    {
+      "id": "DEVICE",
+      "caption": "Устройство",
+      "entityTypes": [ "BlockReference" ],
+      "parameters": [ "Name", "Mark", "SYS_Guid", "SYS_Revision", "Power" ]
+    }
+  ]
+}

@@ -200,4 +200,59 @@
             </Setter.Value>
         </Setter>
     </Style>
+    <!--
+        Lists of the palette (issue #48): the system templates paint a disabled ListView/TreeView with
+        SystemColors.ControlBrush, a white area in the dark theme when nothing is selected. These templates keep the
+        theme background in every state.
+    -->
+    <Style x:Key="ThemedListView" TargetType="ListView">
+        <Setter Property="Background" Value="{DynamicResource PaletteBackground}" />
+        <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PaletteBorder}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListView">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" Padding="1" SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="Scroll" Style="{DynamicResource {x:Static GridView.GridViewScrollViewerStyleKey}}"
+                                      Focusable="False" Padding="{TemplateBinding Padding}">
+                            <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                        </ScrollViewer>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsGrouping" Value="True"><Setter Property="ScrollViewer.CanContentScroll" Value="False" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="ThemedTreeView" TargetType="TreeView">
+        <Setter Property="Background" Value="{DynamicResource PaletteBackground}" />
+        <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PaletteBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="1" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TreeView">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="_tv_scrollviewer_" Background="{TemplateBinding Background}" CanContentScroll="False" Focusable="False"
+                                      HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                      VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
+                                      Padding="{TemplateBinding Padding}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="VirtualizingPanel.IsVirtualizing" Value="True">
+                            <Setter TargetName="_tv_scrollviewer_" Property="CanContentScroll" Value="True" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

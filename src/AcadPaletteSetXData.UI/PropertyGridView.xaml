@@ -260,10 +260,10 @@
                     AutomationProperties.Name="Развернуть все" ToolTip="Развернуть все группы" />
             <Button x:Name="CollapseAllButton" DockPanel.Dock="Left" Content="⊟" Style="{StaticResource ToolButton}" Command="{Binding CollapseAllCommand}"
                     AutomationProperties.Name="Свернуть все" ToolTip="Свернуть все группы" />
-            <!-- «⚙ Схема» (TZXDATA 8.4, 9): the schema editor, import and export of JSON; each is a command of the document. -->
+            <!-- «⚙» (TZXDATA 8.4, 9; issue #48): the schema editor, import and export of JSON, each a command of the document, and the settings window. -->
             <Button x:Name="SchemaButton" DockPanel.Dock="Right" Content="⚙" Style="{StaticResource ToolButton}" Margin="3,0,0,0"
-                    IsEnabled="{Binding CanRunSchemaCommands}" Click="OnSchemaMenu"
-                    AutomationProperties.Name="Схема" ToolTip="Схема параметров: редактор, импорт и экспорт JSON">
+                    Click="OnSchemaMenu"
+                    AutomationProperties.Name="Схема и настройки" ToolTip="Схема параметров (редактор, импорт и экспорт JSON) и настройки панели">
                 <Button.ContextMenu><ContextMenu x:Name="SchemaMenu" Placement="Custom" /></Button.ContextMenu>
             </Button>
             <Grid Height="24" MinWidth="48">
@@ -307,7 +307,7 @@
             </TextBlock>
         </DockPanel>
         <ListView x:Name="Rows" Grid.Row="2" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" IsEnabled="{Binding IsEnabled}" SelectionMode="Single"
-                  ItemContainerStyle="{StaticResource Row}" Background="{DynamicResource PaletteBackground}"
+                  Style="{StaticResource ThemedListView}" ItemContainerStyle="{StaticResource Row}" Background="{DynamicResource PaletteBackground}"
                   Foreground="{DynamicResource PaletteForeground}" BorderBrush="{DynamicResource PaletteBorder}" BorderThickness="0,1,0,0"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
                   ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"

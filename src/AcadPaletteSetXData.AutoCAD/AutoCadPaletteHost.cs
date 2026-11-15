@@ -19,6 +19,11 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
 
     public AutoCadPaletteHost()
     {
+        // Issue #48: the general settings of the palette are kept per user; a missing or broken file gives the defaults.
+        viewModel.Settings.CopyFrom(PaletteSettings.Load(PaletteSettings.DefaultPath));
+        viewModel.Settings.PropertyChanged += OnSettingsChanged;
+        // «⚙ → Настройки…» is modal to the AutoCAD main window.
+        SettingsWindow.ShowModal = window => Autodesk.AutoCAD.ApplicationServices.Application.ShowModalWindow(window);
         view = new PaletteView(viewModel);
         palette = new PaletteSet("Свойства XDATA", PaletteId);
         try
@@ -57,6 +62,13 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
     private static void RunCommand(string command) =>
         AcApplication.DocumentManager.MdiActiveDocument?.SendStringToExecute("_" + command + " ", true, false, false);
 
+    private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if (viewModel.Settings.Save(PaletteSettings.DefaultPath)) return;
+        AcApplication.DocumentManager.MdiActiveDocument?.Editor.WriteMessage(
+            "\nНастройки панели XDATA не сохранены: нет доступа к {0}.\n", PaletteSettings.DefaultPath);
+    }
+
     // TZXDATA 10.6: the build time of the VST next to the read time of the selection.
     // The counters of the value cache show that a repeated selection parses nothing (TZXDATA 10.6).
     private void OnGridBuilt(object? sender, EventArgs args)
@@ -71,6 +83,7 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
     public void Dispose()
     {
         viewModel.Grid.Built -= OnGridBuilt;
+        viewModel.Settings.PropertyChanged -= OnSettingsChanged;
         selectionController.Dispose();
         selectionSource.Dispose();
         palette.Dispose();

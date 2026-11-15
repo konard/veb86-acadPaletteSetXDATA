@@ -45,6 +45,9 @@ public sealed class FormulaExpressionTests
     [InlineData("=0.1 + 0.2", "0,3")]
     [InlineData("=-@@[Reserve]", "-0,5")]
     [InlineData("=1e3 / 4", "250")]
+    // Documented in docs/calculated-string.md: / keeps the fraction, a numeric string is a number in arithmetic.
+    [InlineData("=7 / 2", "3,5")]
+    [InlineData("=@@[Number] + 1", "2")]
     public void ArithmeticOfTheIssue(string format, string expected) => Assert.Equal(expected, Text(format, Sample()));
 
     [Theory]
@@ -61,6 +64,8 @@ public sealed class FormulaExpressionTests
     [InlineData("=@@[Phase] == \"Трёхфазное\"", "Да")]
     [InlineData("=@@[Phase:key] == \"_3\"", "Да")]
     [InlineData("=@@[Voltage] in (220, 380)", "Да")]
+    [InlineData("=@@[Count] > 1 ? \"много\" : \"один\"", "много")]
+    [InlineData("=@@[Name] == \"освещение\"", "Нет")]
     public void LogicOfTheIssue(string format, string expected) => Assert.Equal(expected, Text(format, Sample()));
 
     [Theory]
@@ -249,6 +254,8 @@ public sealed class FormulaExpressionTests
         Assert.Contains("TAN(90°) не определён", Error("=TAN(90)", Sample()));
         Assert.Contains("значение не является числом", Error("=SQRT(\"x\")", Sample()));
         Assert.Contains("ожидается аргументов", Error("=SIN(1, 2)", Sample()));
+        // An Enum is its caption: compare it with a string or use :key.
+        Assert.Contains("значение не является числом", Error("=@@[Phase] > 220", Sample()));
     }
 
     [Fact]

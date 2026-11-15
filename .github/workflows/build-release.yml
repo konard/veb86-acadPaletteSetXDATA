@@ -72,7 +72,7 @@ jobs:
           %APPDATA%\Autodesk\ApplicationPlugins\acadPaletteSetXDATA.bundle automatically at startup.
           See INSTALL.md in the archive (in Russian).
 
-          acadPaletteSetXDATA.zip contains acadPaletteSetXDATA.dll only.
+          acadPaletteSetXDATA.zip contains acadPaletteSetXDATA.dll only (NCalc for formulas is embedded in it).
           Extract to a trusted folder and NETLOAD acadPaletteSetXDATA.dll in AutoCAD 2021.
 
           A load confirmation appears in the command line. The Bobrov menu on the menu bar and the

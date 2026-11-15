@@ -1,5 +1,20 @@
 # Рендеры WPF-панели
 
+## Задача #44: текст выпадающего списка `Enum` в VST
+
+`issue44-enum-*.png` — строка «Фаза» настоящего `PropertyGridView` на Windows **net8**, увеличенная в 4 раза
+(`SaveZoomed`), с открытым редактором `Enum`: значение «ABC (3 фазы)» и заполнитель «Разное» двух объектов.
+«До» — [CI, commit 9596883](https://github.com/konard/veb86-acadPaletteSetXDATA/actions/runs/43681948053)
+с временно отменённым исправлением: у текста 13 px на строку 17 px, буквы обрезаны, проверка падает.
+«После» — [CI, commit 4c22491](https://github.com/konard/veb86-acadPaletteSetXDATA/actions/runs/43682046040),
+артефакт `wpf-renders`, папка `net8`; те же проверки пройдены на .NET Framework 4.8. Генератор —
+`ChoiceTextProblem` в `experiments/AcadPaletteSetXData.WpfSmoke`. Описание — [vst-editing.md](../vst-editing.md).
+
+| | Значение | «Разное» |
+| --- | --- | --- |
+| До | ![Значение до](issue44-enum-value-before.png) | ![«Разное» до](issue44-enum-mixed-before.png) |
+| После | ![Значение после](issue44-enum-value-after.png) | ![«Разное» после](issue44-enum-mixed-after.png) |
+
 ## Задача #41: список выделенных объектов, `*` и `−`
 
 `issue41-*.png` — настоящий `PaletteView` на Windows **net48** без AutoCAD: семь объектов в памяти,

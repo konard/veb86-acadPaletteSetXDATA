@@ -254,10 +254,9 @@ public partial class PropertyGridView : UserControl
         TemplateMenu.IsOpen = true;
     }
 
-    /// <summary>«⚙» (TZXDATA 8.4, 9): «Редактор схемы…», «Импорт JSON…», «Экспорт JSON…»; the menu opens leftwards under the button.</summary>
     /// <summary>
     /// «⚙»: the schema commands of the document (TZXDATA 9), available inside AutoCAD only, and the general settings of
-    /// the palette (issue #48), available always.
+    /// the palette (issue #48), available always. The menu opens leftwards under the button.
     /// </summary>
     private void OnSchemaMenu(object sender, RoutedEventArgs args)
     {

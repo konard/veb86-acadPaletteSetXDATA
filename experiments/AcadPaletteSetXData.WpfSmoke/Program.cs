@@ -478,6 +478,7 @@ internal static class Program
             Check(members.IsVisible && members.Items.Count == editor.SelectedTemplate!.Parameters.Count && ((ListBox)window.FindName("AvailableList")).Items.Count != 0,
                 "The template tab must show the parameters of the template and the others.");
             Save(root, Path.Combine(output, "tzxdata-stage8-templates.png"));
+            VerifyTemplateDefaultButton(window, editor, root, output);
 
             // Issue #43: a format with = is an NCalc formula; NCalc comes from the embedded resources of the release DLL.
             window.SelectTab(0);
@@ -540,6 +541,44 @@ internal static class Program
             Invoke((Button)window.FindName("CancelButton"), root);
         });
         Check(result == false && asked.Count == 1 && asked[0].Contains("без записи в чертёж"), "«Отмена» of a changed draft must ask and return false.");
+    }
+
+    /// <summary>
+    /// Issue #50: «Ок» right of «По умолчанию в шаблоне» is as high as the field and twice as wide; it assigns the typed
+    /// default to the selected parameter of the template while the text is still in the field (no focus change).
+    /// </summary>
+    private static void VerifyTemplateDefaultButton(SchemaEditorWindow window, SchemaEditorViewModel editor, FrameworkElement root, string output)
+    {
+        var power = editor.SelectedTemplate!.Parameters.Single(item => item.Id == "Power");
+        editor.SelectedTemplateParameter = power;
+        Pump(root);
+        var field = (TextBox)window.FindName("TemplateDefaultField");
+        var ok = (Button)window.FindName("TemplateDefaultApplyButton");
+        Check(field.IsVisible && ok.IsVisible && ok.IsEnabled && (string)ok.Content == "Ок", "«Ок» must be shown next to «По умолчанию в шаблоне».");
+        var fieldBox = field.TransformToAncestor(root).TransformBounds(new Rect(field.RenderSize));
+        var okBox = ok.TransformToAncestor(root).TransformBounds(new Rect(ok.RenderSize));
+        Check(field.ActualHeight > 0 && Math.Abs(ok.ActualHeight - field.ActualHeight) < 0.5 && Math.Abs(ok.ActualWidth - 2 * field.ActualHeight) < 0.5,
+            $"«Ок» must be as high as the field and twice as wide: field {field.ActualWidth}×{field.ActualHeight}, «Ок» {ok.ActualWidth}×{ok.ActualHeight}.");
+        Check(okBox.Left >= fieldBox.Right && okBox.Left - fieldBox.Right < 10 && Math.Abs(okBox.Top - fieldBox.Top) < 0.5,
+            $"«Ок» must stand right of the field on its line: field {fieldBox}, «Ок» {okBox}.");
+
+        var before = power.DefaultText;
+        var dirty = editor.IsDirty;
+        field.Text = "7.5";
+        Pump(root);
+        Check(power.DefaultText == before && editor.IsDirty == dirty, "Typed text must not reach the draft before «Ок» or leaving the field.");
+        Invoke(ok, root);
+        Check(power.DefaultText == "7.5" && power.DefaultSummary == "переопределено: 7.5" && editor.IsDirty,
+            "«Ок» must assign the default of the template: " + power.DefaultSummary);
+        Check(Descendants<TextBlock>((DependencyObject)window.FindName("TemplateParameterList")).Any(text => text.Text == "переопределено: 7.5"),
+            "The list of the template parameters must show the assigned default.");
+        Save(root, Path.Combine(output, "issue50-template-default-ok.png"));
+
+        // The previous text and «Ок» return the draft to its state before the check.
+        field.Text = before;
+        Pump(root);
+        Invoke(ok, root);
+        Check(power.DefaultText == before && editor.IsDirty == dirty, "«Ок» with the previous text must restore the draft.");
     }
 
     /// <summary>

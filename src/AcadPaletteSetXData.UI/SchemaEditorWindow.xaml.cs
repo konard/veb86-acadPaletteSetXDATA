@@ -1,9 +1,11 @@
 using System;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using AcadPaletteSetXData.Core;
 using Microsoft.Win32;
@@ -134,6 +136,13 @@ public partial class SchemaEditorWindow : Window
         if (sender is ListBoxItem item && !item.IsSelected) item.IsSelected = true;
     }
 
+    /// <summary>
+    /// Issue #50: «Ок» next to «По умолчанию в шаблоне» assigns the typed text to the selected parameter of the template
+    /// at once, without moving the focus to the lists of parameters first.
+    /// </summary>
+    private void OnApplyTemplateDefault(object sender, RoutedEventArgs e) =>
+        TemplateDefaultField.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+
     private void OnAvailableDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (model.AddToTemplateCommand.CanExecute(null)) model.AddToTemplateCommand.Execute(null);
@@ -165,4 +174,15 @@ public partial class SchemaEditorWindow : Window
         }
         catch (Exception error) { ReportList.ItemsSource = new[] { "Файл не записан: " + error.Message }; }
     }
+}
+
+/// <summary>Multiplies a size by <see cref="Factor"/>: «Ок» of the template default is twice as wide as high (issue #50).</summary>
+public sealed class ScaleConverter : IValueConverter
+{
+    public double Factor { get; set; } = 1;
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is double size ? size * Factor : DependencyProperty.UnsetValue;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }

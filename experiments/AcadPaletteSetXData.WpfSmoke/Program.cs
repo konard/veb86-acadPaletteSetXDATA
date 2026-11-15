@@ -819,7 +819,9 @@ internal static class Program
         box.ApplyTemplate();
         var host = (ScrollViewer)box.Template.FindName("PART_ContentHost", box);
         var placeholder = (TextBlock)choice.Template.FindName("MixedPlaceholder", choice);
-        var line = Math.Ceiling(box.FontFamily.LineSpacing * box.FontSize);
+        var line = new FormattedText("Ёйрщ", System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+            new Typeface(box.FontFamily, box.FontStyle, box.FontWeight, box.FontStretch), box.FontSize, Brushes.Black,
+            VisualTreeHelper.GetDpi(box).PixelsPerDip).Height;
         var text = placeholder.IsVisible ? placeholder : (FrameworkElement)host;
         var room = LayoutInformation.GetLayoutSlot(text).Height - text.Margin.Top - text.Margin.Bottom;
         var bounds = text.TransformToAncestor(choice).TransformBounds(new Rect(text.RenderSize));

@@ -1,5 +1,21 @@
 # Рендеры WPF-панели
 
+## Задача #59: предел количества выделенных объектов
+
+`issue59-*.png` — настоящие `SettingsWindow` и `PaletteView` на Windows **net48** без AutoCAD.
+`issue59-settings-limit.png` — раздел «Выделение» окна настроек с пределом `1` в черновике;
+`issue59-over-limit.png` — панель после «ОК»: выделено 2 объекта, это больше предела, объекты не
+прочитаны, панель показывает сообщение вместо свойств. Источник —
+[CI, commit 5002655](https://github.com/konard/veb86-acadPaletteSetXDATA/actions/runs/43842605194),
+артефакт `wpf-renders`, папка `net48`; те же проверки пройдены на .NET 8. Рендеры `issue48-settings-*.png`
+обновлены из того же запуска: окно настроек стало выше на раздел «Выделение». Генератор —
+`VerifySelectionLimit` в `experiments/AcadPaletteSetXData.WpfSmoke`. Описание —
+[settings.md](../settings.md).
+
+| Предел в окне настроек | Выделение больше предела |
+| --- | --- |
+| ![Предел в настройках](issue59-settings-limit.png) | ![Больше предела](issue59-over-limit.png) |
+
 ## Задача #50: кнопка «Ок» значения по умолчанию в шаблоне
 
 `issue50-template-default-ok.png` — вкладка «Шаблоны» настоящего `SchemaEditorWindow` на Windows **net48**

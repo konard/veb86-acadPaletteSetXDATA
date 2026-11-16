@@ -1,0 +1,43 @@
+{
+  "format": "BobrovXDATA.schema",
+  "version": 1,
+  "parameters": [
+    { "id": "Device_Type", "type": "String", "caption": "Тип устройства", "group": "Общие" },
+    { "id": "Spec_No", "type": "Integer", "caption": "№", "editor": { "min": 1 } },
+    { "id": "Spec_Pos", "type": "String", "caption": "Позиция" },
+    { "id": "Spec_Name", "type": "String", "caption": "Наименование" },
+    { "id": "Spec_Count", "type": "Double", "caption": "Кол.", "default": 1, "editor": { "min": 0, "precision": 2 } },
+    { "id": "Spec_Unit", "type": "String", "caption": "Ед. изм.", "default": "шт." },
+    {
+      "id": "Specs",
+      "type": "Table",
+      "caption": "Спецификация",
+      "group": "Спецификация",
+      "description": "Строка — одна позиция спецификации объекта; № — ключ строки.",
+      "columns": [ "Spec_No", "Spec_Name", "Spec_Count", "Spec_Pos", "Spec_Unit" ],
+      "key": "Spec_No"
+    },
+    { "id": "Conn_No", "type": "Integer", "caption": "№", "editor": { "min": 1 } },
+    { "id": "Conn_Target", "type": "String", "caption": "Куда" },
+    { "id": "Conn_TargetId", "type": "String", "caption": "DEVICE_ID цели", "editor": { "readOnly": true } },
+    { "id": "Conn_Cable", "type": "String", "caption": "Кабель" },
+    {
+      "id": "Connections",
+      "type": "Table",
+      "caption": "Соединения",
+      "group": "Соединения",
+      "description": "Строка — одно соединение объекта; № — ключ строки.",
+      "columns": [ "Conn_No", "Conn_Target", "Conn_Cable", "Conn_TargetId" ],
+      "key": "Conn_No"
+    }
+  ],
+  "enums": [],
+  "templates": [
+    {
+      "id": "LUMINAIRE",
+      "caption": "Светильник",
+      "entityTypes": [ "BlockReference" ],
+      "parameters": [ "Device_Type", "Specs", "Connections" ]
+    }
+  ]
+}

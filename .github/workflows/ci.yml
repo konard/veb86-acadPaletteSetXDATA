@@ -24,6 +24,11 @@ jobs:
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/schema.json
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/tzxdata-stage10-load-schema.json
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/issue43-formula-schema.json
+          dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/issue61-table-schema.json
+          dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/issue61-numbered-schema.json
+      - name: Probe how specifications and connections behave as a Table and as numbered parameters (issue #61)
+        timeout-minutes: 3
+        run: dotnet run --project experiments/issue61/Issue61Probe -c Release -- examples
       - name: Load report of 1000 objects × 50 parameters (TZXDATA 10.6)
         timeout-minutes: 3
         run: dotnet run --project experiments/AcadPaletteSetXData.LoadReport -c Release -- examples/tzxdata-stage10-load-schema.json

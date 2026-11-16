@@ -16,6 +16,9 @@ public sealed class SchemaUsage
     private readonly Dictionary<string, int> parameters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int> templates = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<(string Id, string Value), int> values = new Dictionary<(string Id, string Value), int>();
+    private readonly Dictionary<string, int> repeats = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+    private static readonly System.Text.RegularExpressions.Regex RecordNumber = new System.Text.RegularExpressions.Regex(@"(?=(_[1-9][0-9]*_))",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     /// <summary>Objects with <see cref="DrawingNames.RegApp"/> XDATA.</summary>
     public int ObjectCount { get; private set; }
@@ -34,6 +37,12 @@ public sealed class SchemaUsage
     /// </summary>
     public int CountValue(string? parameterId, string? value) =>
         parameterId is null || value is null ? 0 : values.TryGetValue(ValueKey(parameterId, value), out var count) ? count : 0;
+
+    /// <summary>
+    /// Number of objects storing records of the <c>Repeat</c> <paramref name="id"/> (issue #61): instance pairs
+    /// <c>&lt;id&gt;_&lt;n&gt;_&lt;suffix&gt;</c>; the <c>Repeat</c> itself has no pair of its own.
+    /// </summary>
+    public int CountRepeat(string? id) => id != null && repeats.TryGetValue(id, out var count) ? count : 0;
 
     public static SchemaUsage Scan(IEnumerable<IReadOnlyList<DataValue>> objects)
     {
@@ -65,6 +74,12 @@ public sealed class SchemaUsage
                 }
         foreach (var id in usedParameters) parameters[id] = Count(SchemaSection.Parameter, id) + 1;
         foreach (var id in usedTemplates) templates[id] = Count(SchemaSection.Template, id) + 1;
+        // Every «_<n>_» of an Id may end the Id of a Repeat: spec_1_pos → spec; a_2_b_3_c → a, a_2_b; x_1_2_pos → x, x_1.
+        var usedRepeats = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in usedParameters)
+            foreach (System.Text.RegularExpressions.Match match in RecordNumber.Matches(id))
+                if (match.Index > 0 && match.Index + match.Groups[1].Length < id.Length) usedRepeats.Add(id.Substring(0, match.Index));
+        foreach (var id in usedRepeats) repeats[id] = CountRepeat(id) + 1;
         foreach (var key in usedValues) this.values[key] = (this.values.TryGetValue(key, out var count) ? count : 0) + 1;
     }
 

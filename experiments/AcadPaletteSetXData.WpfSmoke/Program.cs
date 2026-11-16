@@ -37,7 +37,8 @@ internal static class Program
             PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Warning;
             var model = new PaletteViewModel();
             var source = new MemorySelection();
-            using var controller = new SelectionController(source, model.Selection);
+            // Issue #59: the controller limits the selection by the settings of the palette, as in AutoCAD.
+            using var controller = new SelectionController(source, model.Selection, model.Settings);
             using var view = new PaletteView(model);
             var window = new Window
             {
@@ -68,6 +69,7 @@ internal static class Program
             VerifyTemplates(view, model, source, output);
             VerifySchemaEditor(view, model, output);
             VerifySettings(view, model, source, output);
+            VerifySelectionLimit(view, model, controller, source, output);
             VerifyLegacy(view, model, tabs, source, output);
             VerifyEditing(view, model, source, output);
             VerifySelectionGroups(view, model, tabs, source, output);
@@ -671,6 +673,65 @@ internal static class Program
         Check(!model.Grid.Rows.Any(row => row.Id != null && system.Contains(row.Id)), "Clearing the setting must hide SYSTEM again.");
         source.Select(SampleSelection());
         Pump(view);
+    }
+
+    /// <summary>
+    /// Issue #59: «Настройки…» edits the selection limit (15000 by default); a selection over it is not read and the
+    /// palette says why. A hidden palette (inactive controller) reads nothing and is empty.
+    /// </summary>
+    private static void VerifySelectionLimit(PaletteView view, PaletteViewModel model, SelectionController controller, MemorySelection source, string output)
+    {
+        var grid = Grid(view);
+        var button = (Button)grid.FindName("SchemaButton");
+        var menu = (ContextMenu)grid.FindName("SchemaMenu");
+        source.Select(SampleSelection());
+        Pump(view);
+        Check(model.Settings.MaxSelectionCount == PaletteSettings.DefaultMaxSelectionCount && model.Selection.Entities.Count == 2,
+            "The default limit must read a selection of two objects.");
+        var shown = 0;
+        var previous = SettingsWindow.ShowModal;
+        try
+        {
+            SettingsWindow.ShowModal = window => ShowSettings((SettingsWindow)window, root =>
+            {
+                shown++;
+                var box = (TextBox)window.FindName("MaxSelectionCountBox");
+                var error = (TextBlock)window.FindName("MaxSelectionCountError");
+                Check(box.IsVisible && box.Text == "15000" && !error.IsVisible, "The limit field must show 15000: " + box.Text);
+                box.Text = "много";
+                Pump(root);
+                Check(error.IsVisible, "A wrong limit must show the error.");
+                Invoke((Button)window.FindName("OkButton"), root);
+                Check(window.IsVisible && model.Settings.MaxSelectionCount == 15000, "«ОК» with a wrong limit must keep the window open.");
+                box.Text = "1";
+                Pump(root);
+                Check(!error.IsVisible && model.Settings.MaxSelectionCount == 15000, "The field must change only the draft until «ОК».");
+                Save(Client(window), Path.Combine(output, "issue59-settings-limit.png"));
+                Invoke((Button)window.FindName("OkButton"), root);
+            });
+            Invoke(button, view);
+            Click(Item(menu, PropertyGridView.SettingsCommand), menu, view);
+        }
+        finally { SettingsWindow.ShowModal = previous; }
+        Pump(view);
+        Check(shown == 1 && model.Settings.MaxSelectionCount == 1, "«ОК» must apply the limit.");
+        Check(model.Selection.Entities.Count == 0 && model.Selection.SkippedCount == 2 &&
+              model.Selection.Status == SelectionViewModel.OverLimitMessage(2, 1) && model.Grid.Message == model.Selection.Status,
+            "A selection over the limit must not be read: " + model.Selection.Status);
+        Save(view, Path.Combine(output, "issue59-over-limit.png"));
+
+        model.Settings.MaxSelectionCount = PaletteSettings.DefaultMaxSelectionCount;
+        Pump(view);
+        Check(model.Selection.Entities.Count == 2 && model.Selection.SkippedCount == 0, "A larger limit must read the selection again.");
+
+        var reads = source.Reads;
+        controller.Active = false;
+        source.Select(SampleSelection());
+        Pump(view);
+        Check(source.Reads == reads && model.Selection.Entities.Count == 0, "A hidden palette must not read the selection.");
+        controller.Active = true;
+        Pump(view);
+        Check(source.Reads == reads + 1 && model.Selection.Entities.Count == 2, "A shown palette must read the selection at once.");
     }
 
     /// <summary>The client area of a window with its background, without the frame.</summary>

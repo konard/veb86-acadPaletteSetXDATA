@@ -347,8 +347,20 @@ Excel `&`; смешивать шаблон строкового режима и 
 ### Зависимость NCalc
 
 - Пакет `NCalc` **7.4.0** закреплён (`[7.4.0]`) в `AcadPaletteSetXData.Core.csproj` (`netstandard2.0`);
-  он совместим с `net48` и `net8.0-windows`. Вычислитель `NCalc.Expression` находится в `NCalc.Core.dll`,
-  других пакетов NCalc нет.
+  он совместим с `net48` и `net8.0-windows`. Формула разбирается `LogicalExpressionParser`
+  (`NCalc.Parser.dll`) и вычисляется `EvaluationVisitor` (`NCalc.Core.dll`), других пакетов NCalc нет.
+- Класс `NCalc.Expression` **не используется** (задача #57). Его конструктор создаёт статические
+  `LogicalExpressionCache` и `LogicalExpressionFactory`, а их логгеры берутся из
+  `Microsoft.Extensions.Logging.Abstractions`. В AutoCAD эту сборку часто уже загрузил другой компонент
+  в старой версии 1.1.1.0, где нет `NullLoggerFactory`. Тогда любая формула, даже `=@@[power]`,
+  давала «ошибка синтаксиса выражения: Не удалось загрузить тип
+  "Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory" из сборки … Version=1.1.1.0». Разбор и
+  вычисление напрямую не обращаются к журналированию, поэтому версия `Microsoft.Extensions.Logging.Abstractions`
+  в процессе AutoCAD больше не важна. Тест `LegacyLoggingTests` загружает ядро плагина и NCalc в
+  отдельный `AssemblyLoadContext` вместе с `Microsoft.Extensions.Logging.Abstractions` 1.1.1. Он
+  проверяет, что сам `new NCalc.Expression(…)` там падает с этой ошибкой, а формулы вычисляются и
+  даже не запрашивают сборку журналирования. Проба `experiments/issue57/LegacyLoggingProbe` печатает
+  то же самое.
 - **Release** (`acadPaletteSetXDATA.dll`) остаётся одной DLL: NCalc и его зависимости встраиваются в неё
   ресурсами `Embedded.<имя>.dll` (цель `EmbedRuntimeAssemblies` в `acadPaletteSetXDATA.csproj`), а
   `EmbeddedAssemblies` (инициализатор модуля, `AppDomain.AssemblyResolve`) загружает их из памяти при

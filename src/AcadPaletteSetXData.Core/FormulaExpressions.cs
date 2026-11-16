@@ -4,7 +4,9 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using NCalc;
+using NCalc.Exceptions;
 using NCalc.Handlers;
+using NCalc.Visitors;
 
 namespace AcadPaletteSetXData.Core;
 
@@ -28,6 +30,15 @@ public sealed class FormulaExpression
 
     private const ExpressionOptions Options =
         ExpressionOptions.IgnoreCaseAtBuiltInFunctions | ExpressionOptions.NoCache | ExpressionOptions.OverflowProtection | ExpressionOptions.RoundAwayFromZero;
+
+    /// <summary>
+    /// The parser and evaluation options of <see cref="Options"/>. The class <c>NCalc.Expression</c> is not used (issue #57):
+    /// its constructor initializes the static <c>LogicalExpressionCache</c> and <c>LogicalExpressionFactory</c>, whose
+    /// loggers come from <c>Microsoft.Extensions.Logging.Abstractions</c>. AutoCAD often has an older version of that
+    /// assembly loaded already (1.1.1.0 without <c>NullLoggerFactory</c>), and then every formula failed with a
+    /// <see cref="TypeLoadException"/>. The parser and the evaluation visitor below do not touch the logging at all.
+    /// </summary>
+    private static readonly ExpressionConfiguration Configuration = ExpressionConfiguration.FromOptions(Options);
 
     /// <summary>Functions of NCalc that formulas may call (the names are case-insensitive); others are a formula error.</summary>
     private static readonly HashSet<string> BuiltInFunctions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -78,7 +89,10 @@ public sealed class FormulaExpression
             if (source.Trim().Length == 0) throw new FormulaException("пустая формула после =");
             if (format.Length > MaxLength) throw new FormulaException("формула длиннее " + MaxLength.ToString(CultureInfo.InvariantCulture) + " символов");
             translated = Translate(format, CalculatedFormat.IsFormula(format) ? 1 : 0, references, parameters);
-            var tree = new Expression(translated, ExpressionConfiguration.FromOptions(Options), new ExpressionContext(), CultureInfo.InvariantCulture, null!).GetLogicalExpression();
+            LogicalExpression? tree;
+            // The position NCalc reports counts in the translated text, not in format, so it is not shown.
+            try { tree = LogicalExpressionParser.Parse(translated, Configuration.Parsing, CultureInfo.InvariantCulture); }
+            catch (NCalcParserException) { tree = null; }
             if (tree is null) throw new FormulaException("ошибка синтаксиса выражения");
             Check(tree, parameters);
             return new FormulaExpression(source, translated, references, parameters, tree, null);
@@ -141,13 +155,14 @@ public sealed class FormulaExpression
         if (tree is null) throw new FormulaException(Error ?? "формула не разобрана");
         // A single reference keeps the text of the string mode: =@@[Power] gives 2,50 with Editor.Precision 2.
         if (tree is Identifier single && parameters.TryGetValue(single.Name, out var only)) return text(only);
-        var expression = new Expression(tree, ExpressionConfiguration.FromOptions(Options), new ExpressionContext(), culture, null!);
-        foreach (var pair in parameters) expression.Parameters[pair.Key] = value(pair.Value);
-        expression.EvaluateFunction += (name, args) => Function(name, args, text, culture);
+        // The context and the visitor are what NCalc.Expression.Evaluate uses, without the class itself (see Configuration).
+        var context = new ExpressionContext();
+        foreach (var pair in parameters) context.Parameters[pair.Key] = value(pair.Value);
+        context.EvaluateFunctionHandler = (name, args) => Function(name, args, text, culture);
         object? result;
         try
         {
-            result = expression.Evaluate();
+            result = tree.Accept(new EvaluationVisitor(context, Configuration.Evaluation, culture));
         }
         catch (FormulaException) { throw; }
         catch (Exception error) when (!(error is OutOfMemoryException))

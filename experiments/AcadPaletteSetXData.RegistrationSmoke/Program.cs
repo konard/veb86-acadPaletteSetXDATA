@@ -32,10 +32,11 @@ const string applicationType = "AcadPaletteSetXData.AutoCAD.PaletteApplication";
 const string schemaCommandsType = "AcadPaletteSetXData.AutoCAD.SchemaCommands";
 const string templateCommandsType = "AcadPaletteSetXData.AutoCAD.TemplateCommands";
 const string migrationCommandsType = "AcadPaletteSetXData.AutoCAD.MigrationCommands";
+const string itemCommandsType = "AcadPaletteSetXData.AutoCAD.ItemCommands";
 foreach (var (name, targets) in new[]
 {
     ("ExtensionApplication", new[] { applicationType }),
-    ("CommandClass", new[] { applicationType, schemaCommandsType, templateCommandsType, migrationCommandsType }),
+    ("CommandClass", new[] { applicationType, schemaCommandsType, templateCommandsType, migrationCommandsType, itemCommandsType }),
 })
 {
     var attributes = assembly.GetCustomAttributes().Select(metadata.GetCustomAttribute)
@@ -59,7 +60,7 @@ foreach (var (name, targets) in new[]
             name + " must point to " + target + " in the release DLL.");
 }
 
-void CheckCommand(string typeName, string methodName, string commandName)
+void CheckCommand(string typeName, string methodName, string commandName, string attributeName = "CommandMethod")
 {
     var type = metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Single(item =>
         metadata.GetString(item.Namespace) + "." + metadata.GetString(item.Name) == typeName);
@@ -68,11 +69,11 @@ void CheckCommand(string typeName, string methodName, string commandName)
     Check((method.Attributes & (MethodAttributes.Public | MethodAttributes.Static)) ==
         (MethodAttributes.Public | MethodAttributes.Static), "Command handler must be public and static.");
     var command = method.GetCustomAttributes().Select(metadata.GetCustomAttribute).Single(item =>
-        AttributeName(item) == "Autodesk.AutoCAD.Runtime.CommandMethodAttribute");
+        AttributeName(item) == "Autodesk.AutoCAD.Runtime." + attributeName + "Attribute");
     var commandBlob = metadata.GetBlobReader(command.Value);
     Check(commandBlob.ReadUInt16() == 1 && commandBlob.ReadSerializedString() == commandName,
         commandName + " must be registered on the shipped command handler.");
-    Console.WriteLine("Verified command " + commandName + ".");
+    Console.WriteLine("Verified " + (attributeName == "CommandMethod" ? "command " : "LISP function ") + commandName + ".");
 }
 
 CheckCommand(applicationType, "TogglePalette", "XDATAPALETTE");
@@ -90,6 +91,13 @@ CheckCommand(schemaCommandsType, "Edit", "VELEC_SCHEMA_EDIT");
 CheckCommand(templateCommandsType, "Apply", "VELEC_TEMPLATE_APPLY");
 CheckCommand(migrationCommandsType, "Migrate", "VELEC_MIGRATE");
 CheckCommand(migrationCommandsType, "Check", "VELEC_CHECK");
+// Issue #61: records of a Repeat from commands, macros and LISP programs.
+CheckCommand(itemCommandsType, "Add", "VELEC_ITEM_ADD");
+CheckCommand(itemCommandsType, "RemoveLast", "VELEC_ITEM_REMOVE_LAST");
+CheckCommand(itemCommandsType, "LispAdd", "velec-item-add", "LispFunction");
+CheckCommand(itemCommandsType, "LispRemoveLast", "velec-item-remove-last", "LispFunction");
+CheckCommand(itemCommandsType, "LispCount", "velec-item-count", "LispFunction");
+CheckCommand(itemCommandsType, "LispGet", "velec-item-get", "LispFunction");
 
 foreach (var reference in metadata.AssemblyReferences.Select(metadata.GetAssemblyReference))
     Check(!metadata.GetString(reference.Name).StartsWith("AcadPaletteSetXData.", StringComparison.Ordinal),

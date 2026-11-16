@@ -1,0 +1,200 @@
+{
+  "format": "BobrovXDATA.schema",
+  "version": 1,
+  "parameters": [
+    {
+      "id": "Device_Type",
+      "type": "String",
+      "caption": "Тип устройства",
+      "group": "Общие"
+    },
+    {
+      "id": "spec_1_pos",
+      "type": "String",
+      "caption": "Позиция",
+      "group": "Спецификация №1"
+    },
+    {
+      "id": "spec_1_Name",
+      "type": "String",
+      "caption": "Наименование",
+      "group": "Спецификация №1"
+    },
+    {
+      "id": "spec_1_col",
+      "type": "Double",
+      "caption": "Кол.",
+      "group": "Спецификация №1",
+      "editor": {
+        "min": 0,
+        "precision": 2
+      }
+    },
+    {
+      "id": "spec_2_pos",
+      "type": "String",
+      "caption": "Позиция",
+      "group": "Спецификация №2"
+    },
+    {
+      "id": "spec_2_Name",
+      "type": "String",
+      "caption": "Наименование",
+      "group": "Спецификация №2"
+    },
+    {
+      "id": "spec_2_col",
+      "type": "Double",
+      "caption": "Кол.",
+      "group": "Спецификация №2",
+      "editor": {
+        "min": 0,
+        "precision": 2
+      }
+    },
+    {
+      "id": "spec_3_pos",
+      "type": "String",
+      "caption": "Позиция",
+      "group": "Спецификация №3"
+    },
+    {
+      "id": "spec_3_Name",
+      "type": "String",
+      "caption": "Наименование",
+      "group": "Спецификация №3"
+    },
+    {
+      "id": "spec_3_col",
+      "type": "Double",
+      "caption": "Кол.",
+      "group": "Спецификация №3",
+      "editor": {
+        "min": 0,
+        "precision": 2
+      }
+    },
+    {
+      "id": "spec_4_pos",
+      "type": "String",
+      "caption": "Позиция",
+      "group": "Спецификация №4"
+    },
+    {
+      "id": "spec_4_Name",
+      "type": "String",
+      "caption": "Наименование",
+      "group": "Спецификация №4"
+    },
+    {
+      "id": "spec_4_col",
+      "type": "Double",
+      "caption": "Кол.",
+      "group": "Спецификация №4",
+      "editor": {
+        "min": 0,
+        "precision": 2
+      }
+    },
+    {
+      "id": "spec_5_pos",
+      "type": "String",
+      "caption": "Позиция",
+      "group": "Спецификация №5"
+    },
+    {
+      "id": "spec_5_Name",
+      "type": "String",
+      "caption": "Наименование",
+      "group": "Спецификация №5"
+    },
+    {
+      "id": "spec_5_col",
+      "type": "Double",
+      "caption": "Кол.",
+      "group": "Спецификация №5",
+      "editor": {
+        "min": 0,
+        "precision": 2
+      }
+    },
+    {
+      "id": "conn_1_target",
+      "type": "String",
+      "caption": "Куда",
+      "group": "Соединение №1"
+    },
+    {
+      "id": "conn_1_cable",
+      "type": "String",
+      "caption": "Кабель",
+      "group": "Соединение №1"
+    },
+    {
+      "id": "conn_2_target",
+      "type": "String",
+      "caption": "Куда",
+      "group": "Соединение №2"
+    },
+    {
+      "id": "conn_2_cable",
+      "type": "String",
+      "caption": "Кабель",
+      "group": "Соединение №2"
+    },
+    {
+      "id": "conn_3_target",
+      "type": "String",
+      "caption": "Куда",
+      "group": "Соединение №3"
+    },
+    {
+      "id": "conn_3_cable",
+      "type": "String",
+      "caption": "Кабель",
+      "group": "Соединение №3"
+    },
+    {
+      "id": "conn_4_target",
+      "type": "String",
+      "caption": "Куда",
+      "group": "Соединение №4"
+    },
+    {
+      "id": "conn_4_cable",
+      "type": "String",
+      "caption": "Кабель",
+      "group": "Соединение №4"
+    },
+    {
+      "id": "conn_5_target",
+      "type": "String",
+      "caption": "Куда",
+      "group": "Соединение №5"
+    },
+    {
+      "id": "conn_5_cable",
+      "type": "String",
+      "caption": "Кабель",
+      "group": "Соединение №5"
+    }
+  ],
+  "enums": [],
+  "templates": [
+    {
+      "id": "LUMINAIRE",
+      "caption": "Светильник",
+      "entityTypes": [
+        "BlockReference"
+      ],
+      "parameters": [
+        "Device_Type",
+        "spec_1_pos",
+        "spec_1_Name",
+        "spec_1_col",
+        "conn_1_target",
+        "conn_1_cable"
+      ]
+    }
+  ]
+}

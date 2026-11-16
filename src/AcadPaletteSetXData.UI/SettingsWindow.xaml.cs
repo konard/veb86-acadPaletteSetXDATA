@@ -1,5 +1,7 @@
 using System;
+using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using AcadPaletteSetXData.Core;
 
 namespace AcadPaletteSetXData.UI;
@@ -24,6 +26,14 @@ public partial class SettingsWindow : Window
         };
         Draft = settings.Clone();
         DataContext = Draft;
+        MaxSelectionCountBox.Text = Draft.MaxSelectionCount.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private void OnMaxSelectionCountChanged(object sender, TextChangedEventArgs args)
+    {
+        var value = PaletteSettings.ParseMaxSelectionCount(MaxSelectionCountBox.Text);
+        MaxSelectionCountError.Visibility = value.HasValue ? Visibility.Collapsed : Visibility.Visible;
+        if (value.HasValue) Draft.MaxSelectionCount = value.Value;
     }
 
     /// <summary>The edited copy of the settings.</summary>
@@ -46,6 +56,13 @@ public partial class SettingsWindow : Window
 
     private void OnOk(object sender, RoutedEventArgs args)
     {
+        // A wrong limit keeps the window open: the error under the field says what to enter.
+        if (!PaletteSettings.ParseMaxSelectionCount(MaxSelectionCountBox.Text).HasValue)
+        {
+            MaxSelectionCountBox.Focus();
+            MaxSelectionCountBox.SelectAll();
+            return;
+        }
         settings.CopyFrom(Draft);
         DialogResult = true;
     }

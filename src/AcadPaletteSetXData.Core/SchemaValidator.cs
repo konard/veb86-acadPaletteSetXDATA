@@ -60,6 +60,7 @@ public sealed class SchemaValidator
 {
     public const int MaxIdLength = 64;
     private static readonly Regex IdPattern = new Regex("^[A-Za-z_][A-Za-z0-9_]{0,63}$", RegexOptions.CultureInvariant);
+    private static readonly Regex SuffixPattern = new Regex("^[A-Za-z][A-Za-z0-9_]{0,62}$", RegexOptions.CultureInvariant);
     private readonly ParameterTypeRegistry types;
 
     public SchemaValidator(ParameterTypeRegistry? types = null) { this.types = types ?? ParameterTypeRegistry.Default; }
@@ -123,6 +124,7 @@ public sealed class SchemaValidator
         NotApplicable(parameter.Columns != null && kind != ParameterKind.Table, name, "columns", "Table", issues);
         NotApplicable(parameter.GroupBy != null && kind != ParameterKind.Table, name, "groupBy", "Table", issues);
         NotApplicable(parameter.Key != null && kind != ParameterKind.Table, name, "key", "Table", issues);
+        NotApplicable(parameter.Fields != null && kind != ParameterKind.Repeat, name, "fields", "Repeat", issues);
 
         if (kind == ParameterKind.Enum)
         {
@@ -131,6 +133,7 @@ public sealed class SchemaValidator
         }
         if (kind == ParameterKind.CalculatedString) CheckFormat(schema, parameter, name, issues);
         if (kind == ParameterKind.Table) CheckTable(schema, parameter, name, issues);
+        if (kind == ParameterKind.Repeat) CheckRepeat(schema, parameter, name, issues);
         if (parameter.Editor != null) CheckEditor(parameter.Editor, kind, name, issues);
         if (parameter.Default != null && type.CheckValue(parameter.Default, parameter, schema) is string problem)
             issues.Add(Error(SchemaIssueCode.InvalidDefault, name, "default", problem));
@@ -143,13 +146,16 @@ public sealed class SchemaValidator
         if (error != null) issues.Add(Error(SchemaIssueCode.InvalidFormat, name, "format", error));
         foreach (var reference in fragments.Where(fragment => fragment.Reference != null))
         {
-            var target = schema.FindParameter(reference.Reference);
+            var target = schema.FindParameter(reference.Reference) ?? RepeatField(schema, reference.Reference);
             if (target is null)
                 issues.Add(Error(SchemaIssueCode.UnknownReference, name, "format", "@@[" + reference.Reference + "]: параметр не найден"));
             else if (reference.UseKey && Kind(target) != ParameterKind.Enum)
                 issues.Add(Error(SchemaIssueCode.InvalidFormat, name, "format", "@@[" + reference.Reference + ":key] допустимо только для Enum"));
             else if (Kind(target) == ParameterKind.Table)
                 issues.Add(Error(SchemaIssueCode.InvalidFormat, name, "format", "@@[" + reference.Reference + "]: Table нельзя подставить в строку"));
+            else if (Kind(target) == ParameterKind.Repeat)
+                issues.Add(Error(SchemaIssueCode.InvalidFormat, name, "format", "@@[" + reference.Reference + "]: Repeat нельзя подставить в строку; укажите поле записи, например @@[" +
+                    target.Id + "_1_" + (target.Fields?.FirstOrDefault()?.Suffix ?? "поле") + "]"));
         }
     }
 
@@ -177,6 +183,46 @@ public sealed class SchemaValidator
         }
         if (parameter.Key != null && !parameter.Columns.Any(id => ParameterSchema.SameId(id, parameter.Key)))
             issues.Add(Error(SchemaIssueCode.UnknownReference, name, "key", "\"" + parameter.Key + "\" не является колонкой таблицы"));
+    }
+
+    /// <summary>
+    /// <c>Repeat</c> (issue #61): every field maps a suffix to a scalar parameter, and the instance Ids
+    /// <c>&lt;id&gt;_&lt;n&gt;_&lt;suffix&gt;</c> are valid XDATA Ids that do not collide with declared parameters.
+    /// </summary>
+    private void CheckRepeat(ParameterSchema schema, SchemaParameter parameter, string name, List<SchemaIssue> issues)
+    {
+        if (parameter.Fields is null || parameter.Fields.Count == 0) { issues.Add(Error(SchemaIssueCode.Required, name, "fields", "не заданы поля записи")); return; }
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var field in parameter.Fields)
+        {
+            var path = "fields." + field.Suffix;
+            if (!SuffixPattern.IsMatch(field.Suffix))
+                issues.Add(Error(SchemaIssueCode.InvalidId, name, path, "суффикс поля: латиница, цифры и «_», первый символ не цифра и не «_»"));
+            else if (parameter.Id != null && IsValidId(parameter.Id) &&
+                     RepeatItems.ItemId(parameter.Id, RepeatItems.CheckedNumber, field.Suffix).Length > MaxIdLength)
+                issues.Add(Error(SchemaIssueCode.InvalidId, name, path, "Id записи " + RepeatItems.ItemId(parameter.Id, RepeatItems.CheckedNumber, field.Suffix) +
+                    " длиннее " + MaxIdLength.ToString(CultureInfo.InvariantCulture) + " символов"));
+            if (!seen.Add(field.Suffix)) issues.Add(Error(SchemaIssueCode.DuplicateReference, name, path, "суффикс повторяется (регистр не учитывается)"));
+            var target = schema.FindParameter(field.Parameter);
+            if (target is null) { issues.Add(Error(SchemaIssueCode.UnknownReference, name, path, "параметр \"" + field.Parameter + "\" не найден")); continue; }
+            var type = types.Find(target.Type);
+            if (type != null && !RepeatItems.IsFieldType(target, types))
+                issues.Add(Error(SchemaIssueCode.InvalidColumn, name, path, "параметр \"" + field.Parameter + "\": " + type.Name +
+                    " нельзя сделать полем записи (допустимы String, Double, Integer, Boolean, Enum)"));
+        }
+        if (parameter.Id is null) return;
+        foreach (var other in schema.Parameters)
+            if (other.Id != null && !ReferenceEquals(other, parameter) && RepeatItems.TryParse(parameter, other.Id, out _, out _))
+                issues.Add(Error(SchemaIssueCode.DuplicateId, name, "fields", "параметр " + other.Id + " совпадает с Id поля записи " + parameter.Id));
+    }
+
+    /// <summary>The field parameter behind a record field Id such as <c>spec_2_Name</c>, or null.</summary>
+    private SchemaParameter? RepeatField(ParameterSchema schema, string? id)
+    {
+        foreach (var repeat in schema.Parameters)
+            if (RepeatItems.IsRepeat(repeat, types) && RepeatItems.TryParse(repeat, id, out _, out var field))
+                return schema.FindParameter(field!.Parameter);
+        return null;
     }
 
     private static void CheckEditor(ParameterEditor editor, ParameterKind kind, string name, List<SchemaIssue> issues)
@@ -281,7 +327,7 @@ public sealed class SchemaValidator
                     var kind = Kind(Find(entry.Value));
                     if (Find(entry.Value) is null || ParameterSchema.ReservedIds.Contains(entry.Value, StringComparer.OrdinalIgnoreCase))
                         issues.Add(Error(SchemaIssueCode.UnknownReference, name, field + "." + entry.Key, "параметр \"" + entry.Value + "\" не описан в схеме"));
-                    else if (kind == ParameterKind.Table || kind == ParameterKind.CalculatedString)
+                    else if (kind == ParameterKind.Table || kind == ParameterKind.CalculatedString || kind == ParameterKind.Repeat)
                         issues.Add(Error(SchemaIssueCode.InvalidValue, name, field + "." + entry.Key, "поле переносится только в параметр со значением, не в " + Find(entry.Value)!.Type));
                 }
             else if (string.Equals(item.Key, MigrationMap.TablesName, StringComparison.OrdinalIgnoreCase))

@@ -26,7 +26,7 @@ public static class ParameterSchemaJson
     private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
     private static readonly string[] RootFields = { "format", "version", "parameters", "enums", "templates" };
     private static readonly string[] ParameterFields =
-        { "id", "type", "caption", "description", "group", "default", "enum", "format", "persist", "columns", "groupBy", "key", "editor" };
+        { "id", "type", "caption", "description", "group", "default", "enum", "format", "persist", "columns", "groupBy", "key", "editor", "fields" };
     private static readonly string[] EditorFields =
         { "unit", "precision", "min", "max", "maxLength", "readOnly", "multiline", "allowCustom", "vstColumn" };
     private static readonly string[] EnumFields = { "id", "caption", "items" };
@@ -119,6 +119,13 @@ public static class ParameterSchemaJson
         Put(result, "groupBy", parameter.GroupBy);
         Put(result, "key", parameter.Key);
         if (parameter.Editor != null) result.Add("editor", ToJson(parameter.Editor));
+        if (parameter.Fields != null)
+        {
+            var fields = new JsonObject();
+            foreach (var field in parameter.Fields)
+                if (!fields.ContainsKey(field.Suffix)) fields.Add(field.Suffix, new JsonString(field.Parameter));
+            result.Add("fields", fields);
+        }
         return AddExtra(result, parameter);
     }
 
@@ -193,6 +200,11 @@ public static class ParameterSchemaJson
                 case "editor":
                     if (!(value is JsonObject editor)) return "ожидается объект";
                     parameter.Editor = ReadEditor(reader, editor, path);
+                    return "";
+                case "fields":
+                    if (!(value is JsonObject fields) || fields.Any(field => !(field.Value is JsonString)))
+                        return "ожидается объект «суффикс»: «Id параметра»";
+                    parameter.Fields = fields.Select(field => new RepeatField(field.Key, ((JsonString)field.Value).Value)).ToList();
                     return "";
                 default: return null;
             }

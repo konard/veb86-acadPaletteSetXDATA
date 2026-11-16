@@ -112,6 +112,7 @@ public sealed class FormulaSet
                 if (!schema.Parameters.TryGetValue(fragment.Reference!, out var target)) { formula.AddError("неизвестная ссылка " + name); continue; }
                 var kind = types.Find(target.Type)?.Kind;
                 if (kind == ParameterKind.Table) { formula.AddError("таблица " + target.Id + " не подставляется в " + name); continue; }
+                if (kind == ParameterKind.Repeat) { formula.AddError("набор записей " + target.Id + " не подставляется в " + name + "; укажите поле записи, например " + target.Id + "_1_" + (target.Fields?.FirstOrDefault()?.Suffix ?? "field")); continue; }
                 if (fragment.UseKey && kind != ParameterKind.Enum) formula.AddError(name + ": модификатор :key применим только к Enum");
                 formula.AddReference(target.Id!);
                 if (!set.direct.TryGetValue(target.Id!, out var list)) set.direct.Add(target.Id!, list = new List<Formula>());
@@ -286,7 +287,7 @@ public sealed class ObjectCalculation
             if (!Schema.Parameters.TryGetValue(item.Id, out var parameter) || result.Contains(parameter.Id!, StringComparer.OrdinalIgnoreCase)) continue;
             var missing = types.Find(parameter.Type)?.Kind switch
             {
-                null or ParameterKind.Table => false,
+                null or ParameterKind.Table or ParameterKind.Repeat => false,
                 ParameterKind.CalculatedString => Formulas.Find(parameter.Id)?.Persist == true && Find(parameter.Id!)?.IsError == false,
                 _ => Default(parameter) != null
             };

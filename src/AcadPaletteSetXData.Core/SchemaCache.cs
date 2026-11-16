@@ -14,16 +14,21 @@ public sealed class SchemaSnapshot
         foreach (var parameter in schema.Parameters) Add(parameters, parameter.Id, parameter);
         foreach (var item in schema.Enums) Add(enums, item.Id, item);
         foreach (var template in schema.Templates) Add(templates, template.Id, template);
+        parameterMap = new SchemaParameterMap(parameters);
     }
 
     private readonly Dictionary<string, SchemaParameter> parameters = new Dictionary<string, SchemaParameter>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SchemaEnum> enums = new Dictionary<string, SchemaEnum>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SchemaTemplate> templates = new Dictionary<string, SchemaTemplate>(StringComparer.OrdinalIgnoreCase);
     private FormulaSet? formulas;
+    private SchemaParameterMap? parameterMap;
 
     public SchemaNodReadResult Read { get; }
     public ParameterSchema? Schema => Read.Schema;
-    public IReadOnlyDictionary<string, SchemaParameter> Parameters => parameters;
+    /// <summary>
+    /// Declared parameters; lookups also resolve the fields of <c>Repeat</c> records (<c>spec_2_Name</c>, issue #61).
+    /// </summary>
+    public SchemaParameterMap Parameters => parameterMap ??= new SchemaParameterMap(parameters);
     public IReadOnlyDictionary<string, SchemaEnum> Enums => enums;
     public IReadOnlyDictionary<string, SchemaTemplate> Templates => templates;
     /// <summary>Parsed <c>CalculatedString</c> formulas and their dependency graph, built once per snapshot (TZXDATA 7.3, 10.1).</summary>

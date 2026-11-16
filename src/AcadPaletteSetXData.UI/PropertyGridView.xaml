@@ -330,6 +330,12 @@
                                     <Button Content="✎" Style="{StaticResource CellButton}" IsEnabled="{Binding CanEditRow}" Click="OnEditRow"
                                             Visibility="{Binding ShowEdit, Converter={StaticResource Visible}}"
                                             AutomationProperties.Name="Редактировать строку" ToolTip="Показать или скрыть все поля строки" />
+                                    <Button Content="▲" Style="{StaticResource CellButton}" IsEnabled="{Binding CanMoveUp}" Click="OnMoveUp"
+                                            Visibility="{Binding ShowMove, Converter={StaticResource Visible}}"
+                                            AutomationProperties.Name="Запись выше" ToolTip="Поменять местами с предыдущей записью" />
+                                    <Button Content="▼" Style="{StaticResource CellButton}" IsEnabled="{Binding CanMoveDown}" Click="OnMoveDown"
+                                            Visibility="{Binding ShowMove, Converter={StaticResource Visible}}"
+                                            AutomationProperties.Name="Запись ниже" ToolTip="Поменять местами со следующей записью" />
                                 </StackPanel>
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
@@ -382,9 +388,14 @@
                             <DataTemplate>
                                 <Grid>
                                     <TextBlock Style="{StaticResource NoteText}" />
-                                    <Button Content="+ Добавить" Style="{StaticResource CellButton}" HorizontalAlignment="Left" IsEnabled="{Binding CanAdd}"
-                                            Visibility="{Binding ShowAdd, Converter={StaticResource Visible}}" Click="OnAddRow"
-                                            AutomationProperties.Name="Добавить строку" ToolTip="Добавить строку во всё выделение" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                        <Button Content="+ Добавить" Style="{StaticResource CellButton}" IsEnabled="{Binding CanAdd}"
+                                                Visibility="{Binding ShowAdd, Converter={StaticResource Visible}}" Click="OnAddRow"
+                                                AutomationProperties.Name="Добавить строку" ToolTip="Добавить строку или запись во всё выделение" />
+                                        <Button Content="− Последняя" Style="{StaticResource CellButton}" IsEnabled="{Binding CanRemoveLast}"
+                                                Visibility="{Binding ShowRemoveLast, Converter={StaticResource Visible}}" Click="OnRemoveLastItem"
+                                                AutomationProperties.Name="Удалить последнюю запись" ToolTip="Удалить запись с наибольшим номером в каждом объекте" />
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>

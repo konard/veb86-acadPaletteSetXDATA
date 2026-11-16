@@ -200,6 +200,24 @@ public partial class PropertyGridView : UserControl
         if (model != null && RowOf(sender) is PropertyRow row && model.AddRow(row)) FocusEditorLater();
     }
 
+    /// <summary>«− Последняя» of a <c>Repeat</c> (issue #61).</summary>
+    private void OnRemoveLastItem(object sender, RoutedEventArgs args)
+    {
+        if (model != null && RowOf(sender) is PropertyRow row) model.RemoveLastItem(row);
+    }
+
+    /// <summary><c>▲</c> of a record of a <c>Repeat</c>: swaps it with the previous one (issue #61).</summary>
+    private void OnMoveUp(object sender, RoutedEventArgs args)
+    {
+        if (model != null && RowOf(sender) is PropertyRow row) model.MoveItem(row, -1);
+    }
+
+    /// <summary><c>▼</c> of a record of a <c>Repeat</c>: swaps it with the next one (issue #61).</summary>
+    private void OnMoveDown(object sender, RoutedEventArgs args)
+    {
+        if (model != null && RowOf(sender) is PropertyRow row) model.MoveItem(row, 1);
+    }
+
     /// <summary>«+ Параметр»: a menu of the parameters of the schema that are not shown yet (TZXDATA 8.4).</summary>
     private void OnAddParameter(object sender, RoutedEventArgs args)
     {

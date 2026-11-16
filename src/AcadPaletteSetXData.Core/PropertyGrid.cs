@@ -22,7 +22,11 @@ public enum PropertyRowKind
     /// <summary>A row of a <c>Table</c>.</summary>
     TableRow,
     /// <summary>A cell of a table row opened by <c>✎</c>: one row per table column (stage 6).</summary>
-    Cell
+    Cell,
+    /// <summary>A <c>Repeat</c> parameter (issue #61): its records are children; «+ Добавить» and «− Последняя».</summary>
+    Collection,
+    /// <summary>A record of a <c>Repeat</c>, «Спецификация №2»: its fields are children; <c>×</c>, <c>▲</c> and <c>▼</c>.</summary>
+    Item
 }
 
 /// <summary>Editor of column 2 (TZXDATA 8.3); the view creates it only for the cell in focus.</summary>
@@ -104,14 +108,21 @@ public sealed class PropertyRow : ObservableObject
     /// <summary>The value is a default that is not stored (TZXDATA 6.2): grey.</summary>
     public bool IsDefault { get; internal set; }
     public bool IsError => State == PropertyState.Error;
-    /// <summary>Groups and categories are shown in italics.</summary>
-    public bool IsHeader => Kind == PropertyRowKind.Group || Kind == PropertyRowKind.Category;
-    /// <summary>Column 0: <c>×</c> and <c>✎</c> of a table row, <c>×</c> of a value outside the template or the schema.</summary>
-    public bool ShowActions => Kind == PropertyRowKind.TableRow || CanDelete;
+    /// <summary>Groups, categories and records of a <c>Repeat</c> are shown in italics.</summary>
+    public bool IsHeader => Kind == PropertyRowKind.Group || Kind == PropertyRowKind.Category || Kind == PropertyRowKind.Item;
+    /// <summary>
+    /// Column 0: <c>×</c> and <c>✎</c> of a table row, <c>×</c>, <c>▲</c> and <c>▼</c> of a record, <c>×</c> of a value
+    /// outside the template or the schema.
+    /// </summary>
+    public bool ShowActions => Kind == PropertyRowKind.TableRow || Kind == PropertyRowKind.Item || CanDelete;
     /// <summary>Column 0: <c>✎</c> of a table row.</summary>
     public bool ShowEdit => Kind == PropertyRowKind.TableRow;
-    /// <summary>Column 4 of a table node or category: «+ Добавить».</summary>
+    /// <summary>Column 0: <c>▲</c> and <c>▼</c> of a record of a <c>Repeat</c> (issue #61).</summary>
+    public bool ShowMove => Kind == PropertyRowKind.Item;
+    /// <summary>Column 4 of a table node, category or <c>Repeat</c>: «+ Добавить».</summary>
     public bool ShowAdd { get; internal set; }
+    /// <summary>Column 4 of a <c>Repeat</c>: «− Последняя» removes the record with the largest number of every object.</summary>
+    public bool ShowRemoveLast => Kind == PropertyRowKind.Collection && ShowAdd;
 
     /// <summary>Editor of column 2 (TZXDATA 8.3); <see cref="PropertyEditorKind.None"/> when the value is read only.</summary>
     public PropertyEditorKind Editor { get; internal set; }
@@ -152,8 +163,18 @@ public sealed class PropertyRow : ObservableObject
     public bool CanDelete { get; internal set; }
     /// <summary><c>✎</c>: shows the cells of a table row as child rows with editors.</summary>
     public bool CanEditRow { get; internal set; }
-    /// <summary>«+ Добавить» adds a row to the table in every object.</summary>
+    /// <summary>«+ Добавить» adds a row to the table, or a record to the <c>Repeat</c>, in every object.</summary>
     public bool CanAdd { get; internal set; }
+    /// <summary>«− Последняя» of a <c>Repeat</c>: an object of the selection has a record.</summary>
+    public bool CanRemoveLast { get; internal set; }
+    /// <summary><c>▲</c> of a record: the previous number is shown, the records are swapped.</summary>
+    public bool CanMoveUp { get; internal set; }
+    /// <summary><c>▼</c> of a record: the next number is shown, the records are swapped.</summary>
+    public bool CanMoveDown { get; internal set; }
+    /// <summary><c>Id</c> of the <c>Repeat</c> of a collection or record node (issue #61).</summary>
+    public string? Collection { get; internal set; }
+    /// <summary>Number of a record of a <c>Repeat</c>, from 1; 0 for other rows.</summary>
+    public int Number { get; internal set; }
     /// <summary>The cells of the table row are shown (<c>✎</c>).</summary>
     public bool IsEditing { get => isEditing; internal set => SetProperty(ref isEditing, value); }
     /// <summary><c>Id</c> of the table of a table node, category, row or cell.</summary>
@@ -266,6 +287,9 @@ public sealed class PropertyGridViewModel : ObservableObject
         DeleteRowCommand = new DelegateCommand(row => { if (row is PropertyRow item) DeleteRow(item); }, row => row is PropertyRow item && CanEdit && item.CanDelete);
         EditRowCommand = new DelegateCommand(row => { if (row is PropertyRow item) EditRow(item); }, row => row is PropertyRow item && item.CanEditRow);
         AddRowCommand = new DelegateCommand(row => { if (row is PropertyRow item) AddRow(item); }, row => row is PropertyRow item && CanEdit && item.CanAdd);
+        RemoveLastItemCommand = new DelegateCommand(row => { if (row is PropertyRow item) RemoveLastItem(item); }, row => row is PropertyRow item && CanEdit && item.CanRemoveLast);
+        MoveUpCommand = new DelegateCommand(row => { if (row is PropertyRow item) MoveItem(item, -1); }, row => row is PropertyRow item && CanEdit && item.CanMoveUp);
+        MoveDownCommand = new DelegateCommand(row => { if (row is PropertyRow item) MoveItem(item, 1); }, row => row is PropertyRow item && CanEdit && item.CanMoveDown);
         AddParameterCommand = new DelegateCommand(
             option => AddParameter(option is PropertyOption item ? item.Key : option as string ?? ""),
             option => CanEdit && (option is null || option is PropertyOption || option is string));
@@ -344,7 +368,7 @@ public sealed class PropertyGridViewModel : ObservableObject
     public bool ShowStateColumn { get => showState; set => SetProperty(ref showState, value); }
     public bool ShowNoteColumn { get => showNote; set => SetProperty(ref showNote, value); }
     /// <summary>Widths of columns 0–4; the view writes back the widths dragged by the user for the session.</summary>
-    public double[] ColumnWidths { get; } = { 44, 150, 120, 28, 130 };
+    public double[] ColumnWidths { get; } = { 62, 150, 120, 28, 130 };
     /// <summary>
     /// Vertical scroll position; saved per template so that a new selection of the same template keeps it (TZXDATA 8.5).
     /// </summary>
@@ -376,6 +400,12 @@ public sealed class PropertyGridViewModel : ObservableObject
     public ICommand EditRowCommand { get; }
     /// <summary>«+ Добавить» of column 4: <see cref="AddRow"/>.</summary>
     public ICommand AddRowCommand { get; }
+    /// <summary>«− Последняя» of column 4 of a <c>Repeat</c>: <see cref="RemoveLastItem"/>.</summary>
+    public ICommand RemoveLastItemCommand { get; }
+    /// <summary><c>▲</c> of column 0 of a record: <see cref="MoveItem"/> with −1.</summary>
+    public ICommand MoveUpCommand { get; }
+    /// <summary><c>▼</c> of column 0 of a record: <see cref="MoveItem"/> with +1.</summary>
+    public ICommand MoveDownCommand { get; }
     /// <summary>«+ Параметр»: <see cref="AddParameter"/> with a <see cref="PropertyOption"/> of <see cref="AvailableParameters"/>.</summary>
     public ICommand AddParameterCommand { get; }
 
@@ -466,8 +496,9 @@ public sealed class PropertyGridViewModel : ObservableObject
         if (type is null || schema?.Schema is null) { row.ResetEdit(); return false; }
         if (text.Trim().Length == 0 && type.Kind != ParameterKind.String)
         {
-            // The default of a scalar is the absence of its value (TZXDATA 6.2); a cell has no default.
-            if (row.Kind != PropertyRowKind.Parameter) return Reject(row, "значение не может быть пустым");
+            // The default of a scalar is the absence of its value (TZXDATA 6.2); a cell and a field of a record have no
+            // default: removing the field would leave the record incomplete (issue #61).
+            if (row.Kind != PropertyRowKind.Parameter || schema.Parameters.FindRepeatInstance(row.Id) != null) return Reject(row, "значение не может быть пустым");
             return Request(row, SelectionEdit.RemoveParameter(row.Id!));
         }
         object value = text;
@@ -523,6 +554,12 @@ public sealed class PropertyGridViewModel : ObservableObject
     {
         if (row is null) throw new ArgumentNullException(nameof(row));
         if (!CanEdit || !Current(row) || !row.CanDelete) return false;
+        if (row.Kind == PropertyRowKind.Item)
+        {
+            // The following records are shifted down in the same transaction (the owner's decision for issue #61).
+            if (row.Collection is null || row.Number <= 0) return false;
+            return Shifted(row, SelectionEdit.DeleteItem(row.Collection, row.Number), row.Number, int.MaxValue);
+        }
         if (row.Kind == PropertyRowKind.TableRow)
             return row.Table != null && row.RowKey != null && Request(row, SelectionEdit.DeleteTableRow(row.Table, row.RowKey));
         return row.Id != null && Request(row, SelectionEdit.RemoveParameter(row.Id));
@@ -550,6 +587,7 @@ public sealed class PropertyGridViewModel : ObservableObject
     public bool AddRow(PropertyRow node)
     {
         if (node is null) throw new ArgumentNullException(nameof(node));
+        if (node.Kind == PropertyRowKind.Collection) return AddItem(node);
         if (!CanEdit || !Current(node) || !node.CanAdd || node.Table is null || node.KeyColumn is null || schema is null) return false;
         if (!schema.Parameters.TryGetValue(node.KeyColumn, out var keyParameter)) return false;
         var keys = node.RowKeys ?? new HashSet<string>(StringComparer.Ordinal);
@@ -582,6 +620,56 @@ public sealed class PropertyGridViewModel : ObservableObject
     }
 
     /// <summary>
+    /// «+ Добавить» of a <c>Repeat</c> (issue #61): adds a record with the next number of every object, its fields filled
+    /// with their defaults; the first field of the new record is selected for editing. A record that does not fit the
+    /// 16 KB of XDATA of an object cancels the operation with a message.
+    /// </summary>
+    public bool AddItem(PropertyRow node)
+    {
+        if (node is null) throw new ArgumentNullException(nameof(node));
+        if (!CanEdit || !Current(node) || !node.CanAdd || node.Collection is null || schema is null) return false;
+        var repeat = schema.Parameters.FindRepeat(node.Collection);
+        if (repeat?.Fields is null || repeat.Fields.Count == 0) return false;
+        var next = node.children.Select(item => item.Number).DefaultIfEmpty(0).Max() + 1;
+        selectedIdentity = reveal = "p:" + RepeatItems.ItemId(repeat.Id!, next, repeat.Fields[0].Suffix).ToUpperInvariant();
+        return Request(node, SelectionEdit.AddItem(repeat.Id!));
+    }
+
+    /// <summary>«− Последняя» of a <c>Repeat</c> (issue #61): removes the record with the largest number of every object.</summary>
+    public bool RemoveLastItem(PropertyRow node)
+    {
+        if (node is null) throw new ArgumentNullException(nameof(node));
+        if (!CanEdit || !Current(node) || !node.CanRemoveLast || node.Collection is null) return false;
+        return Request(node, SelectionEdit.RemoveLastItem(node.Collection));
+    }
+
+    /// <summary>
+    /// <c>▲</c> (<paramref name="offset"/> −1) and <c>▼</c> (+1) of a record (issue #61): swaps the numbers of the record
+    /// and its neighbour in every object that has it; formulas that refer to them are reported.
+    /// </summary>
+    public bool MoveItem(PropertyRow row, int offset)
+    {
+        if (row is null) throw new ArgumentNullException(nameof(row));
+        if (!CanEdit || !Current(row) || row.Kind != PropertyRowKind.Item || row.Collection is null || row.Number <= 0) return false;
+        if (offset == -1 ? !row.CanMoveUp : offset == 1 ? !row.CanMoveDown : true) return false;
+        var other = row.Number + offset;
+        // The moved record stays selected under its new number.
+        selectedIdentity = reveal = row.Key.Substring(0, row.Key.Length - row.Number.ToString(CultureInfo.InvariantCulture).Length) +
+            other.ToString(CultureInfo.InvariantCulture);
+        return Shifted(row, SelectionEdit.MoveItem(row.Collection, row.Number, offset), Math.Min(row.Number, other), Math.Max(row.Number, other));
+    }
+
+    /// <summary>Writes a renumbering edit; formulas that refer to the records <paramref name="from"/>..<paramref name="to"/> are reported.</summary>
+    private bool Shifted(PropertyRow row, SelectionEdit edit, int from, int to)
+    {
+        var repeat = schema?.Parameters.FindRepeat(row.Collection);
+        var report = repeat is null ? null : RepeatItems.ShiftReport(schema!, repeat, from, to);
+        var written = Request(row, edit);
+        if (written && !HasError && report != null) Message = report;
+        return written;
+    }
+
+    /// <summary>
     /// «+ Параметр» (TZXDATA 8.4): writes a parameter of the schema that is not shown yet to every object, with the value
     /// of its default (or an empty value of its type); it is shown in «Дополнительные» and selected for editing.
     /// A <c>CalculatedString</c> is added by <see cref="SelectionEdit.AddCalculated"/> and shows its computed result.
@@ -591,6 +679,13 @@ public sealed class PropertyGridViewModel : ObservableObject
         if (!CanEdit || schema?.Schema is null || string.IsNullOrEmpty(id)) return false;
         if (!AvailableParameters.Any(option => ParameterSchema.SameId(option.Key, id)) || !schema.Parameters.TryGetValue(id, out var parameter)) return false;
         var type = types.Find(parameter.Type)!;
+        if (type.Kind == ParameterKind.Repeat)
+        {
+            // A collection is added with its first record (issue #61).
+            if (parameter.Fields is null || parameter.Fields.Count == 0) return false;
+            selectedIdentity = reveal = "p:" + RepeatItems.ItemId(parameter.Id!, 1, parameter.Fields[0].Suffix).ToUpperInvariant();
+            return selection.RequestEdit(SelectionEdit.AddItem(parameter.Id!));
+        }
         if (type.Kind == ParameterKind.CalculatedString)
         {
             // A formula is not set by hand (issue #57): its row marks the objects, the tree shows the computed result.
@@ -824,6 +919,15 @@ public sealed class PropertyGridViewModel : ObservableObject
 
     private bool Contains(string? text) => text != null && text.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
 
+    /// <summary>Russian plural of a record counter of a <c>Repeat</c>: «1 запись», «3 записи», «10 записей».</summary>
+    public static string ItemsText(int count)
+    {
+        var tens = count % 100;
+        var ones = count % 10;
+        var word = tens >= 11 && tens <= 14 ? "записей" : ones == 1 ? "запись" : ones >= 2 && ones <= 4 ? "записи" : "записей";
+        return count.ToString(CultureInfo.InvariantCulture) + " " + word;
+    }
+
     /// <summary>Russian plural of a row counter: «1 строка», «3 строки», «10 строк».</summary>
     public static string RowsText(int count)
     {
@@ -905,19 +1009,23 @@ public sealed class PropertyGridViewModel : ObservableObject
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var inTemplate = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var storedWithTemplate = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // The fields of the records of a Repeat (spec_2_Name) are shown under its node, not as parameters (issue #61).
+            string Owner(string id) => schema!.Parameters.FindRepeatInstance(id)?.Repeat.Id ?? id;
             foreach (var item in values)
             {
                 if (item.Template != null && schema!.Templates.TryGetValue(item.Template, out var template))
                     foreach (var parameter in template.Parameters)
                         if (!string.IsNullOrEmpty(parameter.Id))
                         {
-                            inTemplate.Add(parameter.Id!);
-                            if (seen.Add(parameter.Id!)) order.Add(parameter.Id!);
+                            var id = Owner(parameter.Id!);
+                            inTemplate.Add(id);
+                            if (seen.Add(id)) order.Add(id);
                         }
                 foreach (var value in item.Values)
                 {
-                    if (item.Template != null) storedWithTemplate.Add(value.Id);
-                    if (seen.Add(value.Id)) order.Add(value.Id);
+                    var id = Owner(value.Id);
+                    if (item.Template != null) storedWithTemplate.Add(id);
+                    if (seen.Add(id)) order.Add(id);
                 }
             }
             var groups = new List<(string Name, List<string> Ids)>();
@@ -958,10 +1066,20 @@ public sealed class PropertyGridViewModel : ObservableObject
             if (ids.Count == 1 && schema!.Parameters.TryGetValue(ids[0], out var only) && Kind(only) == ParameterKind.Table &&
                 string.Equals(Caption(only), name, StringComparison.OrdinalIgnoreCase))
                 return Table(ids[0], only, 0, "");
+            // The same for a group of one Repeat: «Спецификация» holds «Спецификация №1», «Спецификация №2» (issue #61).
+            if (!removable && ids.Count == 1 && schema!.Parameters.TryGetValue(ids[0], out only) && Kind(only) == ParameterKind.Repeat &&
+                string.Equals(RepeatItems.CollectionCaption(only), name, StringComparison.OrdinalIgnoreCase))
+                return Collection(ids[0], only, 0, "");
             var group = new PropertyRow(PropertyRowKind.Group, key, name, 0);
             foreach (var id in ids)
             {
                 var parameter = schema!.Parameters.TryGetValue(id, out var found) ? found : null;
+                if (parameter != null && Kind(parameter) == ParameterKind.Repeat)
+                {
+                    // A collection is changed by its own buttons; × of «Дополнительные» does not apply to it.
+                    group.children.Add(Collection(id, parameter, 1, key + "/"));
+                    continue;
+                }
                 var child = parameter != null && Kind(parameter) == ParameterKind.Table || parameter is null && IsList(id)
                     ? Table(id, parameter, 1, key + "/")
                     : Scalar(id, parameter, 1);
@@ -1096,13 +1214,16 @@ public sealed class PropertyGridViewModel : ObservableObject
 
         /// <summary>
         /// «+ Параметр»: scalar parameters of the schema that the tree does not show, including <c>CalculatedString</c>
-        /// (issue #57), except system ids and table columns.
+        /// (issue #57) and <c>Repeat</c> (added with its first record, issue #61), except system ids, table columns and
+        /// the field parameters of records.
         /// </summary>
         public IReadOnlyList<PropertyOption> Available(IReadOnlyList<PropertyRow> built)
         {
             if (!CanEdit) return Array.Empty<PropertyOption>();
             var shown = new HashSet<string>(All(built).Where(row => row.Id != null).Select(row => row.Id!), StringComparer.OrdinalIgnoreCase);
             var columns = new HashSet<string>(schema!.Parameters.Values.Where(parameter => parameter.Columns != null).SelectMany(parameter => parameter.Columns!), StringComparer.OrdinalIgnoreCase);
+            // The field parameters of a Repeat describe its records (issue #61): they are added by «+ Добавить» of the collection.
+            columns.UnionWith(schema.Parameters.Repeats.SelectMany(repeat => repeat.Fields!).Select(field => field.Parameter));
             return schema.Schema!.Parameters
                 .Where(parameter => !string.IsNullOrEmpty(parameter.Id) && !shown.Contains(parameter.Id!) && !columns.Contains(parameter.Id!) &&
                     !ParameterSchema.ReservedIds.Contains(parameter.Id!, StringComparer.OrdinalIgnoreCase) && parameter.Editor?.ReadOnly != true &&
@@ -1142,6 +1263,75 @@ public sealed class PropertyGridViewModel : ObservableObject
             if (!string.IsNullOrEmpty(parameter?.Format)) lines.Add(parameter!.Format!);
             if (error != null) lines.Add(error);
             return string.Join("\n", lines);
+        }
+
+        /// <summary>
+        /// A <c>Repeat</c> (issue #61, option B): the node of the collection with the counter of records and «+ Добавить» /
+        /// «− Последняя»; its children are the records «Спецификация №n» merged by number over the selection, and their
+        /// children are the fields <c>spec_n_suffix</c>, edited as scalars. A record missing on an object gives «Разное».
+        /// </summary>
+        private PropertyRow Collection(string id, SchemaParameter repeat, int level, string prefix)
+        {
+            var key = prefix + "s:" + id.ToUpperInvariant();
+            var node = new PropertyRow(PropertyRowKind.Collection, key, RepeatItems.CollectionCaption(repeat), level) { Id = repeat.Id, Collection = repeat.Id };
+            var perObject = new List<IReadOnlyList<int>?>();
+            var state = PropertyState.None;
+            for (var i = 0; i < values.Count; i++)
+            {
+                var numbers = RepeatItems.Numbers(values[i], repeat);
+                if (numbers.Count != 0) { perObject.Add(numbers); state = Worse(state, PropertyState.Set); }
+                else if (calculations[i].IsUsed(id)) { perObject.Add(numbers); state = Worse(state, PropertyState.Default); }
+                else perObject.Add(null);
+            }
+            var all = perObject.Where(numbers => numbers != null).SelectMany(numbers => numbers!).Distinct().OrderBy(number => number).ToArray();
+            var counts = perObject.Where(numbers => numbers != null).Select(numbers => numbers!.Count).Distinct().ToArray();
+            node.IsMixed = perObject.Any(numbers => numbers is null) || counts.Length != 1 || counts[0] != all.Length;
+            node.Value = node.IsMixed ? ObjectCalculation.Various : ItemsText(all.Length);
+            node.ShowAdd = true;
+            var editable = CanEdit && repeat.Editor?.ReadOnly != true && repeat.Fields != null && repeat.Fields.Count != 0;
+            node.CanAdd = editable;
+            node.CanRemoveLast = editable && all.Length != 0;
+            var fields = repeat.Fields ?? new List<RepeatField>();
+            node.ToolTip = Tip(repeat.Id!, repeat, null) + "\nЗаписи: " + repeat.Id + "_<n>_<поле>; поля: " +
+                string.Join(", ", fields.Select(field => field.Suffix + " → " + field.Parameter)) +
+                "\n«+ Добавить» — новая запись с номером «последний + 1» в каждом объекте; «− Последняя» — удалить запись с наибольшим номером.";
+            node.Note = repeat.Description ?? "";
+            foreach (var number in all)
+            {
+                var item = new PropertyRow(PropertyRowKind.Item, key + "/i:" + number.ToString(CultureInfo.InvariantCulture), RepeatItems.Caption(repeat, number), level + 1)
+                {
+                    Collection = repeat.Id,
+                    Number = number,
+                };
+                var present = perObject.Count(numbers => numbers?.Contains(number) == true);
+                var itemState = PropertyState.None;
+                var texts = new List<string>();
+                foreach (var field in fields)
+                {
+                    var fieldId = RepeatItems.ItemId(repeat.Id!, number, field.Suffix);
+                    var instance = schema!.Parameters.TryGetValue(fieldId, out var found) ? found : null;
+                    var child = Scalar(fieldId, instance, level + 2);
+                    // A field of a record is not removed alone: the record is removed by × of its row.
+                    child.CanDelete = false;
+                    if (!editable) { child.Editor = PropertyEditorKind.None; child.CanSetFlag = false; }
+                    itemState = Worse(itemState, child.State);
+                    texts.Add(child.IsMixed ? ObjectCalculation.Various : child.Value);
+                    item.children.Add(child);
+                }
+                item.Value = string.Join(" · ", texts.Where(text => text.Length != 0));
+                item.State = itemState;
+                item.StateText = PropertyRow.Symbol(itemState);
+                item.Note = present == values.Count ? "" : "есть в " + present + " из " + values.Count + " объектов";
+                item.ToolTip = item.Caption + " (" + repeat.Id + "_" + number.ToString(CultureInfo.InvariantCulture) + "_…)" +
+                    "\n× — удалить запись, следующие сдвигаются; ▲ ▼ — поменять местами с соседней.";
+                item.CanDelete = editable;
+                item.CanMoveUp = editable && all.Contains(number - 1);
+                item.CanMoveDown = editable && all.Contains(number + 1);
+                node.children.Add(item);
+            }
+            node.State = state;
+            node.StateText = PropertyRow.Symbol(state);
+            return node;
         }
 
         private PropertyRow Table(string id, SchemaParameter? parameter, int level, string prefix)

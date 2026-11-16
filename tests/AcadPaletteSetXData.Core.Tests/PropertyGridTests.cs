@@ -29,8 +29,14 @@ public sealed class PropertyGridTests
         Assert.False(grid.NeedsTemplate);
         Assert.Equal("", grid.Message);
         // Groups in the order of the template; a group of one table with its caption is the table node itself (8.1).
-        Assert.Equal(new[] { "Общие", "Обозначение", "Электрика", "Материалы" }, grid.Roots.Select(row => row.Caption));
+        // A group of one Repeat with its caption is the collection node itself (issue #61): empty, with «+ Добавить».
+        Assert.Equal(new[] { "Общие", "Обозначение", "Электрика", "Материалы", "Спецификация", "Соединения" }, grid.Roots.Select(row => row.Caption));
         Assert.Equal(PropertyRowKind.Table, grid.Roots[3].Kind);
+        Assert.Equal(PropertyRowKind.Collection, grid.Roots[4].Kind);
+        Assert.Equal("0 записей", grid.Roots[4].Value);
+        Assert.Equal("○", grid.Roots[4].StateText);
+        Assert.True(grid.Roots[4].ShowAdd && grid.Roots[4].ShowRemoveLast);
+        Assert.False(grid.Roots[4].CanRemoveLast);
         Assert.All(grid.Roots.Take(3), row => Assert.True(row.IsHeader && row.IsExpanded));
         Assert.Equal(new[] { "Мощность, кВт", "Ток, А", "Напряжение", "Фаза" }, grid.Find("g:Электрика")!.Children.Select(row => row.Caption));
 
@@ -157,7 +163,7 @@ public sealed class PropertyGridTests
     {
         var grid = Grid(Device("A", Pair("Tray_Width", 200), Pair("Old_Param", "x"), Pair("Old_List", new[] { V(1002, "{"), V(1000, "A"), V(1000, "1"), V(1002, "}") })));
         Dump(grid);
-        Assert.Equal(new[] { "Общие", "Обозначение", "Электрика", "Материалы", PropertyGridViewModel.GroupExtra, PropertyGridViewModel.GroupNotInSchema + " (2)" },
+        Assert.Equal(new[] { "Общие", "Обозначение", "Электрика", "Материалы", "Спецификация", "Соединения", PropertyGridViewModel.GroupExtra, PropertyGridViewModel.GroupNotInSchema + " (2)" },
             grid.Roots.Select(row => row.Caption));
         Assert.Equal("200", Row(grid, "Tray_Width").Value);
         var outside = grid.Roots.Last();

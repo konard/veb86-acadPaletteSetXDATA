@@ -29,7 +29,7 @@ public sealed class SystemGroupTests
         using (new SelectionController(drawing, selection))
         {
             Assert.True(grid.CanEdit);
-            Assert.Equal(new[] { "Общие", "Обозначение", "Электрика", "Материалы" }, grid.Roots.Select(row => row.Caption));
+            Assert.Equal(new[] { "Общие", "Обозначение", "Электрика", "Материалы", "Спецификация", "Соединения" }, grid.Roots.Select(row => row.Caption));
             Assert.DoesNotContain(All(grid.Roots), row => row.Id == "Device_Class" || row.Id == "Tray_Width");
             Assert.DoesNotContain(All(grid.Roots), row => string.Equals(row.Caption, "SYSTEM", StringComparison.OrdinalIgnoreCase));
             Assert.DoesNotContain(grid.Rows, row => row.Id == "Device_Class");
@@ -38,7 +38,7 @@ public sealed class SystemGroupTests
             Assert.Equal("Device_Type", Row(grid, "Device_Type").Id); // Other parameters of the group stay.
 
             settings.ShowSystemGroup = true; // «Показывать скрытую группу SYSTEM»: the grid is rebuilt at once.
-            Assert.Equal(new[] { "Общие", "system", "Обозначение", "Электрика", "Материалы", PropertyGridViewModel.GroupExtra },
+            Assert.Equal(new[] { "Общие", "system", "Обозначение", "Электрика", "Материалы", "Спецификация", "Соединения", PropertyGridViewModel.GroupExtra },
                 grid.Roots.Select(row => row.Caption));
             Assert.Equal("служебное", Row(grid, "Device_Class").Value);
             Assert.Equal("200", Row(grid, "Tray_Width").Value);

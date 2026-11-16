@@ -288,7 +288,7 @@ public sealed class SchemaEditorTests
         var editor = Editor(Example(), Array.Empty<EntityDataSnapshot>());
         Assert.Equal(editor.Parameters.Count, editor.FilteredParameters.Count);
         editor.ParameterSearch = "кабел";
-        Assert.Equal(new[] { "Cable_Mark", "Cable_Cores", "Cable_Section", "Cable_Length" }, editor.FilteredParameters.Select(item => item.Id));
+        Assert.Equal(new[] { "Cable_Mark", "Cable_Cores", "Cable_Section", "Cable_Length", "Conn_Cable" }, editor.FilteredParameters.Select(item => item.Id));
         editor.ParameterSearch = "Mat_";
         Assert.Equal(new[] { "Mat_Category", "Mat_Mark", "Mat_Count", "Mat_InSpec", "Mat_Comment" }, editor.FilteredParameters.Select(item => item.Id));
         Assert.Equal("Mat_Category", editor.SelectedParameter!.Id);

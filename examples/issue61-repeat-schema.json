@@ -1,0 +1,56 @@
+{
+  "format": "BobrovXDATA.schema",
+  "version": 1,
+  "parameters": [
+    { "id": "Device_Type", "type": "String", "caption": "Тип устройства", "group": "Общие" },
+    { "id": "Spec_Pos", "type": "String", "caption": "Позиция", "group": "Спецификация" },
+    {
+      "id": "Spec_Name",
+      "type": "String",
+      "caption": "Наименование",
+      "group": "Спецификация",
+      "editor": { "maxLength": 120 }
+    },
+    {
+      "id": "Spec_Count",
+      "type": "Double",
+      "caption": "Кол.",
+      "group": "Спецификация",
+      "default": 1,
+      "editor": { "min": 0, "precision": 2 }
+    },
+    {
+      "id": "spec",
+      "type": "Repeat",
+      "caption": "Спецификация №{n}",
+      "description": "Позиции спецификации объекта; число записей не ограничено схемой",
+      "group": "Спецификация",
+      "fields": { "pos": "Spec_Pos", "Name": "Spec_Name", "col": "Spec_Count" }
+    },
+    { "id": "Conn_Target", "type": "String", "caption": "Куда", "group": "Соединения" },
+    { "id": "Conn_Cable", "type": "String", "caption": "Кабель", "group": "Соединения" },
+    {
+      "id": "conn",
+      "type": "Repeat",
+      "caption": "Соединение №{n}",
+      "group": "Соединения",
+      "fields": { "target": "Conn_Target", "cable": "Conn_Cable" }
+    },
+    {
+      "id": "Spec_First",
+      "type": "CalculatedString",
+      "caption": "Первая позиция",
+      "group": "Общие",
+      "format": "@@[spec_1_pos] @@[spec_1_Name]",
+      "persist": true
+    }
+  ],
+  "templates": [
+    {
+      "id": "DEVICE",
+      "caption": "Устройство",
+      "entityTypes": [ "BlockReference" ],
+      "parameters": [ "Device_Type", "spec", "conn", "Spec_First" ]
+    }
+  ]
+}

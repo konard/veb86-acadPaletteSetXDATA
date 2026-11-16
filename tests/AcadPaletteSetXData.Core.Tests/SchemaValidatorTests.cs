@@ -122,6 +122,24 @@ public sealed class SchemaValidatorTests
         P("InvalidColumn", "Параметр N", "groupBy", "{ 'id': 'N', 'type': 'Table', 'caption': 'c', 'columns': ['S', 'E'], 'groupBy': 'S' }"),
         P("UnknownReference", "Параметр N", "key", "{ 'id': 'N', 'type': 'Table', 'caption': 'c', 'columns': ['S'], 'key': 'D' }"),
 
+        // Repeat (issue #61): fields «suffix: parameter» of scalar parameters; records <id>_<n>_<suffix> are valid Ids.
+        P("Required", "Параметр R", "fields", "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c' }"),
+        P("Required", "Параметр R", "fields", "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': {} }"),
+        P("InvalidId", "Параметр R", "fields.1a", "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { '1a': 'S' } }"),
+        P("InvalidId", "Параметр R", "fields._a", "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { '_a': 'S' } }"),
+        P("InvalidId", "Параметр R", "fields." + new string('a', 60), "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { '" + new string('a', 60) + "': 'S' } }"),
+        P("DuplicateReference", "Параметр R", "fields.A", "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'S', 'A': 'D' } }"),
+        P("UnknownReference", "Параметр R", "fields.a", "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'Missing' } }"),
+        P("InvalidColumn", "Параметр R", "fields.a", "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'T' } }"),
+        P("InvalidColumn", "Параметр R", "fields.a", "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'C' } }"),
+        P("DuplicateId", "Параметр R", "fields",
+            "{ 'id': 'r_2_A', 'type': 'String', 'caption': 'c' }, { 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'S' } }"),
+        P("NotApplicable", "Параметр N", "fields", "{ 'id': 'N', 'type': 'String', 'caption': 'c', 'fields': { 'a': 'S' } }", Warning),
+        P("InvalidFormat", "Параметр N", "format",
+            "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'S' } }, { 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[R]' }"),
+        P("UnknownReference", "Параметр N", "format",
+            "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'S' } }, { 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[R_1_b]' }"),
+
         // Enum items.
         En("Required", "Справочник M / элемент #2", "key", "{ 'id': 'M', 'items': [ { 'key': 'a' }, { 'caption': 'Без ключа' } ] }"),
         En("InvalidValue", "Справочник M / элемент  a", "key", "{ 'id': 'M', 'items': [ { 'key': ' a' } ] }"),
@@ -142,6 +160,15 @@ public sealed class SchemaValidatorTests
     public void BaseSchemaIsValid()
     {
         Assert.Empty(Load());
+    }
+
+    [Fact]
+    public void RecordFieldsAreReferencedInFormatsByTheirNumber()
+    {
+        // @@[R_2_a] — field a of record №2; the Enum field keeps :key.
+        Assert.Empty(Load("{ 'id': 'R', 'type': 'Repeat', 'caption': 'Запись №{n}', 'fields': { 'a': 'S', 'e': 'E' } }, " +
+            "{ 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[R_2_a] @@[r_10_E:key]' }",
+            templates: "{ 'id': 'Y', 'parameters': [ 'S', 'R', 'N' ] }"));
     }
 
     [Theory]

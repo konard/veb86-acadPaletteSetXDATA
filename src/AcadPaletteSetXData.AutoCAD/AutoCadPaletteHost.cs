@@ -37,7 +37,10 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
             // One native page: WPF owns the vertical right-side navigation.
             palette.AddVisual("XDATA", view, true);
             selectionSource = new AutoCadSelectionSource();
-            selectionController = new SelectionController(selectionSource, viewModel.Selection);
+            // Issue #59: the palette follows the selection only while it is shown, and does not read a selection
+            // over the limit of the settings. It is created hidden; XDATAPALETTE shows it.
+            selectionController = new SelectionController(selectionSource, viewModel.Selection, viewModel.Settings, palette.Visible);
+            palette.StateChanged += OnStateChanged;
             // «⚙» starts the schema commands as commands of the document: one Undo step, no write from the palette.
             viewModel.Grid.SchemaCommandRunner = RunCommand;
             if (Environment.GetEnvironmentVariable("XDATAPALETTE_TRACE") == "1") viewModel.Grid.Built += OnGridBuilt;
@@ -54,7 +57,21 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
     public bool Visible
     {
         get => palette.Visible;
-        set => palette.Visible = value;
+        set
+        {
+            palette.Visible = value;
+            selectionController.Active = palette.Visible;
+        }
+    }
+
+    /// <summary>
+    /// Issue #59: the palette closed by its title bar (or shown again) stops (or starts) following the selection, so a
+    /// closed palette takes no part in selecting objects.
+    /// </summary>
+    private void OnStateChanged(object sender, PaletteSetStateEventArgs args)
+    {
+        if (args.NewState == StateEventIndex.Hide) selectionController.Active = false;
+        else if (args.NewState == StateEventIndex.Show) selectionController.Active = true;
     }
 
     public void ApplyTheme(PaletteTheme theme) => viewModel.Theme = theme;
@@ -82,6 +99,7 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
 
     public void Dispose()
     {
+        palette.StateChanged -= OnStateChanged;
         viewModel.Grid.Built -= OnGridBuilt;
         viewModel.Settings.PropertyChanged -= OnSettingsChanged;
         selectionController.Dispose();

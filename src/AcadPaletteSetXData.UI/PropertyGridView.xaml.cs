@@ -277,7 +277,7 @@ public partial class PropertyGridView : UserControl
             if (command == PropertyGridViewModel.SchemaEdit) SchemaMenu.Items.Add(new Separator());
         }
         SchemaMenu.Items.Add(new Separator());
-        var settings = new MenuItem { Header = "Настройки…", Tag = SettingsCommand, ToolTip = "Общие настройки панели: скрытая группа SYSTEM" };
+        var settings = new MenuItem { Header = "Настройки…", Tag = SettingsCommand, ToolTip = "Общие настройки панели: скрытая группа SYSTEM, предел выделения" };
         settings.Click += (_, _) => OpenSettings();
         SchemaMenu.Items.Add(settings);
         SchemaMenu.PlacementTarget = SchemaButton;

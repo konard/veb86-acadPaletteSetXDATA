@@ -17,6 +17,7 @@ public sealed class SelectionViewModel : ObservableObject
     private bool canWrite;
     private bool canChangeSelection;
     private SelectionGroup? selectedGroup;
+    private int skippedCount;
 
     public SelectionViewModel(PropertyEditorViewModel editor, bool enableDraftPreview = false)
     {
@@ -156,8 +157,28 @@ public sealed class SelectionViewModel : ObservableObject
         }
     }
 
-    public void Apply(IReadOnlyList<EntityDataSnapshot> snapshots, string? error = null, ObjectValuesCache? cache = null)
+    /// <summary>
+    /// Objects in the selection that the palette did not read because they are over the limit of the settings (issue #59);
+    /// 0 when the selection was read.
+    /// </summary>
+    public int SkippedCount { get => skippedCount; private set => SetProperty(ref skippedCount, value); }
+
+    /// <summary>The text shown for a selection of <paramref name="count"/> objects over <paramref name="limit"/> (issue #59).</summary>
+    public static string OverLimitMessage(int count, int limit) =>
+        "Выделено объектов: " + count + " — больше предела " + limit + "; панель не обрабатывает такое выделение. Предел меняется в «⚙ → Настройки…».";
+
+    /// <summary>
+    /// Issue #59: the selection of <paramref name="count"/> objects is over <paramref name="limit"/> and was not read.
+    /// The palette is empty and says why; writing and the buttons * and − have nothing to work with.
+    /// </summary>
+    public void ApplyOverLimit(int count, int limit) => Apply(Array.Empty<EntityDataSnapshot>(), OverLimitMessage(count, limit), null, count);
+
+    public void Apply(IReadOnlyList<EntityDataSnapshot> snapshots, string? error = null, ObjectValuesCache? cache = null) =>
+        Apply(snapshots, error, cache, 0);
+
+    private void Apply(IReadOnlyList<EntityDataSnapshot> snapshots, string? error, ObjectValuesCache? cache, int skipped)
     {
+        SkippedCount = skipped;
         var previousHandle = SelectedEntity?.Handle;
         // Parse first, then replace the whole selection so a failure cannot expose a partial update.
         // With the value cache an unchanged object is not parsed again (TZXDATA 10.6).

@@ -11,8 +11,12 @@ using AcApplication = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 
 namespace AcadPaletteSetXData.AutoCAD;
 
-/// <summary>Coalesces PICKFIRST events and reads detached snapshots on AutoCAD's idle thread.</summary>
-internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWriter, ISelectionChanger, IObjectValuesSource, IDisposable
+/// <summary>
+/// Coalesces PICKFIRST events and reads detached snapshots on AutoCAD's idle thread.
+/// Issue #59: the source follows the selection only while <see cref="Tracking"/> is on (the palette is shown); otherwise
+/// it is subscribed to no event of AutoCAD and takes no part in selecting objects.
+/// </summary>
+internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionCounter, ISelectionTracker, ISelectionWriter, ISelectionChanger, IObjectValuesSource, IDisposable
 {
     private readonly DocumentCollection documents = AcApplication.DocumentManager;
     private const int TracedCalculations = 10;
@@ -20,15 +24,43 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
     private Document? document;
     private Document? lastReadDocument;
     private bool pending = true;
+    private bool tracking;
     private bool disposed;
     private bool displayNameFailed;
 
-    public AutoCadSelectionSource()
+    /// <summary>Starts with <see cref="Tracking"/> off: the selection controller turns it on when the palette is shown.</summary>
+    public AutoCadSelectionSource() { }
+
+    /// <summary>
+    /// Issue #59: on — the source listens to PICKFIRST, the commands and Idle of the active document; off — every handler
+    /// is removed, so selecting objects in AutoCAD runs as without the plugin.
+    /// </summary>
+    public bool Tracking
     {
-        documents.DocumentActivated += OnDocumentActivated;
-        documents.DocumentToBeDestroyed += OnDocumentToBeDestroyed;
-        AcApplication.Idle += OnIdle;
-        Bind(documents.MdiActiveDocument);
+        get => tracking;
+        set
+        {
+            if (disposed || tracking == value) return;
+            tracking = value;
+            if (value)
+            {
+                documents.DocumentActivated += OnDocumentActivated;
+                documents.DocumentToBeDestroyed += OnDocumentToBeDestroyed;
+                AcApplication.Idle += OnIdle;
+                Bind(documents.MdiActiveDocument);
+            }
+            else
+            {
+                AcApplication.Idle -= OnIdle;
+                documents.DocumentActivated -= OnDocumentActivated;
+                documents.DocumentToBeDestroyed -= OnDocumentToBeDestroyed;
+                Bind(null);
+                // A hidden palette keeps no document: writing needs a new read after the palette is shown again.
+                lastReadDocument = null;
+            }
+            if (traceEnabled)
+                documents.MdiActiveDocument?.Editor.WriteMessage("\n[XDATAPALETTE] Отслеживание выделения {0}.\n", value ? "включено" : "выключено");
+        }
     }
 
     public event EventHandler? SelectionChanged;
@@ -70,11 +102,29 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
 
     private void OnIdle(object? sender, EventArgs args)
     {
-        if (disposed) return;
+        if (disposed || !tracking) return;
         Bind(documents.MdiActiveDocument);
         if (!pending || (document != null && !document.Editor.IsQuiescent)) return;
         pending = false;
         SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Issue #59: the number of objects in the PICKFIRST set; no object is opened. The controller does not read a
+    /// selection over the limit of the settings.
+    /// </summary>
+    public int CountSelection()
+    {
+        if (disposed || document == null) return 0;
+        var active = document;
+        int count;
+        using (active.LockDocument())
+        {
+            var selection = active.Editor.SelectImplied();
+            count = selection.Status == PromptStatus.OK ? selection.Value.Count : 0;
+        }
+        if (traceEnabled) active.Editor.WriteMessage("\n[XDATAPALETTE] Объектов в выделении: {0}.\n", count);
+        return count;
     }
 
     public IReadOnlyList<EntityDataSnapshot> ReadSelection()
@@ -194,10 +244,7 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionWrite
     public void Dispose()
     {
         if (disposed) return;
+        Tracking = false;
         disposed = true;
-        AcApplication.Idle -= OnIdle;
-        documents.DocumentActivated -= OnDocumentActivated;
-        documents.DocumentToBeDestroyed -= OnDocumentToBeDestroyed;
-        Bind(null);
     }
 }

@@ -46,7 +46,7 @@
         </ResourceDictionary>
     </Window.Resources>
     <Grid x:Name="Root" Margin="14">
-        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
         <TextBlock Text="Вкладка «Свойства»" FontWeight="SemiBold" Margin="0,0,0,8" />
         <StackPanel Grid.Row="1" Margin="0,0,0,14">
             <CheckBox x:Name="ShowSystemGroupBox" Style="{StaticResource Option}" IsChecked="{Binding ShowSystemGroup, Mode=TwoWay}"
@@ -56,7 +56,24 @@
             <TextBlock Margin="24,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource PaletteMuted}"
                        Text="Параметры группы SYSTEM — служебные данные. Без отметки они не показываются в списке свойств и в меню «+ Параметр»." />
         </StackPanel>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+        <!-- Issue #59: a larger selection is only counted; the palette does not read its objects. -->
+        <TextBlock Grid.Row="2" Text="Выделение" FontWeight="SemiBold" Margin="0,0,0,8" />
+        <StackPanel Grid.Row="3" Margin="0,0,0,14">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="96" /></Grid.ColumnDefinitions>
+                <Label Content="Не обрабатывать выделение больше, объектов:" Target="{Binding ElementName=MaxSelectionCountBox}"
+                       Foreground="{DynamicResource PaletteForeground}" Padding="0" VerticalAlignment="Center" />
+                <TextBox x:Name="MaxSelectionCountBox" Grid.Column="1" Height="24" Padding="4,2" HorizontalContentAlignment="Right"
+                         VerticalContentAlignment="Center" TextChanged="OnMaxSelectionCountChanged"
+                         AutomationProperties.Name="Предел количества выделенных объектов"
+                         ToolTip="Целое число; 0 — без ограничения. По умолчанию 15000." />
+            </Grid>
+            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource PaletteMuted}"
+                       Text="Если выделено больше объектов, панель их не читает и не показывает свойства: выделение в AutoCAD идёт без задержек. 0 — без ограничения." />
+            <TextBlock x:Name="MaxSelectionCountError" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource PaletteError}"
+                       Visibility="Collapsed" Text="Введите целое число от 0 до 2147483647." />
+        </StackPanel>
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="OkButton" Content="ОК" Style="{StaticResource Wide}" IsDefault="True" Click="OnOk"
                     AutomationProperties.Name="ОК" ToolTip="Применить и сохранить настройки" />
             <Button x:Name="CancelButton" Content="Отмена" Style="{StaticResource Wide}" IsCancel="True" Click="OnCancel"

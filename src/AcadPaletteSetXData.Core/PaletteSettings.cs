@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 
@@ -14,13 +15,44 @@ public sealed class PaletteSettings : ObservableObject
     public const string SystemGroup = "SYSTEM";
     public const string FileName = "settings.json";
     private const string ShowSystemGroupKey = "showSystemGroup";
+    private const string MaxSelectionCountKey = "maxSelectionCount";
+    /// <summary>The default of <see cref="MaxSelectionCount"/> (issue #59).</summary>
+    public const int DefaultMaxSelectionCount = 15000;
     private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);
 
     private bool showSystemGroup;
+    private int maxSelectionCount = DefaultMaxSelectionCount;
     private JsonObject? source;
 
     /// <summary>Show the parameters of the hidden group <see cref="SystemGroup"/> in the «Свойства» tab; off by default.</summary>
     public bool ShowSystemGroup { get => showSystemGroup; set => SetProperty(ref showSystemGroup, value); }
+
+    /// <summary>
+    /// Issue #59: a selection of more objects is not read by the palette (the objects are only counted), so a large
+    /// selection is as fast as without the plugin. 0 — no limit; 15000 by default.
+    /// </summary>
+    public int MaxSelectionCount
+    {
+        get => maxSelectionCount;
+        set
+        {
+            if (value < 0) throw new ArgumentOutOfRangeException(nameof(value), value, "Предел выделения не может быть отрицательным.");
+            SetProperty(ref maxSelectionCount, value);
+        }
+    }
+
+    /// <summary>
+    /// The text of the selection limit in the settings window: digits, spaces between groups allowed («15 000»); null when
+    /// it is not an integer from 0 to <see cref="int.MaxValue"/>.
+    /// </summary>
+    public static int? ParseMaxSelectionCount(string? text)
+    {
+        var digits = (text ?? "").Replace(" ", "").Replace("\u00A0", "").Replace("\u202F", "");
+        return int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var value) ? value : null;
+    }
+
+    /// <summary>A selection of <paramref name="count"/> objects is over <see cref="MaxSelectionCount"/> and is not read.</summary>
+    public bool IsOverSelectionLimit(int count) => maxSelectionCount > 0 && count > maxSelectionCount;
 
     /// <summary><c>%APPDATA%\AcadPaletteSetXData\settings.json</c>.</summary>
     public static string DefaultPath =>
@@ -31,13 +63,15 @@ public sealed class PaletteSettings : ObservableObject
         group != null && string.Equals(group.Trim(), SystemGroup, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A draft for the settings window: «ОК» copies it back with <see cref="CopyFrom"/>, «Отмена» drops it.</summary>
-    public PaletteSettings Clone() => new PaletteSettings { showSystemGroup = showSystemGroup, source = source };
+    public PaletteSettings Clone() =>
+        new PaletteSettings { showSystemGroup = showSystemGroup, maxSelectionCount = maxSelectionCount, source = source };
 
     public void CopyFrom(PaletteSettings other)
     {
         if (other is null) throw new ArgumentNullException(nameof(other));
         source = other.source;
         ShowSystemGroup = other.ShowSystemGroup;
+        MaxSelectionCount = other.MaxSelectionCount;
     }
 
     /// <summary>JSON of the settings; unknown properties of the loaded file are kept for newer versions of the plugin.</summary>
@@ -48,6 +82,7 @@ public sealed class PaletteSettings : ObservableObject
             foreach (var property in source)
                 json.Add(property.Key, property.Value);
         json.Set(ShowSystemGroupKey, JsonBoolean.From(ShowSystemGroup));
+        json.Set(MaxSelectionCountKey, new JsonNumber((long)MaxSelectionCount));
         return json.ToJson();
     }
 
@@ -61,6 +96,9 @@ public sealed class PaletteSettings : ObservableObject
             if (JsonValue.Parse(text!) is not JsonObject json) return settings;
             settings.source = json;
             if (json[ShowSystemGroupKey] is JsonBoolean flag) settings.showSystemGroup = flag.Value;
+            // A fraction, a negative number or another type keeps the default limit.
+            if (json[MaxSelectionCountKey] is JsonNumber limit && limit.TryGetInt32(out var count) && count >= 0)
+                settings.maxSelectionCount = count;
         }
         catch (Exception error) when (error is FormatException || error is ArgumentException)
         {

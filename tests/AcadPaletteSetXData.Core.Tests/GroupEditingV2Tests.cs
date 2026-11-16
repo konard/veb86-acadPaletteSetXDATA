@@ -381,7 +381,7 @@ public sealed class GroupEditingV2Tests
             Assert.DoesNotContain(grid.AvailableParameters, option => option.Key == "Power"); // Shown already.
             Assert.DoesNotContain(grid.AvailableParameters, option => option.Key == "Materials"); // Tables are not scalars.
             Assert.DoesNotContain(grid.AvailableParameters, option => option.Key == "Mat_Count"); // Table columns.
-            Assert.DoesNotContain(grid.AvailableParameters, option => option.Key == "GC_Name"); // Formulas.
+            Assert.DoesNotContain(grid.AvailableParameters, option => option.Key == "GC_Name"); // A formula of the template is shown already.
             Assert.Equal("Число полюсов (Poles)", grid.AvailableParameters.Single(option => option.Key == "Poles").Caption);
             Assert.False(grid.AddParameter("Unknown"));
             Assert.True(grid.AddParameter("Poles"));

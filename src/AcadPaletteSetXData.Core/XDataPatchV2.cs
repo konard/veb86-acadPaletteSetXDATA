@@ -66,6 +66,9 @@ public sealed partial class XDataPatch
         {
             case SelectionEditKind.Parameter:
             {
+                // Issue #61: a field of a record the object does not have is skipped (group editing of different counts);
+                // records are added only by «+ Добавить».
+                if (schema.Parameters.FindRepeatInstance(edit.Field) is RepeatInstance item && !HasRecord(nodes, item)) return snapshot;
                 var (id, value) = SetParameter(nodes, edit, schema);
                 if (schema.Formulas.Dependents(id).Any(formula => formula.Persist))
                     recalculated = (calculation = Calculation()).SetValue(id, value);
@@ -128,12 +131,42 @@ public sealed partial class XDataPatch
                 Set(nodes, Pair(formula.Id, new DataValue(1000, text)));
                 break;
             }
+            case SelectionEditKind.AddItem:
+            case SelectionEditKind.RemoveLastItem:
+            case SelectionEditKind.DeleteItem:
+            case SelectionEditKind.MoveItem:
+            {
+                var repeat = EditItems(nodes, edit, schema, name);
+                if (repeat is null) return snapshot;
+                // Persist formulas over the records are recalculated from the new values of the object.
+                var persist = RepeatItems.Formulas(schema, repeat).Where(formula => formula.Persist).ToList();
+                if (persist.Count != 0)
+                {
+                    var after = Rebuild(snapshot, xdata, app, header, nodes);
+                    calculation = new ObjectCalculation(XDataV2.Read(after, schema, types), culture, types);
+                    recalculated = calculation.Results.Where(result => persist.Any(formula => ParameterSchema.SameId(formula.Id, result.Id))).ToArray();
+                }
+                break;
+            }
             default: throw new ArgumentException("Неизвестная операция.", nameof(edit));
         }
         if (calculation != null && recalculated != null)
             WritePersisted(nodes, recalculated, edit.Kind == SelectionEditKind.Parameter, calculation.Template, schema, name);
 
         if (!header && nodes.Count == 0) return snapshot;
+        var rebuilt = Rebuild(snapshot, xdata, app, header, nodes);
+        if (edit.Kind == SelectionEditKind.AddItem && XDataV2.EstimateSize(rebuilt.XData) is int size && size > XDataV2.MaxXDataBytes)
+        {
+            var repeat = schema.Parameters.FindRepeat(edit.Field)!;
+            throw new InvalidOperationException(name + "запись «" + RepeatItems.Caption(repeat, LastNumber(nodes, repeat)) + "» не помещается в XDATA (оценка " +
+                size.ToString(CultureInfo.InvariantCulture) + " из " + XDataV2.MaxXDataBytes.ToString(CultureInfo.InvariantCulture) +
+                " байт); новая запись не добавлена ни к одному объекту.");
+        }
+        return rebuilt;
+    }
+
+    private static EntityDataSnapshot Rebuild(EntityDataSnapshot snapshot, IReadOnlyList<DataValue> xdata, (int Start, int End, bool Others)? app, bool header, List<Node> nodes)
+    {
         var result = new List<DataValue>(xdata.Count + 8);
         var start = app?.Start ?? xdata.Count;
         for (var i = 0; i < start; i++) result.Add(xdata[i]);

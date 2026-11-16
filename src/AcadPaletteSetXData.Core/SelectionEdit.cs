@@ -20,7 +20,9 @@ public enum SelectionEditKind
     // TZXDATA 6.2: «Зафиксировать значения по умолчанию» of the template.
     CommitDefaults,
     // Issue #57: «+ Параметр» of a CalculatedString outside the template.
-    AddCalculated
+    AddCalculated,
+    // Issue #61: records of a Repeat (<id>_<n>_<suffix>); every operation works per object.
+    AddItem, RemoveLastItem, DeleteItem, MoveItem
 }
 
 /// <summary>A confirmed change, never a serialization of the merged UI.</summary>
@@ -42,6 +44,10 @@ public sealed class SelectionEdit : EventArgs
     public string RowKey { get; private set; } = "";
     /// <summary>v2: the cells of an added row.</summary>
     public IReadOnlyList<KeyValuePair<string, object>> Cells { get; private set; } = Array.Empty<KeyValuePair<string, object>>();
+    /// <summary>Issue #61: the record number of <see cref="SelectionEditKind.DeleteItem"/> and <see cref="SelectionEditKind.MoveItem"/>.</summary>
+    public int Number { get; private set; }
+    /// <summary>Issue #61: −1 moves the record up, +1 down (<see cref="SelectionEditKind.MoveItem"/>).</summary>
+    public int Offset { get; private set; }
     public bool IsV2 => Kind >= SelectionEditKind.Parameter;
     public static SelectionEdit Header(string field, string value) => new SelectionEdit(SelectionEditKind.Header, field, value);
     public static SelectionEdit MaterialField(string key, string field, string value) => new SelectionEdit(SelectionEditKind.MaterialField, field, value, key);
@@ -83,6 +89,31 @@ public sealed class SelectionEdit : EventArgs
     /// </summary>
     public static SelectionEdit AddCalculated(string id) =>
         new SelectionEdit(SelectionEditKind.AddCalculated, string.IsNullOrEmpty(id) ? throw new ArgumentException("Id не задан.", nameof(id)) : id);
+
+    /// <summary>
+    /// Adds a record to the <c>Repeat</c> <paramref name="collection"/> of every object (issue #61): the number is the last
+    /// number of that object + 1; <paramref name="values"/> are keyed by the field suffix (<c>pos</c>, <c>Name</c>), the other
+    /// fields get their defaults. A record that does not fit the 16 KB of XDATA cancels the operation with a message.
+    /// </summary>
+    public static SelectionEdit AddItem(string collection, IReadOnlyList<KeyValuePair<string, object>>? values = null) =>
+        new SelectionEdit(SelectionEditKind.AddItem, Required(collection)) { Cells = values ?? Array.Empty<KeyValuePair<string, object>>() };
+    /// <summary>Removes the record with the largest number of every object; objects without records are left as they are.</summary>
+    public static SelectionEdit RemoveLastItem(string collection) => new SelectionEdit(SelectionEditKind.RemoveLastItem, Required(collection));
+    /// <summary>
+    /// Removes the record <paramref name="number"/> and shifts the following ones down by one in the same transaction,
+    /// so the numbers stay 1..N; objects without this record are left as they are.
+    /// </summary>
+    public static SelectionEdit DeleteItem(string collection, int number) =>
+        new SelectionEdit(SelectionEditKind.DeleteItem, Required(collection)) { Number = number > 0 ? number : throw new ArgumentOutOfRangeException(nameof(number)) };
+    /// <summary>Swaps the record <paramref name="number"/> with the previous (<paramref name="offset"/> −1) or the next (+1) one.</summary>
+    public static SelectionEdit MoveItem(string collection, int number, int offset) =>
+        new SelectionEdit(SelectionEditKind.MoveItem, Required(collection))
+        {
+            Number = number > 0 ? number : throw new ArgumentOutOfRangeException(nameof(number)),
+            Offset = offset == 1 || offset == -1 ? offset : throw new ArgumentOutOfRangeException(nameof(offset)),
+        };
+
+    private static string Required(string id) => string.IsNullOrEmpty(id) ? throw new ArgumentException("Id не задан.", nameof(id)) : id;
 
     private static string Text(object? value) => value is null ? "" : XDataV2.FormatValue(value);
 }

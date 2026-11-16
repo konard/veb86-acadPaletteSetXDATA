@@ -16,6 +16,7 @@
     <None Include="../../examples/issue41-template-systemtype-schema.json" Link="examples/issue41-template-systemtype-schema.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../examples/issue48-system-group-schema.json" Link="examples/issue48-system-group-schema.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../examples/issue43-formula-schema.json" Link="examples/issue43-formula-schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/issue61-repeat-schema.json" Link="examples/issue61-repeat-schema.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <!-- Issue #57: the old logging abstractions an AutoCAD component may have loaded already (no NullLoggerFactory). -->

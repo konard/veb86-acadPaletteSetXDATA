@@ -6,7 +6,8 @@ using System.Linq;
 using AcadPaletteSetXData.Core;
 
 // Issue #61: how the variants that need no code look in today's VST, and how «add» / «delete the last» rows are
-// composed from the existing operations (SelectionEdit.AddTableRow / DeleteTableRow, RemoveParameter).
+// composed from the existing operations (SelectionEdit.AddTableRow / DeleteTableRow, RemoveParameter); variant B — the
+// type Repeat chosen in the issue — with its own operations (SelectionEdit.AddItem / RemoveLastItem / DeleteItem).
 // Every fact the options document (docs/repeating-parameters.md) relies on is checked: exit code 1 when one changes.
 // Usage: Issue61Probe <examples directory>
 var examples = args.Length > 0 ? args[0] : Path.Combine("..", "..", "..", "examples");
@@ -27,9 +28,9 @@ static IEnumerable<DataValue> Row(params (string Id, object Value)[] cells) =>
     new[] { V(1002, "{") }.Concat(cells.SelectMany(c => Pair(c.Id, c.Value))).Concat(new[] { V(1002, "}") });
 static IEnumerable<DataValue> Table(string id, params IEnumerable<DataValue>[] rows) =>
     new[] { V(1000, id), V(1002, "{") }.Concat(rows.SelectMany(r => r)).Concat(new[] { V(1002, "}") });
-static EntityDataSnapshot Object(IEnumerable<DataValue> pairs) =>
+static EntityDataSnapshot Object(IEnumerable<DataValue> pairs, string template = "LUMINAIRE") =>
     new EntityDataSnapshot("2A", "BlockReference",
-        new[] { V(1001, DrawingNames.RegApp), V(1070, (short)2) }.Concat(Pair(XDataV2.TemplateKey, "LUMINAIRE")).Concat(pairs).ToArray(),
+        new[] { V(1001, DrawingNames.RegApp), V(1070, (short)2) }.Concat(Pair(XDataV2.TemplateKey, template)).Concat(pairs).ToArray(),
         Array.Empty<DataRecord>());
 static SchemaSnapshot Schema(string path)
 {
@@ -123,5 +124,38 @@ var free = new EntityDataSnapshot("2B", "BlockReference",
 var cFree = Dump("Вариант C без шаблона", numberedSchema, free);
 Check(cFree.Select(row => row.Caption).SequenceEqual(new[] { "Спецификация №1", "Спецификация №2", "Соединение №1" }),
     "C без шаблона: значения показываются в группах своих параметров «Спецификация №N»");
+
+// Variant B (implemented): the type Repeat «spec» with the fields pos/Name/col; the records spec_<n>_<suffix>.
+var repeatSchema = Schema(Path.Combine(examples, "issue61-repeat-schema.json"));
+var spec = repeatSchema.Parameters.FindRepeat("spec")!;
+var repeated = Object(Pair("Device_Type", "Светильник")
+    .Concat(Pair("spec_1_pos", "1")).Concat(Pair("spec_1_Name", "Светильник (корпус)")).Concat(Pair("spec_1_col", 1.0))
+    .Concat(Pair("spec_2_pos", "2")).Concat(Pair("spec_2_Name", "Лампа")).Concat(Pair("spec_2_col", 2.0)), "DEVICE");
+var b = Dump("Вариант B: тип Repeat", repeatSchema, repeated);
+Check(Captions(Root(b, "Спецификация")).SequenceEqual(new[] { "Спецификация №1", "Спецификация №2" }),
+    "B: записи показаны группами «Спецификация №1», «Спецификация №2»");
+Check(Captions(Root(b, "Спецификация")!.Children[0]).SequenceEqual(new[] { "Позиция", "Наименование", "Кол." }),
+    "B: в записи — поля spec_1_pos, spec_1_Name, spec_1_col с подписями их параметров");
+Check(Root(b, "Соединения")?.Value == "0 записей", "B: набор шаблона без записей показан как «0 записей»");
+var repeatPatch = new XDataPatch(repeatSchema);
+var withThird = repeatPatch.Apply(repeated, SelectionEdit.AddItem("spec", new[] { new KeyValuePair<string, object>("Name", "Клеммная колодка") }));
+var third = XDataV2.Read(withThird, repeatSchema);
+Check(RepeatItems.Numbers(third, spec).SequenceEqual(new[] { 1, 2, 3 }) && Equals(third.Find("spec_3_col")?.Value, 1.0),
+    "B: добавление = AddItem → №3, незаданные поля получают default параметра (Кол. = 1)");
+var withoutLast = repeatPatch.Apply(withThird, SelectionEdit.RemoveLastItem("spec"));
+Check(RepeatItems.Numbers(XDataV2.Read(withoutLast, repeatSchema), spec).SequenceEqual(new[] { 1, 2 }), "B: удаление последней = RemoveLastItem → 1, 2");
+var shifted = XDataV2.Read(repeatPatch.Apply(withThird, SelectionEdit.DeleteItem("spec", 1)), repeatSchema);
+Check(RepeatItems.Numbers(shifted, spec).SequenceEqual(new[] { 1, 2 }) && Equals(shifted.Find("spec_1_Name")?.Value, "Лампа"),
+    "B: удаление №1 из середины сдвигает следующие записи: №2 → №1");
+var records = 0;
+do
+{
+    records++;
+    big = Object(Enumerable.Range(1, records).SelectMany(n => Pair("spec_" + n + "_pos", n.ToString(CultureInfo.InvariantCulture))
+        .Concat(Pair("spec_" + n + "_Name", "Клеммная колодка 2,5 мм² ЗНИ-2,5")).Concat(Pair("spec_" + n + "_col", 1.0))), "DEVICE");
+} while (XDataV2.EstimateSize(big.XData) <= XDataV2.MaxXDataBytes);
+Console.WriteLine("16 КБ XDATA: помещается записей спецификации Repeat " + (records - 1) + " (по 3 поля, наименование 32 символа)");
+Check(records - 1 >= 100, "B: в 16 КБ XDATA помещается не меньше 100 записей спецификации");
+
 Console.WriteLine(failures == 0 ? "Issue61Probe: все проверки пройдены." : "Issue61Probe: ошибок " + failures + ".");
 return failures == 0 ? 0 : 1;

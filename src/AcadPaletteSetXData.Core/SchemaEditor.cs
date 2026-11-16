@@ -206,9 +206,9 @@ public sealed class SchemaEditorViewModel : ObservableObject
     {
         if (item is null) return false;
         var id = item.Model.Id;
-        var used = Usage.Count(SchemaSection.Parameter, id);
-        if (used != 0 && Current?.FindParameter(id) != null)
-            return Refuse("Параметр " + id + " хранится в объектах чертежа (" + used + ") — удаление запрещено.");
+        var used = StoredCount(id);
+        if (used != 0)
+            return Refuse(StoredName(id) + " хранится в объектах чертежа (" + used + ") — удаление запрещено.");
         var references = References(item.Model);
         if (references.Count != 0)
             return Refuse("Параметр " + id + " используется: " + string.Join(", ", references) + " — сначала уберите ссылки.");
@@ -258,6 +258,8 @@ public sealed class SchemaEditorViewModel : ObservableObject
                 result.Add("таблица " + other.Id);
             if (other.Format != null && CalculatedFormat.References(other.Format).Any(reference => ParameterSchema.SameId(reference, id)))
                 result.Add("формула " + other.Id);
+            if (other.Fields?.Any(field => ParameterSchema.SameId(field.Parameter, id)) ?? false)
+                result.Add("набор записей " + other.Id);
         }
         return result;
     }
@@ -291,9 +293,9 @@ public sealed class SchemaEditorViewModel : ObservableObject
         var old = item.Model.Id;
         value = value?.Trim() ?? "";
         if (old == value) return false;
-        var used = Usage.Count(SchemaSection.Parameter, old);
-        if (used != 0 && Current?.FindParameter(old) != null && !ParameterSchema.SameId(old, value))
-            return Refuse("Параметр " + old + " хранится в объектах чертежа (" + used + ") — менять Id нельзя.");
+        var used = StoredCount(old);
+        if (used != 0 && !ParameterSchema.SameId(old, value))
+            return Refuse(StoredName(old) + " хранится в объектах чертежа (" + used + ") — менять Id нельзя.");
         item.Model.Id = value;
         if (!string.IsNullOrEmpty(old) && SchemaValidator.IsValidId(value) && Draft.Parameters.Count(p => ParameterSchema.SameId(p.Id, old)) == 0)
         {
@@ -307,6 +309,9 @@ public sealed class SchemaEditorViewModel : ObservableObject
                 if (ParameterSchema.SameId(other.GroupBy, old)) other.GroupBy = value;
                 if (ParameterSchema.SameId(other.Key, old)) other.Key = value;
                 if (other.Format != null) other.Format = RenameReference(other.Format, old!, value);
+                if (other.Fields != null)
+                    for (var i = 0; i < other.Fields.Count; i++)
+                        if (ParameterSchema.SameId(other.Fields[i].Parameter, old)) other.Fields[i] = new RepeatField(other.Fields[i].Suffix, value);
             }
             MigrationMap.RenameParameter(Draft, old!, value);
             foreach (var template in Templates) template.Reload();
@@ -314,6 +319,23 @@ public sealed class SchemaEditorViewModel : ObservableObject
         }
         Changed();
         return true;
+    }
+
+    /// <summary>
+    /// Objects of the drawing storing the parameter of the drawing schema <paramref name="id"/>; for a <c>Repeat</c> —
+    /// objects with its records <c>&lt;id&gt;_&lt;n&gt;_&lt;suffix&gt;</c> (issue #61).
+    /// </summary>
+    public int StoredCount(string? id)
+    {
+        var parameter = Current?.FindParameter(id);
+        if (parameter is null) return 0;
+        return RepeatItems.IsRepeat(parameter, Types) ? Usage.CountRepeat(parameter.Id) : Usage.Count(SchemaSection.Parameter, id);
+    }
+
+    private string StoredName(string? id, bool capital = true)
+    {
+        var name = RepeatItems.IsRepeat(Current?.FindParameter(id), Types) ? "набор записей " : "параметр ";
+        return (capital ? char.ToUpperInvariant(name[0]) + name.Substring(1) : name) + id;
     }
 
     private static string RenameReference(string format, string old, string value) =>
@@ -609,7 +631,7 @@ public sealed class SchemaEditorViewModel : ObservableObject
         if (Current is null) yield break;
         foreach (var change in changes.Where(change => change.Section == SchemaSection.Parameter && change.TypeChanged))
         {
-            var used = Usage.Count(SchemaSection.Parameter, change.Id);
+            var used = StoredCount(change.Id);
             if (used != 0)
                 yield return new SchemaIssue(SchemaIssueCode.InvalidValue, "Параметр " + change.Id, "type",
                     "тип изменён с " + change.OldType + " на " + change.NewType + "; значения в объектах (" + used + ") будут показаны как недопустимые",
@@ -621,9 +643,13 @@ public sealed class SchemaEditorViewModel : ObservableObject
     private IReadOnlyList<string> RemovedButUsed(ParameterSchema result) =>
         SchemaImport.Compare(Draft, result).Where(change => change.Kind == SchemaChangeKind.Removed && change.Section != SchemaSection.Enum &&
                 Current != null && (change.Section == SchemaSection.Parameter ? Current.FindParameter(change.Id) : (object?)Current.FindTemplate(change.Id)) != null &&
-                Usage.Count(change.Section, change.Id) != 0)
-            .Select(change => (change.Section == SchemaSection.Parameter ? "параметр " : "шаблон ") + change.Id + " (" + Usage.Count(change.Section, change.Id) + ")")
+                Used(change) != 0)
+            .Select(change => (change.Section == SchemaSection.Parameter ? StoredName(change.Id, capital: false) : "шаблон " + change.Id) +
+                " (" + Used(change) + ")")
             .ToArray();
+
+    private int Used(SchemaChange change) =>
+        change.Section == SchemaSection.Parameter ? StoredCount(change.Id) : Usage.Count(change.Section, change.Id);
 
     private void Reload()
     {
@@ -757,7 +783,7 @@ public sealed class ParameterDraft : ObservableObject
         set
         {
             Model.Type = Empty(value);
-            foreach (var name in new[] { nameof(Type), nameof(Kind), nameof(IsEnum), nameof(IsCalculated), nameof(IsTable), nameof(IsNumber), nameof(IsText) })
+            foreach (var name in new[] { nameof(Type), nameof(Kind), nameof(IsEnum), nameof(IsCalculated), nameof(IsTable), nameof(IsRepeat), nameof(IsNumber), nameof(IsText) })
                 Notify(name);
             owner.Changed();
         }
@@ -787,6 +813,39 @@ public sealed class ParameterDraft : ObservableObject
     }
     public string GroupBy { get => Model.GroupBy ?? ""; set { Model.GroupBy = Empty(value?.Trim()); Notify(nameof(GroupBy)); owner.Changed(); } }
     public string Key { get => Model.Key ?? ""; set { Model.Key = Empty(value?.Trim()); Notify(nameof(Key)); owner.Changed(); } }
+    /// <summary>
+    /// <c>Repeat</c> (issue #61): fields of a record «суффикс=Id параметра» separated by commas, e.g.
+    /// «pos=Spec_Pos, Name=Spec_Name, col=Spec_Col»; a part without «=» stays in the box and is reported.
+    /// </summary>
+    public string FieldsText
+    {
+        get => invalidText.TryGetValue(nameof(FieldsText), out var text) ? text
+            : Model.Fields is null ? "" : string.Join(", ", Model.Fields.Select(item => item.Suffix + "=" + item.Parameter));
+        set
+        {
+            value ??= "";
+            var fields = new List<RepeatField>();
+            string? error = null;
+            foreach (var part in value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(part => part.Trim()).Where(part => part.Length != 0))
+            {
+                var at = part.IndexOf('=');
+                var suffix = at < 0 ? "" : part.Substring(0, at).Trim();
+                var parameter = at < 0 ? "" : part.Substring(at + 1).Trim();
+                if (suffix.Length == 0 || parameter.Length == 0) { error = "ожидается «суффикс=Id параметра»: «" + part + "»"; break; }
+                fields.Add(new RepeatField(suffix, parameter));
+            }
+            if (error != null) invalidText[nameof(FieldsText)] = value;
+            else
+            {
+                invalidText.Remove(nameof(FieldsText));
+                Model.Fields = fields.Count == 0 ? null : fields;
+            }
+            owner.SetInputError(this, ObjectPath, "fields", error);
+            Notify(nameof(FieldsText));
+            owner.Changed();
+            Refresh();
+        }
+    }
 
     public string Unit { get => Model.Editor?.Unit ?? ""; set => SetEditor(nameof(Unit), editor => editor.Unit = Empty(value)); }
     public string PrecisionText { get => IntText(nameof(PrecisionText), Model.Editor?.Precision); set => SetInt(nameof(PrecisionText), "editor.precision", value, (e, v) => e.Precision = v); }
@@ -802,13 +861,14 @@ public sealed class ParameterDraft : ObservableObject
     public bool IsEnum => Kind == ParameterKind.Enum;
     public bool IsCalculated => Kind == ParameterKind.CalculatedString;
     public bool IsTable => Kind == ParameterKind.Table;
+    public bool IsRepeat => Kind == ParameterKind.Repeat;
     public bool IsNumber => Kind == ParameterKind.Double || Kind == ParameterKind.Integer;
     public bool IsText => Kind == ParameterKind.String;
 
     /// <summary>«Мощность (Power)».</summary>
     public string DisplayName => string.IsNullOrEmpty(Model.Caption) || Model.Caption == Model.Id ? Model.Id ?? "" : Model.Caption + " (" + Model.Id + ")";
     /// <summary>Objects of the drawing storing the parameter.</summary>
-    public int UsageCount => owner.Current?.FindParameter(Model.Id) is null ? 0 : owner.Usage.Count(SchemaSection.Parameter, Model.Id);
+    public int UsageCount => owner.StoredCount(Model.Id);
     public string UsageText => UsageCount == 0 ? "Не хранится в объектах чертежа" : "Хранится в объектах чертежа: " + UsageCount;
     public string TemplatesText
     {
@@ -836,7 +896,7 @@ public sealed class ParameterDraft : ObservableObject
     internal void Refresh()
     {
         foreach (var name in new[] { nameof(DisplayName), nameof(UsageCount), nameof(UsageText), nameof(TemplatesText), nameof(ReferencesText), nameof(FormulaPreview),
-                     nameof(Enum), nameof(Format), nameof(ColumnsText), nameof(GroupBy), nameof(Key) })
+                     nameof(Enum), nameof(Format), nameof(ColumnsText), nameof(GroupBy), nameof(Key), nameof(FieldsText) })
             Notify(name);
     }
 

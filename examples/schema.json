@@ -179,6 +179,32 @@
       "columns": [ "Mat_Category", "Mat_Mark", "Mat_Count", "Mat_InSpec", "Mat_Comment" ],
       "groupBy": "Mat_Category",
       "key": "Mat_Mark"
+    },
+    { "id": "Spec_Pos", "type": "String", "caption": "Позиция", "group": "Спецификация" },
+    { "id": "Spec_Name", "type": "String", "caption": "Наименование", "group": "Спецификация" },
+    {
+      "id": "Spec_Count",
+      "type": "Double",
+      "caption": "Кол.",
+      "group": "Спецификация",
+      "default": 1,
+      "editor": { "min": 0 }
+    },
+    {
+      "id": "spec",
+      "type": "Repeat",
+      "caption": "Спецификация №{n}",
+      "group": "Спецификация",
+      "fields": { "pos": "Spec_Pos", "Name": "Spec_Name", "col": "Spec_Count" }
+    },
+    { "id": "Conn_Target", "type": "String", "caption": "Куда", "group": "Соединения" },
+    { "id": "Conn_Cable", "type": "String", "caption": "Кабель", "group": "Соединения" },
+    {
+      "id": "conn",
+      "type": "Repeat",
+      "caption": "Соединение №{n}",
+      "group": "Соединения",
+      "fields": { "target": "Conn_Target", "cable": "Conn_Cable" }
     }
   ],
   "enums": [
@@ -227,7 +253,9 @@
         "Current",
         "Voltage",
         "Phase",
-        "Materials"
+        "Materials",
+        "spec",
+        "conn"
       ]
     },
     {

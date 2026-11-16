@@ -170,7 +170,8 @@
                                 <ComboBox Grid.Row="1" Grid.Column="1" IsEditable="True" Text="{Binding Type, UpdateSourceTrigger=LostFocus}"
                                           ItemsSource="{Binding DataContext.TypeNames, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Тип параметра" />
                                 <TextBlock Grid.Row="2" Text="Название" Style="{StaticResource FieldLabel}" />
-                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Caption}" AutomationProperties.Name="Название параметра" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Caption}" AutomationProperties.Name="Название параметра"
+                                         ToolTip="Для набора записей (Repeat) {n} заменяется номером записи: «Спецификация №{n}»" />
                                 <TextBlock Grid.Row="3" Text="Описание" Style="{StaticResource FieldLabel}" />
                                 <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Description}" AutomationProperties.Name="Описание параметра" />
                                 <TextBlock Grid.Row="4" Text="Группа" Style="{StaticResource FieldLabel}" />
@@ -212,8 +213,18 @@
                                     <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Key}" AutomationProperties.Name="Ключ таблицы" />
                                 </Grid>
 
-                                <TextBlock Grid.Row="9" Text="Редактор" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,6,8,0" />
-                                <WrapPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal">
+                                <!-- Repeat (issue #61): fields of a record «суффикс=Id параметра»; records are <id>_<n>_<суффикс>. -->
+                                <TextBlock Grid.Row="9" Text="Поля записи" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,6,8,0"
+                                           Visibility="{Binding IsRepeat, Converter={StaticResource Visible}}" />
+                                <StackPanel Grid.Row="9" Grid.Column="1" Visibility="{Binding IsRepeat, Converter={StaticResource Visible}}">
+                                    <TextBox Text="{Binding FieldsText}" AutomationProperties.Name="Поля записи"
+                                             ToolTip="суффикс=Id параметра через запятую, например pos=Spec_Pos, Name=Spec_Name, col=Spec_Col" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,4" TextWrapping="Wrap"
+                                               Text="В объекте хранятся пары &lt;Id&gt;_&lt;n&gt;_&lt;суффикс&gt;; тип, название и значение по умолчанию поля берутся из параметра." />
+                                </StackPanel>
+
+                                <TextBlock Grid.Row="10" Text="Редактор" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,6,8,0" />
+                                <WrapPanel Grid.Row="10" Grid.Column="1" Orientation="Horizontal">
                                     <StackPanel Orientation="Horizontal" Margin="0,0,12,0" Visibility="{Binding IsNumber, Converter={StaticResource Visible}}">
                                         <TextBlock Text="Ед." Style="{StaticResource FieldLabel}" /><TextBox Width="60" Text="{Binding Unit}" AutomationProperties.Name="Единица измерения" />
                                         <TextBlock Text="Точность" Style="{StaticResource FieldLabel}" Margin="10,0,8,0" /><TextBox Width="44" Text="{Binding PrecisionText}" AutomationProperties.Name="Точность" />
@@ -231,7 +242,7 @@
                                     </StackPanel>
                                 </WrapPanel>
 
-                                <Border Grid.Row="10" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="8,6" Background="{DynamicResource PaletteTabBackground}">
+                                <Border Grid.Row="11" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="8,6" Background="{DynamicResource PaletteTabBackground}">
                                     <StackPanel>
                                         <TextBlock Text="{Binding UsageText}" Style="{StaticResource Muted}" />
                                         <TextBlock Text="{Binding TemplatesText}" Style="{StaticResource Muted}" />

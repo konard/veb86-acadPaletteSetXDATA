@@ -118,7 +118,7 @@ public sealed class MigrationMap
     {
         if (id is null || ParameterSchema.ReservedIds.Contains(id, StringComparer.OrdinalIgnoreCase) || !schema.Parameters.TryGetValue(id, out var parameter)) return null;
         var kind = (types ?? ParameterTypeRegistry.Default).Find(parameter.Type)?.Kind;
-        return kind is null || kind == ParameterKind.Table || kind == ParameterKind.CalculatedString ? null : parameter.Id;
+        return kind is null || kind == ParameterKind.Table || kind == ParameterKind.CalculatedString || kind == ParameterKind.Repeat ? null : parameter.Id;
     }
 
     private static JsonValue? Member(JsonObject json, string name) =>

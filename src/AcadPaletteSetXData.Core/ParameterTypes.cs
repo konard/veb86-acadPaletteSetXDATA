@@ -6,7 +6,12 @@ using System.Text;
 
 namespace AcadPaletteSetXData.Core;
 
-public enum ParameterKind { String, Double, Integer, Boolean, Enum, CalculatedString, Table }
+public enum ParameterKind
+{
+    String, Double, Integer, Boolean, Enum, CalculatedString, Table,
+    /// <summary>A group of fields repeated in the object as <c>&lt;id&gt;_&lt;n&gt;_&lt;suffix&gt;</c> (issue #61).</summary>
+    Repeat
+}
 
 /// <summary>
 /// A parameter type (TZXDATA 11): schema checks (stage 1) and the XDATA v2 value (stage 3).
@@ -54,6 +59,7 @@ public sealed class ParameterTypeRegistry
         registry.Register(new EnumType());
         registry.Register(new CalculatedStringType());
         registry.Register(new TableType());
+        registry.Register(new RepeatType());
         return registry;
     }
 
@@ -223,6 +229,23 @@ public sealed class ParameterTypeRegistry
         public bool TryRead(DataValue stored, out object value) { value = stored.Value; return false; }
         public string? Convert(object value, out object converted) { converted = value; return "значение Table задаётся строками"; }
         public DataValue ToXData(object value) => throw new InvalidOperationException("Table хранится списком строк.");
+    }
+
+    /// <summary>
+    /// <c>Repeat</c> (issue #61): has no value of its own; the object stores scalar instance pairs
+    /// <c>&lt;id&gt;_&lt;n&gt;_&lt;suffix&gt;</c> typed by <see cref="SchemaParameter.Fields"/>.
+    /// </summary>
+    private sealed class RepeatType : IParameterType
+    {
+        public string Name => "Repeat";
+        public ParameterKind Kind => ParameterKind.Repeat;
+        public bool IsScalar => false;
+        public string? CheckValue(JsonValue value, SchemaParameter parameter, ParameterSchema schema) =>
+            "значение по умолчанию для Repeat не поддерживается";
+        public int XDataCode => 0;
+        public bool TryRead(DataValue stored, out object value) { value = stored.Value; return false; }
+        public string? Convert(object value, out object converted) { converted = value; return "значение Repeat задаётся записями"; }
+        public DataValue ToXData(object value) => throw new InvalidOperationException("Repeat хранится полями записей.");
     }
 
     private static bool ReadText(DataValue stored, out object value)

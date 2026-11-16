@@ -74,8 +74,23 @@ public sealed class SchemaParameter : SchemaElement
     /// <summary><c>Table</c>: column matching rows in group editing; defaults to the first <c>String</c> column.</summary>
     public string? Key { get; set; }
     public ParameterEditor? Editor { get; set; }
+    /// <summary>
+    /// <c>Repeat</c> (issue #61): suffixes of the instance <c>Id</c> <c>&lt;id&gt;_&lt;n&gt;_&lt;suffix&gt;</c> mapped to the scalar
+    /// parameters that give their type, caption, editor and default, in the order of the schema.
+    /// </summary>
+    public List<RepeatField>? Fields { get; set; }
 
     public string EffectiveGroup => string.IsNullOrEmpty(Group) ? ParameterSchema.DefaultGroup : Group!;
+}
+
+/// <summary>A field of a <c>Repeat</c> (issue #61): <c>"suffix": "ParameterId"</c>.</summary>
+public sealed class RepeatField
+{
+    public RepeatField(string suffix, string parameter) { Suffix = suffix; Parameter = parameter; }
+    /// <summary>Last part of the instance <c>Id</c>: <c>pos</c> of <c>spec_1_pos</c>.</summary>
+    public string Suffix { get; }
+    /// <summary>Id of the scalar parameter of the schema that describes the field.</summary>
+    public string Parameter { get; }
 }
 
 /// <summary>Editor settings (TZXDATA 4.1, 8.2): presentation only, never stored in XDATA.</summary>

@@ -31,7 +31,9 @@ public enum DrawingIssueKind
     /// <summary>XDATA of a newer format version: read-only.</summary>
     NewerFormat,
     /// <summary>Data of the formats of <c>VELEC_MIGRATE</c>.</summary>
-    LegacyData
+    LegacyData,
+    /// <summary>Records of a <c>Repeat</c> with gaps in the numbers or without some fields (issue #61).</summary>
+    RepeatRecords
 }
 
 /// <summary>One problem of one object.</summary>
@@ -119,6 +121,7 @@ public sealed class DrawingCheckReport
         DrawingIssueKind.Format => "Повреждённые данные",
         DrawingIssueKind.NewerFormat => "Более новая версия формата",
         DrawingIssueKind.LegacyData => "Прежние форматы (VELEC_MIGRATE)",
+        DrawingIssueKind.RepeatRecords => "Пропуски и неполные записи наборов",
         _ => kind.ToString()
     };
 }
@@ -229,6 +232,7 @@ public sealed class DrawingCheck
         if (snapshot.Warning != null) Add(DrawingIssueKind.Format, null, snapshot.Warning);
 
         if (values.Format != XDataFormat.V2 || schema.Schema is null) return;
+        CheckRecords(values, Add);
         EntityDataSnapshot recalculated;
         try { recalculated = patch.Apply(snapshot, SelectionEdit.RecalculatePersisted(), null); }
         catch (InvalidOperationException error)
@@ -243,6 +247,33 @@ public sealed class DrawingCheck
             .Select(value => value.Id).ToArray();
         Add(DrawingIssueKind.StalePersist, changed.Length == 0 ? null : string.Join(", ", changed), "результат формулы отличается от записанного.");
     }
+
+    /// <summary>
+    /// Records of every <c>Repeat</c> (issue #61): numbers 1..n without gaps — «последняя» and the shift of the VST count
+    /// on them — and every field of a record stored.
+    /// </summary>
+    private void CheckRecords(ObjectValues values, Action<DrawingIssueKind, string?, string> add)
+    {
+        foreach (var repeat in schema.Parameters.Repeats)
+        {
+            var numbers = RepeatItems.Numbers(values, repeat);
+            if (numbers.Count == 0) continue;
+            var gaps = Enumerable.Range(1, numbers[numbers.Count - 1]).Except(numbers).ToArray();
+            if (gaps.Length != 0)
+                add(DrawingIssueKind.RepeatRecords, repeat.Id, "нет записей №" + Numbers(gaps) + " (есть №" + Numbers(numbers) +
+                    "); «+ Добавить» продолжит нумерацию с №" + (numbers[numbers.Count - 1] + 1).ToString(CultureInfo.InvariantCulture) + ".");
+            foreach (var number in numbers)
+            {
+                var missing = repeat.Fields!.Where(field => values.Find(RepeatItems.ItemId(repeat.Id!, number, field.Suffix)) is null)
+                    .Select(field => field.Suffix).ToArray();
+                if (missing.Length != 0)
+                    add(DrawingIssueKind.RepeatRecords, repeat.Id + "_" + number.ToString(CultureInfo.InvariantCulture),
+                        RepeatItems.Caption(repeat, number) + ": нет " + (missing.Length == 1 ? "поля " : "полей ") + string.Join(", ", missing) + ".");
+            }
+        }
+    }
+
+    private static string Numbers(IEnumerable<int> numbers) => string.Join(", ", numbers.Select(number => number.ToString(CultureInfo.InvariantCulture)));
 
     private void CheckValue(ObjectValue value, string id, Action<DrawingIssueKind, string?, string> add)
     {

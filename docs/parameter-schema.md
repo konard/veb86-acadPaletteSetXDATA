@@ -34,11 +34,16 @@ if (!result.HasErrors) ParameterSchemaJson.WriteFile("schema.json", result.Schem
 
 | Объект | Поля |
 | --- | --- |
-| Параметр | `id`, `type`, `caption`, `description`, `group`, `default`, `enum`, `format`, `persist`, `columns`, `groupBy`, `key`, `editor` |
+| Параметр | `id`, `type`, `caption`, `description`, `group`, `default`, `enum`, `format`, `persist`, `columns`, `groupBy`, `key`, `editor`, `fields` |
 | `editor` | `unit`, `precision`, `min`, `max`, `maxLength`, `readOnly`, `multiline`, `allowCustom`, `vstColumn` (8.2) |
 | Справочник | `id`, `caption`, `items[]` из `{ key, caption }` |
 | Шаблон | `id`, `caption`, `entityTypes[]`, `parameters[]` — строка `"Id"` или `{ "id": ..., "default": ... }` |
 | `migration` (корень, этап 9) | `fields` — ключ прежнего формата → `Id`; `tables` — метка списка → `{ "table": Id Table, "columns": { ключ → колонка } }`; `rename` — `старый Id` → `новый Id` |
+
+Тип `Repeat` (задача #61) — набор записей с заранее неизвестным числом: `fields` — объект
+«суффикс → `Id` скалярного параметра», `caption` — подпись записи с номером `{n}` («Спецификация №{n}»).
+Объект хранит плоские пары `<id>_<n>_<суффикс>` (`spec_1_pos`, `spec_1_Name`, `spec_1_col`) —
+[repeating-parameters.md](repeating-parameters.md).
 
 Раздел `migration` — таблица соответствия для `VELEC_MIGRATE`. Он хранится в `Extra` корня, поэтому
 round-trip без потерь сохраняет его в JSON и в `NOD/VELEC/INFO`. Правила переноса —
@@ -70,21 +75,21 @@ round-trip без потерь сохраняет его в JSON и в `NOD/VELE
 | `InvalidJson` | ошибка | синтаксис JSON (со строкой и столбцом), повтор поля, корень не объект |
 | `InvalidFieldType` | ошибка | известное поле неверного типа; значение сохраняется |
 | `FieldNameCase` | предупреждение | имя поля отличается от известного только регистром |
-| `Required` | ошибка | нет `format`, `version`, `id`, `caption`, `type`, `enum` (Enum), `format` (CalculatedString), `columns` (Table), ключа элемента, `id` ссылки шаблона |
+| `Required` | ошибка | нет `format`, `version`, `id`, `caption`, `type`, `enum` (Enum), `format` (CalculatedString), `columns` (Table), `fields` (Repeat), ключа элемента, `id` ссылки шаблона |
 | `UnsupportedFormat` | ошибка | `format` не `BobrovXDATA.schema` |
 | `UnsupportedVersion` | ошибка / предупреждение | `version < 1` / версия новее поддерживаемой |
-| `InvalidId` | ошибка | `id` не соответствует `[A-Za-z_][A-Za-z0-9_]{0,63}` |
+| `InvalidId` | ошибка | `id` не соответствует `[A-Za-z_][A-Za-z0-9_]{0,63}`; суффикс поля `Repeat` начинается с цифры или `_`, или `Id` записи `<id>_999_<суффикс>` длиннее 64 символов |
 | `ReservedId` | ошибка | параметр `DEVICE_ID`, `TEMPLATE`, `FMT` (без учёта регистра) |
-| `DuplicateId` | ошибка | повтор `id` в разделе (без учёта регистра) или ключа в справочнике (с учётом регистра — ключ хранится в XDATA как есть) |
+| `DuplicateId` | ошибка | повтор `id` в разделе (без учёта регистра) или ключа в справочнике (с учётом регистра — ключ хранится в XDATA как есть); параметр с `Id` записи `Repeat` (`spec_2_Name`) |
 | `UnknownType` | предупреждение | тип не зарегистрирован; параметр сохраняется и будет только для чтения (раздел 11) |
-| `UnknownReference` | ошибка | `enum`, `@@[Id]`, `columns`, `groupBy`/`key` вне колонок, параметр шаблона |
-| `DuplicateReference` | ошибка | повтор колонки таблицы или параметра шаблона |
+| `UnknownReference` | ошибка | `enum`, `@@[Id]` (в том числе поле записи `@@[spec_1_Name]`), `columns`, `groupBy`/`key` вне колонок, параметр шаблона, параметр поля `Repeat` |
+| `DuplicateReference` | ошибка | повтор колонки таблицы, параметра шаблона или суффикса поля `Repeat` (без учёта регистра) |
 | `NotApplicable` | предупреждение | поле не относится к типу (например, `format` у `String`, `editor.precision` у `Integer`) |
 | `InvalidDefault` | ошибка | `default` параметра или шаблона не соответствует типу, `min`/`max`, `maxLength`, 255 байтам UTF-8, 32-битному `Integer` или отсутствует в справочнике (кроме `allowCustom`); у `Table` значения по умолчанию нет |
 | `InvalidEditor` | ошибка | `precision` вне 0–15, `maxLength` вне 1–255, `min > max`, `vstColumn` вне 1–4 |
-| `InvalidFormat` | ошибка | незакрытая/неверная ссылка `@@[`, `:key` не у `Enum`, подстановка `Table` |
+| `InvalidFormat` | ошибка | незакрытая/неверная ссылка `@@[`, `:key` не у `Enum`, подстановка `Table` или `Repeat` целиком (`@@[spec]`; поле записи — `@@[spec_1_Name]`) |
 | `CyclicFormat` | ошибка | цикл между `CalculatedString`, включая ссылку на себя: `A → B → A` |
-| `InvalidColumn` | ошибка | колонка `Table` — `Table` или `CalculatedString` с `persist`; `groupBy` не `Enum` |
+| `InvalidColumn` | ошибка | колонка `Table` — `Table` или `CalculatedString` с `persist`; `groupBy` не `Enum`; поле `Repeat` — не `String`, `Double`, `Integer`, `Boolean` или `Enum` |
 | `InvalidValue` | ошибка | ключ справочника с пробелами по краям или длиннее 255 байт UTF-8; пустая строка в `entityTypes`; в `migration` — цель `Table`/`CalculatedString`, переименование в себя, цепочка переименований (предупреждение — старый `Id` из `rename` ещё описан в схеме) |
 
 Ошибки раздела `migration` выводятся под объектом «Миграция». Помимо `InvalidValue`, это коды

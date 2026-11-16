@@ -129,6 +129,7 @@ VELEC_CHECK (UsePickSet, Redraw) → схема из кэша (без схемы
 | Устаревшие результаты `Persist` | Пересчёт формул («Persist»/«Все»). |
 | Повреждённые данные, более новая версия формата | Нет: объект только для чтения. |
 | Прежние форматы | `VELEC_MIGRATE`. |
+| Пропуски номеров записей `Repeat` (`spec_1_*` и `spec_3_*` без `spec_2_*`) и записи без части полей (задача #61) | Нет: «×» лишней записи в VST, добавление недостающего поля или `VELEC_ITEM_REMOVE_LAST`. |
 
 ## Отчёт
 
@@ -213,6 +214,10 @@ and check the drawing»). В AutoCAD handle объектов будут друг
 | `KeptSourcesOfMigratedObjectsAreToldFromObjectsToMigrate` | Сохранённые источники перенесённых объектов не путаются с данными для переноса. |
 | `WriteEachRemovesRecordsAndRejectsForeignHandles` | `WriteEach` удаляет XRecord и отклоняет чужие handle. |
 | `TheLegacyViewReadsEsmtSmartlineAndTheBackupButNotTypedPairs` | Блок «Прежний формат» VST читает `ESMT_LEP_v1.0`, `SMARTLINE` и копию v1, но не типизированные пары. |
+
+Записи `Repeat` (задача #61) проверяет `RepeatDrawingCheckTests`: полные записи с номерами 1..n замечаний
+не дают; пропуск «нет записей №2 (есть №1, 3); «+ Добавить» продолжит нумерацию с №4.» и
+«Спецификация №3: нет поля col.» — в группе «Пропуски и неполные записи наборов».
 
 ## Проверка
 

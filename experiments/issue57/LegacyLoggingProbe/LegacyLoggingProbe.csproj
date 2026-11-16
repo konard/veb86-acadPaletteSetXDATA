@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Issue #57: loads the plugin core and NCalc next to Microsoft.Extensions.Logging.Abstractions 1.1.1 (an older
+    version that AutoCAD may have loaded, without NullLoggerFactory) and prints what NCalc.Expression and
+    FormulaExpression do there. Run: dotnet run (DOTNET_ROLL_FORWARD=Major on a machine without .NET 8).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/AcadPaletteSetXData.Core/AcadPaletteSetXData.Core.csproj" />
+    <PackageDownload Include="Microsoft.Extensions.Logging.Abstractions" Version="[1.1.1]" />
+    <None Include="$(NuGetPackageRoot)microsoft.extensions.logging.abstractions/1.1.1/lib/netstandard1.1/Microsoft.Extensions.Logging.Abstractions.dll" Link="legacy/Microsoft.Extensions.Logging.Abstractions.dll" CopyToOutputDirectory="PreserveNewest" Condition="'$(NuGetPackageRoot)' != ''" />
+  </ItemGroup>
+</Project>

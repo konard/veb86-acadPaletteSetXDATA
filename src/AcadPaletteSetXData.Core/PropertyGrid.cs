@@ -584,12 +584,19 @@ public sealed class PropertyGridViewModel : ObservableObject
     /// <summary>
     /// «+ Параметр» (TZXDATA 8.4): writes a parameter of the schema that is not shown yet to every object, with the value
     /// of its default (or an empty value of its type); it is shown in «Дополнительные» and selected for editing.
+    /// A <c>CalculatedString</c> is added by <see cref="SelectionEdit.AddCalculated"/> and shows its computed result.
     /// </summary>
     public bool AddParameter(string id)
     {
         if (!CanEdit || schema?.Schema is null || string.IsNullOrEmpty(id)) return false;
         if (!AvailableParameters.Any(option => ParameterSchema.SameId(option.Key, id)) || !schema.Parameters.TryGetValue(id, out var parameter)) return false;
         var type = types.Find(parameter.Type)!;
+        if (type.Kind == ParameterKind.CalculatedString)
+        {
+            // A formula is not set by hand (issue #57): its row marks the objects, the tree shows the computed result.
+            selectedIdentity = reveal = "p:" + parameter.Id!.ToUpperInvariant();
+            return selection.RequestEdit(SelectionEdit.AddCalculated(parameter.Id!));
+        }
         var value = selection.Calculations.FirstOrDefault()?.Value(parameter.Id!) ?? type.Kind switch
         {
             ParameterKind.Integer => (object)(int)Math.Ceiling(parameter.Editor?.Min ?? 0),
@@ -943,7 +950,8 @@ public sealed class PropertyGridViewModel : ObservableObject
 
         /// <summary>
         /// A group of one table with the same caption is shown as the table node itself (TZXDATA 8.1). Values of a
-        /// <paramref name="removable"/> group (outside the template or the schema) get <c>×</c>.
+        /// <paramref name="removable"/> group (outside the template or the schema) and <c>CalculatedString</c> outside the
+        /// templates of the selection get <c>×</c>.
         /// </summary>
         private PropertyRow Group(string key, string name, List<string> ids, bool removable)
         {
@@ -957,13 +965,18 @@ public sealed class PropertyGridViewModel : ObservableObject
                 var child = parameter != null && Kind(parameter) == ParameterKind.Table || parameter is null && IsList(id)
                     ? Table(id, parameter, 1, key + "/")
                     : Scalar(id, parameter, 1);
-                child.CanDelete = removable && CanEdit && !ParameterSchema.ReservedIds.Contains(id, StringComparer.OrdinalIgnoreCase);
+                // A formula outside the templates was added by «+ Параметр» (issue #57): it is read only, so × removes it.
+                var standalone = parameter != null && Kind(parameter) == ParameterKind.CalculatedString && !InTemplate(id);
+                child.CanDelete = (removable || standalone) && CanEdit && !ParameterSchema.ReservedIds.Contains(id, StringComparer.OrdinalIgnoreCase);
                 group.children.Add(child);
             }
             return group;
         }
 
         private bool IsList(string id) => values.Any(item => item.Find(id)?.IsTable == true);
+
+        private bool InTemplate(string id) => values.Any(item => item.Template != null && schema!.Templates.TryGetValue(item.Template, out var template) &&
+            template.Parameters.Any(parameter => ParameterSchema.SameId(parameter.Id, id)));
 
         private ParameterKind? Kind(SchemaParameter parameter) => Types.Find(parameter.Type)?.Kind;
 
@@ -1082,8 +1095,8 @@ public sealed class PropertyGridViewModel : ObservableObject
         }
 
         /// <summary>
-        /// «+ Параметр»: scalar parameters of the schema that the tree does not show, except system ids, formulas and
-        /// table columns.
+        /// «+ Параметр»: scalar parameters of the schema that the tree does not show, including <c>CalculatedString</c>
+        /// (issue #57), except system ids and table columns.
         /// </summary>
         public IReadOnlyList<PropertyOption> Available(IReadOnlyList<PropertyRow> built)
         {
@@ -1094,7 +1107,8 @@ public sealed class PropertyGridViewModel : ObservableObject
                 .Where(parameter => !string.IsNullOrEmpty(parameter.Id) && !shown.Contains(parameter.Id!) && !columns.Contains(parameter.Id!) &&
                     !ParameterSchema.ReservedIds.Contains(parameter.Id!, StringComparer.OrdinalIgnoreCase) && parameter.Editor?.ReadOnly != true &&
                     !owner.IsHidden(parameter) &&
-                    Kind(parameter) is ParameterKind kind && kind != ParameterKind.Table && kind != ParameterKind.CalculatedString)
+                    Kind(parameter) is ParameterKind kind && kind != ParameterKind.Table &&
+                    (kind != ParameterKind.CalculatedString || schema.Formulas.Find(parameter.Id!) != null))
                 .Select(parameter => new PropertyOption(parameter.Id!, Caption(parameter) == parameter.Id ? parameter.Id! : Caption(parameter) + " (" + parameter.Id + ")"))
                 .ToArray();
         }

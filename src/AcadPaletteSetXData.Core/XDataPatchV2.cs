@@ -114,6 +114,20 @@ public sealed partial class XDataPatch
                 recalculated = calculation.Results.Where(result => missing.Contains(result.Id, StringComparer.OrdinalIgnoreCase)).ToArray();
                 break;
             }
+            case SelectionEditKind.AddCalculated:
+            {
+                var formula = schema.Formulas.Find(edit.Field)
+                    ?? throw new InvalidOperationException("Параметр " + edit.Field + " не является CalculatedString схемы.");
+                if (nodes.Any(node => ParameterSchema.SameId(node.Id, formula.Id))) break;
+                var computed = Calculation().Find(formula.Id);
+                // An erroneous result is not written (TZXDATA 7.4): the empty row is filled by the next recalculation.
+                var text = formula.Persist && computed != null && !computed.IsError ? computed.Text : "";
+                if (ParameterTypeRegistry.Utf8Length(text) > ParameterTypeRegistry.MaxStringBytes)
+                    throw new InvalidOperationException(name + "результат " + formula.Id + " (Persist) длиннее " + ParameterTypeRegistry.MaxStringBytes +
+                        " байт UTF-8; операция отменена.");
+                Set(nodes, Pair(formula.Id, new DataValue(1000, text)));
+                break;
+            }
             default: throw new ArgumentException("Неизвестная операция.", nameof(edit));
         }
         if (calculation != null && recalculated != null)

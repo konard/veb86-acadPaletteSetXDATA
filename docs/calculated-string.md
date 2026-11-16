@@ -18,12 +18,15 @@
 | `src/AcadPaletteSetXData.Core/EmbeddedAssemblies.cs` | Загрузка NCalc и его зависимостей: из ресурсов Release DLL или из папки плагина (задача #43). |
 | `src/AcadPaletteSetXData.Core/SchemaCache.cs` | `SchemaSnapshot.Formulas` — формулы разбираются один раз на снимок схемы. |
 | `src/AcadPaletteSetXData.Core/XDataPatchV2.cs` | Запись результатов `Persist` той же операцией, что меняет исходный параметр. |
-| `src/AcadPaletteSetXData.Core/SelectionEdit.cs` | Операция `RecalculatePersisted` — пересчёт `Persist` (основа «Исправить: Persist» команды `VELEC_CHECK`, этап 9). |
+| `src/AcadPaletteSetXData.Core/SelectionEdit.cs` | Операция `RecalculatePersisted` — пересчёт `Persist` (основа «Исправить: Persist» команды `VELEC_CHECK`, этап 9); `AddCalculated` — добавление формулы через «+ Параметр» (задача #57). |
+| `src/AcadPaletteSetXData.Core/PropertyGrid.cs` | «+ Параметр» предлагает `CalculatedString`; `×` у формулы вне шаблона (задача #57). |
 | `src/AcadPaletteSetXData.Core/SelectionViewModel.cs` | `Calculations` выделения и диагностика формул во вкладке «XDATA». |
 | `src/AcadPaletteSetXData.AutoCAD/AutoCadSelectionSource.cs` | Результаты формул в трассировке `XDATAPALETTE_TRACE=1`. |
 | `tests/AcadPaletteSetXData.Core.Tests/CalculatedStringTests.cs` | Приёмочные тесты этапа. |
 | `tests/AcadPaletteSetXData.Core.Tests/FormulaExpressionTests.cs` | Тесты формульного режима: примеры задачи #43, ошибки, граф, `Persist`, глубина разбора. |
 | `tests/AcadPaletteSetXData.Core.Tests/EmbeddedAssembliesTests.cs` | Тесты загрузчика сборок NCalc. |
+| `tests/AcadPaletteSetXData.Core.Tests/LegacyLoggingTests.cs` | Формулы при старой `Microsoft.Extensions.Logging.Abstractions` 1.1.1 в процессе (задача #57). |
+| `tests/AcadPaletteSetXData.Core.Tests/AddCalculatedStringTests.cs` | Добавление `CalculatedString` через «+ Параметр» без шаблона (задача #57). |
 | `examples/tzxdata-stage4-calc.lsp` | `VELECCALCSAMPLE` и `VELECCALCTOUCH` для ручной проверки в AutoCAD. |
 | `examples/issue43-formula-schema.json`, `examples/issue43-formulas.lsp` | Схема с формулами и объекты `VELECFORMULASAMPLE` / `VELECFORMULAXDATA` для ручной проверки формул. |
 | `experiments/issue43/` | Пробы NCalc 7.4.0: `StringConcat`, глубина разбора, поведение из этого документа (`DocProbe`). |
@@ -132,6 +135,7 @@ ObjectCalculation.Merge(selection, "GC_Name");     // общий текст ил
 | `RemoveParameter(id)` | зависимые от `id`, которые уже записаны на объекте или входят в шаблон |
 | `SetTemplate(…)` | все `Persist`, которые записаны на объекте или входят в новый шаблон |
 | `RecalculatePersisted()` | все `Persist`, которые записаны на объекте или входят в его шаблон |
+| `AddCalculated(id)` | сам `id`, если его ещё нет на объекте (задача #57, раздел ниже) |
 
 - Формулы с ошибкой (цикл, неизвестная ссылка) не записываются: в XDATA не попадает текст с `@@[…]`.
 - Формула формульного режима, которая не вычисляется на объекте (деление на ноль и т. п.), тоже не
@@ -143,6 +147,33 @@ ObjectCalculation.Merge(selection, "GC_Name");     // общий текст ил
   сравнивает данные до и после). На нём основан пересчёт `Persist` команды `VELEC_CHECK` (этап 9, [migration-check.md](migration-check.md)).
 - Вычисление в `XDataPatch` использует значения кэша, если они относятся к той же схеме, иначе
   разбирает снимок транзакции; культура подстановки — текущая (`CultureInfo.CurrentCulture`).
+
+## Добавление через «+ Параметр» (задача #57)
+
+Раньше формула появлялась у объекта только вместе с шаблоном: «+ Параметр» пропускал
+`CalculatedString`, а `SetParameter` его отклоняет. Теперь меню предлагает и формулы схемы,
+которых нет в дереве. Добавление — отдельная операция `SelectionEdit.AddCalculated(id)`, потому что
+значение формулы не задаётся вручную:
+
+- По `ObjectCalculation.IsUsed` формула показывается у объекта, если её `Id` записан на объекте или
+  входит в его шаблон. `AddCalculated` записывает строку `1000` с этим `Id` — признак того, что
+  объект использует формулу.
+- `Persist`: записывается вычисленный результат (как `RecalculatePersisted`), дальше он
+  поддерживается обычными правилами таблицы выше: строка записана — значит, обновляется при
+  изменении источников. Ошибочный результат не записывается — строка остаётся пустой до следующего
+  пересчёта; длиннее 255 байт UTF-8 — отказ всей операции.
+- Без `persist`: записывается пустая строка. Текст такой строки не читается (результат не хранится),
+  VST и диагностика показывают вычисленное значение; у пустой строки нет признака «устарело».
+- Уже записанная строка не меняется (устаревший `Persist` обновляют его источники или `VELEC_CHECK`).
+  `Id`, который не является формулой схемы, — отказ («…не является CalculatedString схемы»).
+- В VST формула — строка `ƒ` только для чтения. Пустой ввод для неё невозможен, поэтому формула вне
+  шаблона получает `×` (`RemoveParameter`) и в «Дополнительных», и в обычной группе объекта без
+  шаблона; формула шаблона `×` не имеет.
+
+Тест `AddCalculatedStringTests` (схема `examples/issue43-formula-schema.json`, объекты без шаблона):
+меню содержит `Total` и `Label`; `Total` (`persist`) записывается как `6` и `1` и обновляется до `9`
+и `4` после изменения `Power`; `Label` записывается пустой строкой и показывает `ЩУ1.2 — Щит`; `×`
+удаляет `Label`; формула вне шаблона `TRAY` попадает в «Дополнительные».
 
 ## Формульный режим (задача #43)
 
@@ -347,8 +378,20 @@ Excel `&`; смешивать шаблон строкового режима и 
 ### Зависимость NCalc
 
 - Пакет `NCalc` **7.4.0** закреплён (`[7.4.0]`) в `AcadPaletteSetXData.Core.csproj` (`netstandard2.0`);
-  он совместим с `net48` и `net8.0-windows`. Вычислитель `NCalc.Expression` находится в `NCalc.Core.dll`,
-  других пакетов NCalc нет.
+  он совместим с `net48` и `net8.0-windows`. Формула разбирается `LogicalExpressionParser`
+  (`NCalc.Parser.dll`) и вычисляется `EvaluationVisitor` (`NCalc.Core.dll`), других пакетов NCalc нет.
+- Класс `NCalc.Expression` **не используется** (задача #57). Его конструктор создаёт статические
+  `LogicalExpressionCache` и `LogicalExpressionFactory`, а их логгеры берутся из
+  `Microsoft.Extensions.Logging.Abstractions`. В AutoCAD эту сборку часто уже загрузил другой компонент
+  в старой версии 1.1.1.0, где нет `NullLoggerFactory`. Тогда любая формула, даже `=@@[power]`,
+  давала «ошибка синтаксиса выражения: Не удалось загрузить тип
+  "Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory" из сборки … Version=1.1.1.0». Разбор и
+  вычисление напрямую не обращаются к журналированию, поэтому версия `Microsoft.Extensions.Logging.Abstractions`
+  в процессе AutoCAD больше не важна. Тест `LegacyLoggingTests` загружает ядро плагина и NCalc в
+  отдельный `AssemblyLoadContext` вместе с `Microsoft.Extensions.Logging.Abstractions` 1.1.1. Он
+  проверяет, что сам `new NCalc.Expression(…)` там падает с этой ошибкой, а формулы вычисляются и
+  даже не запрашивают сборку журналирования. Проба `experiments/issue57/LegacyLoggingProbe` печатает
+  то же самое.
 - **Release** (`acadPaletteSetXDATA.dll`) остаётся одной DLL: NCalc и его зависимости встраиваются в неё
   ресурсами `Embedded.<имя>.dll` (цель `EmbedRuntimeAssemblies` в `acadPaletteSetXDATA.csproj`), а
   `EmbeddedAssemblies` (инициализатор модуля, `AppDomain.AssemblyResolve`) загружает их из памяти при

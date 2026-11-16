@@ -18,7 +18,9 @@ public enum SelectionEditKind
     // TZXDATA 7.4: rewrite the Persist results of CalculatedString (the recalculation of VELEC_CHECK).
     RecalculatePersisted,
     // TZXDATA 6.2: «Зафиксировать значения по умолчанию» of the template.
-    CommitDefaults
+    CommitDefaults,
+    // Issue #57: «+ Параметр» of a CalculatedString outside the template.
+    AddCalculated
 }
 
 /// <summary>A confirmed change, never a serialization of the merged UI.</summary>
@@ -74,6 +76,13 @@ public sealed class SelectionEdit : EventArgs
     /// have no defaults and are left as they are.
     /// </summary>
     public static SelectionEdit CommitDefaults() => new SelectionEdit(SelectionEditKind.CommitDefaults);
+    /// <summary>
+    /// «+ Параметр» of a <c>CalculatedString</c> (issue #57): the formula is not set by hand, so its row is written as the
+    /// sign that the object uses it — the computed text for <c>Persist</c>, an empty string otherwise (the stored text of
+    /// a formula without <c>Persist</c> is not read). A stored row is kept.
+    /// </summary>
+    public static SelectionEdit AddCalculated(string id) =>
+        new SelectionEdit(SelectionEditKind.AddCalculated, string.IsNullOrEmpty(id) ? throw new ArgumentException("Id не задан.", nameof(id)) : id);
 
     private static string Text(object? value) => value is null ? "" : XDataV2.FormatValue(value);
 }

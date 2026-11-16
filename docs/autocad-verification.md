@@ -503,3 +503,21 @@ LINE с `ESMT_LEP_v1.0`, LWPOLYLINE со строками v1 и XML; линия 
    и группа `SYSTEM` сохранены. Снимите флажок, «ОК» — группа скрыта.
 5. Запишите в `settings.json` текст `{ broken`, перезапустите AutoCAD: панель открывается, группа `SYSTEM`
    скрыта.
+
+## Формулы `CalculatedString` (задача #57)
+
+1. Импортируйте `examples/issue43-formula-schema.json` (`VELEC_SCHEMA_IMPORT`), загрузите
+   `examples/issue43-formulas.lsp` (`APPLOAD`) и выполните `VELECFORMULASAMPLE`. Если в AutoCAD
+   загружена старая `Microsoft.Extensions.Logging.Abstractions` (1.1.1, у неё нет `NullLoggerFactory`),
+   формулы вычисляются: у `Total`, `Label`, `Load` нет ошибки «Не удалось загрузить тип
+   "Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory"». Проверьте и простую формулу
+   `=@@[Power]` в редакторе схемы («⚙ Схема», колонка «Формат»).
+2. Нарисуйте новый отрезок (без XDATA и шаблона) и выделите его. Откройте «+ Параметр»: в меню есть
+   «Расчётная мощность (Total)», «Подпись (Label)» и другие формулы. Выберите `Total`: строка `ƒ` со
+   значением `0` (значения по умолчанию схемы) появилась и выделена, в XDATA записано `Total` = `0`.
+   Добавьте `Power` через «+ Параметр» и введите `2,5` — `Total` пересчитан и перезаписан (`2,5`).
+3. Добавьте `Label`: в XDATA — `Label` с пустым значением, в VST — вычисленный текст. `×` у `Label`
+   удаляет его, формула снова есть в «+ Параметр».
+
+Автотесты без AutoCAD: `LegacyLoggingTests` (старая сборка журналирования в отдельном
+`AssemblyLoadContext`) и `AddCalculatedStringTests`.

@@ -564,3 +564,19 @@ LINE с `ESMT_LEP_v1.0`, LWPOLYLINE со строками v1 и XML; линия 
 
 Автотесты без AutoCAD: `RepeatItemsTests`, `RepeatPropertyGridTests`, `RepeatItemCommandsTests`,
 `RepeatSchemaEditorTests`, `RepeatDrawingCheckTests` и правила `Repeat` в `SchemaValidatorTests`.
+
+## Атрибуты и геометрия (задача #64)
+
+1. В пустом DWG импортируйте [схему примера](../examples/issue64-entity-properties-schema.json)
+   командой VELEC_SCHEMA_IMPORT. Загрузите [AutoLISP примера](../examples/issue64-entity-properties.lsp)
+   через APPLOAD, откройте XDATAPALETTE и выполните VELECENTITYSAMPLE.
+2. Для выделенного вхождения блока во вкладке «Свойства» группа «Атрибуты» содержит PART_CODE = A-17
+   и постоянный PART_SERIES = S-1. «Маркировка» показывает «П42: A-17». Измените PART_CODE
+   в редакторе атрибутов AutoCAD и снова проверьте «Маркировку».
+3. Выполните VELECENTITYOUTLINE. У замкнутой полилинии 4 × 3 группа «Геометрия» показывает
+   длину 14 и площадь 12. «Габариты» показывают «14 ед. / 12 ед.²», «Двойная площадь» — 24.
+   Измените контур и проверьте измерения и формулы после обновления палитры.
+4. Создайте отрезок без XDATA. В его группе «Геометрия» есть только длина.
+   Выделите отрезок и полилинию вместе. Площадь должна отображаться как «Разное».
+
+Автоматические проверки выполняются в EntityPropertiesTests, AutoCadDataReaderTests и WpfSmoke.

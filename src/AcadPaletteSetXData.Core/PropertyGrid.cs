@@ -979,6 +979,7 @@ public sealed class PropertyGridViewModel : ObservableObject
             if (count == 0) { Message = "Выберите объекты в чертеже"; return result; }
             Templates();
             if (values.Count != 0) Schema(result);
+            EntityGroups(result);
             Legacy(result);
             var none = values.Count(item => item.Format == XDataFormat.None && !HasLegacy(item.Handle));
             NeedsTemplate = none != 0;
@@ -989,6 +990,53 @@ public sealed class PropertyGridViewModel : ObservableObject
             if (selection.CanWrite && values.Any(item => item.Format == XDataFormat.V1 || item.Format == XDataFormat.Newer))
                 Message = (Message.Length == 0 ? "" : Message + " ") + "Есть объекты в формате v1 или более новой версии: только чтение.";
             return result;
+        }
+
+        private void EntityGroups(List<PropertyRow> result)
+        {
+            var attributes = new Dictionary<string, (string Caption, object Value, int Count, bool Mixed)>(StringComparer.OrdinalIgnoreCase);
+            var geometry = new Dictionary<string, (string Caption, object Value, int Count, bool Mixed)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entity in selection.Entities)
+            {
+                var properties = entity.EntityProperties;
+                foreach (var attribute in properties.Attributes)
+                    Add(attributes, attribute.Key, attribute.Key, attribute.Value);
+                if (properties.Length is double length)
+                    Add(geometry, EntityProperties.LengthId, "Длина", length);
+                if (properties.Area is double area)
+                    Add(geometry, EntityProperties.AreaId, "Площадь", area);
+            }
+            AddGroup("native:attributes", "Атрибуты", attributes);
+            AddGroup("native:geometry", "Геометрия", geometry);
+
+            void Add(Dictionary<string, (string Caption, object Value, int Count, bool Mixed)> group,
+                string id, string caption, object value)
+            {
+                group[id] = group.TryGetValue(id, out var entry)
+                    ? (entry.Caption, entry.Value, entry.Count + 1, entry.Mixed || !SameValue(entry.Value, value))
+                    : (caption, value, 1, false);
+            }
+
+            void AddGroup(string key, string caption, Dictionary<string, (string Caption, object Value, int Count, bool Mixed)> fields)
+            {
+                if (fields.Count == 0) return;
+                var group = result.FirstOrDefault(row => row.Kind == PropertyRowKind.Group &&
+                    string.Equals(row.Key, "g:" + caption, StringComparison.OrdinalIgnoreCase));
+                if (group is null) result.Add(group = new PropertyRow(PropertyRowKind.Group, key, caption, 0));
+                foreach (var field in fields)
+                {
+                    var mixed = field.Value.Mixed || field.Value.Count != selection.Entities.Count;
+                    group.children.Add(new PropertyRow(PropertyRowKind.Parameter, key + "/" + field.Key.ToUpperInvariant(), field.Value.Caption, 1)
+                    {
+                        Id = field.Key,
+                        Value = mixed ? ObjectCalculation.Various : EntityProperties.Format(field.Value.Value, Culture),
+                        IsMixed = mixed,
+                        State = PropertyState.Set,
+                        StateText = PropertyRow.Symbol(PropertyState.Set),
+                        ToolTip = field.Key
+                    });
+                }
+            }
         }
 
         private void Templates()
@@ -1220,7 +1268,8 @@ public sealed class PropertyGridViewModel : ObservableObject
         public IReadOnlyList<PropertyOption> Available(IReadOnlyList<PropertyRow> built)
         {
             if (!CanEdit) return Array.Empty<PropertyOption>();
-            var shown = new HashSet<string>(All(built).Where(row => row.Id != null).Select(row => row.Id!), StringComparer.OrdinalIgnoreCase);
+            var shown = new HashSet<string>(All(built).Where(row => row.Id != null && !row.Key.StartsWith("native:", StringComparison.Ordinal))
+                .Select(row => row.Id!), StringComparer.OrdinalIgnoreCase);
             var columns = new HashSet<string>(schema!.Parameters.Values.Where(parameter => parameter.Columns != null).SelectMany(parameter => parameter.Columns!), StringComparer.OrdinalIgnoreCase);
             // The field parameters of a Repeat describe its records (issue #61): they are added by «+ Добавить» of the collection.
             columns.UnionWith(schema.Parameters.Repeats.SelectMany(repeat => repeat.Fields!).Select(field => field.Parameter));

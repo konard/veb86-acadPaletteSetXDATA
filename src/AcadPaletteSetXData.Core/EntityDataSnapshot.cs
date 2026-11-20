@@ -21,10 +21,11 @@ public sealed class DataRecord
 public sealed class EntityDataSnapshot
 {
     public EntityDataSnapshot(string handle, string entityType, IReadOnlyList<DataValue> xData,
-        IReadOnlyList<DataRecord> records, string? warning = null, string? typeDisplayName = null)
+        IReadOnlyList<DataRecord> records, string? warning = null, string? typeDisplayName = null, EntityProperties? entityProperties = null)
     {
         Handle = handle; EntityType = entityType; XData = xData; Records = records; Warning = warning;
         TypeDisplayName = string.IsNullOrWhiteSpace(typeDisplayName) ? entityType : typeDisplayName!.Trim();
+        EntityProperties = entityProperties ?? EntityProperties.Empty;
     }
     public string Handle { get; }
     public string EntityType { get; }
@@ -36,6 +37,7 @@ public sealed class EntityDataSnapshot
     public IReadOnlyList<DataValue> XData { get; }
     public IReadOnlyList<DataRecord> Records { get; }
     public string? Warning { get; }
+    public EntityProperties EntityProperties { get; }
 }
 
 public sealed class XDataNode
@@ -64,6 +66,7 @@ public sealed class ParsedEntityData
     internal ParsedEntityData(EntityDataSnapshot snapshot)
     {
         Handle = snapshot.Handle; EntityType = snapshot.EntityType;
+        EntityProperties = snapshot.EntityProperties;
         Tree = new XDataNode(DisplayName);
         if (snapshot.Warning != null) Warnings.Add(snapshot.Warning);
     }
@@ -71,6 +74,7 @@ public sealed class ParsedEntityData
     private ParsedEntityData(ParsedEntityData source)
     {
         Handle = source.Handle; EntityType = source.EntityType; Tree = source.Tree;
+        EntityProperties = source.EntityProperties;
         Properties = source.Properties; Materials = source.Materials; Warnings = new List<string>(source.Warnings);
     }
 
@@ -78,6 +82,7 @@ public sealed class ParsedEntityData
     internal ParsedEntityData Copy() => new ParsedEntityData(this);
     public string Handle { get; }
     public string EntityType { get; }
+    public EntityProperties EntityProperties { get; }
     public string DisplayName => EntityType + " [" + Handle + "]";
     public XDataNode Tree { get; }
     public IDictionary<string, string> Properties { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

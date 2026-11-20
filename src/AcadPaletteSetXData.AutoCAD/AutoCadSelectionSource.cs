@@ -139,13 +139,14 @@ internal sealed class AutoCadSelectionSource : ISelectionSource, ISelectionCount
             var selection = active.Editor.SelectImplied();
             if (selection.Status != PromptStatus.OK) return snapshots;
             using var transaction = active.Database.TransactionManager.StartOpenCloseTransaction();
+            var reader = new AutoCadDataReader(transaction);
             foreach (var id in selection.Value.GetObjectIds())
             {
                 if (id.IsNull || !id.IsValid || id.IsErased) continue;
                 try
                 {
                     if (!(transaction.GetObject(id, OpenMode.ForRead) is Entity entity)) continue;
-                    snapshots.Add(AutoCadDataReader.ReadEntity(transaction, entity, typeDisplayName: TypeDisplayName(entity)));
+                    snapshots.Add(reader.ReadEntity(entity, typeDisplayName: TypeDisplayName(entity)));
                 }
                 catch (Autodesk.AutoCAD.Runtime.Exception error)
                 {

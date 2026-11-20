@@ -57,7 +57,8 @@ public sealed partial class XDataPatch
         }
 
         // Persist results are recalculated from the cached values of the object, without parsing XDATA again.
-        var cached = values != null && ReferenceEquals(values.XData, xdata) && ReferenceEquals(values.Schema, schema) ? values : null;
+        var cached = values != null && ReferenceEquals(values.XData, xdata) && ReferenceEquals(values.Schema, schema) &&
+            values.EntityProperties.SameAs(snapshot.EntityProperties) ? values : null;
         ObjectCalculation Calculation() => new ObjectCalculation(cached ?? XDataV2.Read(snapshot, schema, types), culture, types);
         IReadOnlyList<CalculatedValue>? recalculated = null;
         ObjectCalculation? calculation = null;
@@ -175,7 +176,8 @@ public sealed partial class XDataPatch
         foreach (var node in nodes) result.AddRange(node.All);
         for (var i = app?.End ?? xdata.Count; i < xdata.Count; i++) result.Add(xdata[i]);
         // Records are kept by reference: the transaction writes only the XRecords that changed.
-        return new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, result, snapshot.Records, snapshot.Warning, snapshot.TypeDisplayName);
+        return new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, result, snapshot.Records, snapshot.Warning,
+            snapshot.TypeDisplayName, snapshot.EntityProperties);
     }
 
     private (string Id, object Value) SetParameter(List<Node> nodes, SelectionEdit edit, SchemaSnapshot schema)

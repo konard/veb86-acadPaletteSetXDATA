@@ -146,9 +146,16 @@ public sealed class SchemaValidator
         if (error != null) issues.Add(Error(SchemaIssueCode.InvalidFormat, name, "format", error));
         foreach (var reference in fragments.Where(fragment => fragment.Reference != null))
         {
+            if (reference.IsExplicitEntityProperty) continue;
             var target = schema.FindParameter(reference.Reference) ?? RepeatField(schema, reference.Reference);
             if (target is null)
-                issues.Add(Error(SchemaIssueCode.UnknownReference, name, "format", "@@[" + reference.Reference + "]: параметр не найден"));
+            {
+                if (reference.UseKey)
+                    issues.Add(Error(SchemaIssueCode.InvalidFormat, name, "format", FormulaSet.Reference(reference) + " допустимо только для Enum"));
+                else if (!EntityProperties.IsGeometryId(reference.Reference!))
+                    issues.Add(Warning(SchemaIssueCode.UnknownReference, name, "format", FormulaSet.Reference(reference) +
+                        ": параметр не найден в схеме; будет прочитан как атрибут блока"));
+            }
             else if (reference.UseKey && Kind(target) != ParameterKind.Enum)
                 issues.Add(Error(SchemaIssueCode.InvalidFormat, name, "format", "@@[" + reference.Reference + ":key] допустимо только для Enum"));
             else if (Kind(target) == ParameterKind.Table)

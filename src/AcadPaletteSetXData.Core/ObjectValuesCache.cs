@@ -77,7 +77,7 @@ public sealed class ObjectValuesCache
         {
             var cached = node.Value.Values;
             if (ReferenceEquals(cached.Schema, current) && SameValues(cached.XData, snapshot.XData) &&
-                cached.EntityType == snapshot.EntityType)
+                cached.EntityType == snapshot.EntityType && cached.EntityProperties.SameAs(snapshot.EntityProperties))
             {
                 order.Remove(node); order.AddFirst(node);
                 return node.Value;

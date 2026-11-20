@@ -27,6 +27,7 @@ jobs:
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/issue61-table-schema.json
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/issue61-numbered-schema.json
           dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/issue61-repeat-schema.json
+          dotnet run --project experiments/AcadPaletteSetXData.SchemaCheck -c Release -- examples/issue64-entity-properties-schema.json
       - name: Probe specifications and connections as a Table, numbered parameters and the Repeat type (issue #61)
         timeout-minutes: 3
         run: dotnet run --project experiments/issue61/Issue61Probe -c Release -- examples

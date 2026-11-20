@@ -264,13 +264,22 @@ public sealed class ParameterTypeRegistry
 /// <summary>Fragment of a parsed <c>CalculatedString</c> format: literal text or an <c>@@[Id]</c> reference.</summary>
 public sealed class FormatFragment
 {
-    private FormatFragment(string? text, string? reference, bool useKey) { Text = text; Reference = reference; UseKey = useKey; }
+    private FormatFragment(string? text, string? reference, bool useKey, bool isAttribute = false, bool isGeometry = false)
+    {
+        Text = text; Reference = reference; UseKey = useKey; IsAttribute = isAttribute; IsGeometry = isGeometry;
+    }
     public string? Text { get; }
     public string? Reference { get; }
     /// <summary><c>@@[Id:key]</c>: substitute the enum key instead of its caption (TZXDATA 7.2).</summary>
     public bool UseKey { get; }
+    /// <summary>A quoted tag is an explicit reference to a block attribute.</summary>
+    internal bool IsAttribute { get; }
+    internal bool IsGeometry { get; }
+    internal bool IsExplicitEntityProperty => IsAttribute || IsGeometry;
     public static FormatFragment Literal(string text) => new FormatFragment(text, null, false);
     public static FormatFragment Parameter(string id, bool useKey) => new FormatFragment(null, id, useKey);
+    internal static FormatFragment Attribute(string tag) => new FormatFragment(null, tag, false, true);
+    internal static FormatFragment Geometry(string id) => new FormatFragment(null, id, false, isGeometry: true);
 }
 
 /// <summary>
@@ -306,21 +315,17 @@ public static class CalculatedFormat
         {
             if (string.CompareOrdinal(format, index, "@@@@", 0, 4) == 0) { literal.Append("@@"); index += 4; continue; }
             if (string.CompareOrdinal(format, index, "@@[", 0, 3) != 0) { literal.Append(format[index++]); continue; }
-            var end = format.IndexOf(']', index + 3);
-            if (end < 0) { error ??= "незакрытая ссылка @@[ в позиции " + index; literal.Append(format, index, format.Length - index); break; }
-            var body = format.Substring(index + 3, end - index - 3);
-            var colon = body.IndexOf(':');
-            var id = colon < 0 ? body : body.Substring(0, colon);
-            var modifier = colon < 0 ? null : body.Substring(colon + 1);
-            if (!SchemaValidator.IsValidId(id) || (modifier != null && modifier != "key"))
+            var fragment = ReadReference(format, index, out var end, out var problem);
+            if (end < 0) { error ??= problem; literal.Append(format, index, format.Length - index); break; }
+            if (fragment is null)
             {
-                error ??= "недопустимая ссылка @@[" + body + "]";
+                error ??= problem;
                 literal.Append(format, index, end + 1 - index);
             }
             else
             {
                 if (literal.Length != 0) { fragments.Add(FormatFragment.Literal(literal.ToString())); literal.Clear(); }
-                fragments.Add(FormatFragment.Parameter(id, modifier != null));
+                fragments.Add(fragment);
             }
             index = end + 1;
         }
@@ -329,5 +334,41 @@ public static class CalculatedFormat
     }
 
     public static IEnumerable<string> References(string format) =>
-        Parse(format, out _).Where(fragment => fragment.Reference != null).Select(fragment => fragment.Reference!);
+        Parse(format, out _).Where(fragment => fragment.Reference != null && !fragment.IsExplicitEntityProperty).Select(fragment => fragment.Reference!);
+
+    internal static FormatFragment? ReadReference(string format, int start, out int end, out string? error)
+    {
+        var bodyStart = start + 3;
+        var quoted = bodyStart < format.Length && format[bodyStart] == '"';
+        var quoteEnd = quoted ? FormulaExpression.StringEnd(format, bodyStart) : -1;
+        end = quoted && quoteEnd < 0 ? -1 : format.IndexOf(']', quoted ? quoteEnd + 1 : bodyStart);
+        if (end < 0)
+        {
+            error = "незакрытая ссылка @@[ в позиции " + start.ToString(CultureInfo.InvariantCulture);
+            return null;
+        }
+        var body = format.Substring(bodyStart, end - bodyStart);
+        error = null;
+        if (quoted)
+        {
+            // JSON quoting lets a tag include punctuation such as a colon, closing bracket or quote.
+            try
+            {
+                if (quoteEnd + 1 == end && JsonValue.Parse(body) is JsonString tag && tag.Value.Length != 0)
+                    return FormatFragment.Attribute(tag.Value);
+            }
+            catch (JsonException) { }
+        }
+        else
+        {
+            var colon = body.IndexOf(':');
+            var id = colon < 0 ? body : body.Substring(0, colon);
+            var modifier = colon < 0 ? null : body.Substring(colon + 1);
+            if (modifier == "geom" && EntityProperties.IsGeometryId(id)) return FormatFragment.Geometry(id);
+            if (SchemaValidator.IsValidId(id) && (modifier == null || modifier == "key"))
+                return FormatFragment.Parameter(id, modifier != null);
+        }
+        error = "недопустимая ссылка @@[" + body + "]";
+        return null;
+    }
 }

@@ -115,11 +115,12 @@ public sealed class FormulaExpression
     public static string RenameReference(string format, string old, string value)
     {
         var result = new StringBuilder(format.Length);
+        var isFormula = CalculatedFormat.IsFormula(format);
         var index = 0;
         while (index < format.Length)
         {
             var c = format[index];
-            if (c == '"' || c == '\'')
+            if (isFormula && (c == '"' || c == '\''))
             {
                 var end = StringEnd(format, index);
                 var stop = end < 0 ? format.Length : end + 1;
@@ -127,12 +128,20 @@ public sealed class FormulaExpression
                 index = stop;
                 continue;
             }
-            if (string.CompareOrdinal(format, index, "@@[", 0, 3) == 0 && format.IndexOf(']', index + 3) is int close && close > 0)
+            if (!isFormula && string.CompareOrdinal(format, index, "@@@@", 0, 4) == 0)
             {
-                var body = format.Substring(index + 3, close - index - 3);
-                var colon = body.IndexOf(':');
-                var id = colon < 0 ? body : body.Substring(0, colon);
-                result.Append("@@[").Append(ParameterSchema.SameId(id, old) ? value + (colon < 0 ? "" : body.Substring(colon)) : body).Append(']');
+                result.Append("@@@@");
+                index += 4;
+                continue;
+            }
+            if (string.CompareOrdinal(format, index, "@@[", 0, 3) == 0)
+            {
+                var fragment = CalculatedFormat.ReadReference(format, index, out var close, out _);
+                if (close < 0) { result.Append(format, index, format.Length - index); break; }
+                if (fragment != null && !fragment.IsExplicitEntityProperty && ParameterSchema.SameId(fragment.Reference, old))
+                    result.Append("@@[").Append(value).Append(fragment.UseKey ? ":key]" : "]");
+                else
+                    result.Append(format, index, close + 1 - index);
                 index = close + 1;
                 continue;
             }
@@ -223,14 +232,10 @@ public sealed class FormulaExpression
             {
                 if (string.CompareOrdinal(format, index, "@@[", 0, 3) != 0)
                     throw new FormulaException("недопустимый символ @ в позиции " + Position(index) + ": ссылка записывается как @@[Id], текст — в кавычках");
-                var close = format.IndexOf(']', index + 3);
-                if (close < 0) throw new FormulaException("незакрытая ссылка @@[ в позиции " + Position(index));
-                var body = format.Substring(index + 3, close - index - 3);
-                var colon = body.IndexOf(':');
-                var id = colon < 0 ? body : body.Substring(0, colon);
-                if (!SchemaValidator.IsValidId(id) || colon >= 0 && body.Substring(colon + 1) != "key")
-                    throw new FormulaException("недопустимая ссылка @@[" + body + "]");
-                var fragment = FormatFragment.Parameter(id, colon >= 0);
+                var fragment = CalculatedFormat.ReadReference(format, index, out var close, out var error);
+                if (fragment is null) throw new FormulaException(error!);
+                var body = fragment.IsAttribute ? "@attr" + parameters.Count.ToString(CultureInfo.InvariantCulture)
+                    : format.Substring(index + 3, close - index - 3);
                 references.Add(fragment);
                 if (!parameters.ContainsKey(body)) parameters.Add(body, fragment);
                 frame.Operand.Append('[').Append(body).Append(']');
@@ -312,7 +317,7 @@ public sealed class FormulaExpression
     }
 
     /// <summary>The closing quote of the string literal that opens at <paramref name="start"/>, or -1; <c>\</c> escapes the next character.</summary>
-    private static int StringEnd(string text, int start)
+    internal static int StringEnd(string text, int start)
     {
         var quote = text[start];
         for (var index = start + 1; index < text.Length; index++)

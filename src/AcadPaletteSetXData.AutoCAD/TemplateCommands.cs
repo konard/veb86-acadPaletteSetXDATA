@@ -70,8 +70,9 @@ public static class TemplateCommands
     {
         var snapshots = new List<EntityDataSnapshot>();
         using var transaction = database.TransactionManager.StartOpenCloseTransaction();
+        var reader = new AutoCadDataReader(transaction);
         foreach (var id in ids)
-            if (transaction.GetObject(id, OpenMode.ForRead) is Entity entity) snapshots.Add(AutoCadDataReader.ReadEntity(transaction, entity));
+            if (transaction.GetObject(id, OpenMode.ForRead) is Entity entity) snapshots.Add(reader.ReadEntity(entity));
         transaction.Commit();
         return snapshots;
     }

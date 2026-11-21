@@ -37,11 +37,12 @@ internal sealed class AutoCadXDataWriteTransaction : IXDataWriteTransaction
             if (ids.Length != handles.Count || !new HashSet<string>(ids.Select(id => id.Handle.ToString())).SetEquals(handles))
                 throw new InvalidOperationException("Выделение изменилось; повторите ввод после обновления панели.");
             transaction = database.TransactionManager.StartTransaction();
+            var reader = new AutoCadDataReader(transaction);
             foreach (var id in ids)
             {
                 if (id.IsNull || !id.IsValid || id.IsErased || !(transaction.GetObject(id, OpenMode.ForRead) is Entity entity))
                     throw new InvalidOperationException("Выбранный объект больше недоступен.");
-                var before = AutoCadDataReader.ReadEntity(transaction, entity, recordIds);
+                var before = reader.ReadEntity(entity, recordIds);
                 snapshots.Add(before);
                 entities.Add(before.Handle, (entity, before));
             }

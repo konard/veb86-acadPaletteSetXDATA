@@ -114,7 +114,8 @@ public sealed partial class XDataPatch
             var chunks = DwgText.Split(text).Select(chunk => new DataValue(code, chunk)).ToList();
             records[index] = new DataRecord(records[index].Name, chunks);
         }
-        var result = new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, data, records, typeDisplayName: snapshot.TypeDisplayName);
+        var result = new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, data, records,
+            typeDisplayName: snapshot.TypeDisplayName, entityProperties: snapshot.EntityProperties);
         var warnings = new XDataParser().Parse(result).Warnings;
         if (warnings.Count != 0) throw new InvalidOperationException(string.Join("; ", warnings));
         return result;

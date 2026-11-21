@@ -11,6 +11,7 @@ public sealed class Formula
 {
     private readonly List<string> errors = new List<string>();
     private readonly List<string> references = new List<string>();
+    private List<FormatFragment>? unresolved;
 
     internal Formula(SchemaParameter parameter, IReadOnlyList<FormatFragment> fragments, FormulaExpression? expression = null)
     {
@@ -39,9 +40,12 @@ public sealed class Formula
     public int Order { get; internal set; }
     /// <summary>Formulas of one cycle share the component; references inside it stay as <c>@@[Id]</c>.</summary>
     internal int Component { get; set; }
+    /// <summary>Bare references outside the schema that can match an attribute of the current object.</summary>
+    internal IReadOnlyList<FormatFragment> Unresolved => unresolved ?? (IReadOnlyList<FormatFragment>)Array.Empty<FormatFragment>();
 
     internal void AddError(string error) { if (!errors.Contains(error)) errors.Add(error); }
     internal void AddReference(string id) { if (!references.Any(item => ParameterSchema.SameId(item, id))) references.Add(id); }
+    internal void AddUnresolved(FormatFragment fragment) => (unresolved ??= new List<FormatFragment>()).Add(fragment);
 }
 
 /// <summary>
@@ -108,8 +112,14 @@ public sealed class FormulaSet
         foreach (var formula in parsed)
             foreach (var fragment in formula.Fragments.Where(fragment => fragment.Reference != null))
             {
+                if (fragment.IsExplicitEntityProperty) continue;
                 var name = Reference(fragment);
-                if (!schema.Parameters.TryGetValue(fragment.Reference!, out var target)) { formula.AddError("неизвестная ссылка " + name); continue; }
+                if (!schema.Parameters.TryGetValue(fragment.Reference!, out var target))
+                {
+                    if (fragment.UseKey) formula.AddError(name + ": модификатор :key применим только к Enum");
+                    else if (!EntityProperties.IsGeometryId(fragment.Reference!)) formula.AddUnresolved(fragment);
+                    continue;
+                }
                 var kind = types.Find(target.Type)?.Kind;
                 if (kind == ParameterKind.Table) { formula.AddError("таблица " + target.Id + " не подставляется в " + name); continue; }
                 if (kind == ParameterKind.Repeat) { formula.AddError("набор записей " + target.Id + " не подставляется в " + name + "; укажите поле записи, например " + target.Id + "_1_" + (target.Fields?.FirstOrDefault()?.Suffix ?? "field")); continue; }
@@ -127,7 +137,9 @@ public sealed class FormulaSet
         return set;
     }
 
-    internal static string Reference(FormatFragment fragment) => "@@[" + fragment.Reference + (fragment.UseKey ? ":key" : "") + "]";
+    internal static string Reference(FormatFragment fragment) => "@@[" +
+        (fragment.IsAttribute ? new JsonString(fragment.Reference!).ToJson() : fragment.Reference) +
+        (fragment.UseKey ? ":key" : fragment.IsGeometry ? ":geom" : "") + "]";
 
     /// <summary>
     /// Tarjan's strongly connected components over formula → referenced formula: components come out with
@@ -307,7 +319,8 @@ public sealed class ObjectCalculation
         var shown = new List<string>();
         foreach (var result in Results)
         {
-            if (!IsUsed(result.Id) && !result.Formula.References.Any(id => ids.Contains(id) || IsUsed(id) || changes.ContainsKey(id))) continue;
+            if (!IsUsed(result.Id) && !result.Formula.References.Any(id => ids.Contains(id) || IsUsed(id) || changes.ContainsKey(id)) &&
+                !result.Formula.Fragments.Any(fragment => fragment.Reference != null && EntityValue(fragment) != null)) continue;
             ids.Add(result.Id);
             shown.Add(result.Id + " = «" + result.Text + "»" + (result.IsError ? " !" : result.IsStale ? " *" : ""));
         }
@@ -395,8 +408,11 @@ public sealed class ObjectCalculation
             // A referenced formula that failed on this object (formula mode): its text is not a value.
             var failed = formula.IsError ? null : formula.References.Select(Formulas.Find).OfType<Formula>()
                 .FirstOrDefault(used => used.Component != formula.Component && results.TryGetValue(used.Id, out var result) && result.EvaluationError != null);
-            var error = failed is null ? null : "зависит от ошибочного параметра " + failed.Id;
-            var computed = error != null ? FormulaExpression.ErrorText : formula.IsExpression ? Calculate(formula, out error) : Evaluate(formula);
+            var missing = formula.Unresolved.FirstOrDefault(fragment => EntityValue(fragment) is null);
+            var error = failed != null ? "зависит от ошибочного параметра " + failed.Id
+                : missing != null ? "неизвестная ссылка " + FormulaSet.Reference(missing) : null;
+            var computed = failed != null || formula.IsExpression && error != null ? FormulaExpression.ErrorText
+                : formula.IsExpression ? Calculate(formula, out error) : Evaluate(formula);
             var value = new CalculatedValue(formula, computed, stored != null && !stored.IsTable && stored.Value is string text ? text : null, error);
             results[formula.Id] = value;
             recalculated[i] = value;
@@ -410,7 +426,14 @@ public sealed class ObjectCalculation
         foreach (var fragment in formula.Fragments)
         {
             if (fragment.Reference is null) { text.Append(fragment.Text); continue; }
-            if (!Schema.Parameters.TryGetValue(fragment.Reference, out var parameter) || types.Find(parameter.Type)?.Kind == ParameterKind.Table)
+            if (fragment.IsExplicitEntityProperty || !Schema.Parameters.TryGetValue(fragment.Reference, out var parameter))
+            {
+                var value = EntityValue(fragment);
+                text.Append(value != null || fragment.IsAttribute || !fragment.UseKey && EntityProperties.IsGeometryId(fragment.Reference)
+                    ? EntityProperties.Format(value, culture) : FormulaSet.Reference(fragment));
+                continue;
+            }
+            if (types.Find(parameter.Type)?.Kind == ParameterKind.Table)
             {
                 text.Append(FormulaSet.Reference(fragment));
                 continue;
@@ -449,7 +472,8 @@ public sealed class ObjectCalculation
 
         object? Typed(FormatFragment fragment)
         {
-            var parameter = Schema.Parameters[fragment.Reference!];
+            if (fragment.IsExplicitEntityProperty || !Schema.Parameters.TryGetValue(fragment.Reference!, out var parameter))
+                return EntityValue(fragment);
             if (Formulas.Find(parameter.Id) is Formula used) return results.TryGetValue(used.Id, out var result) ? result.Text : null;
             var value = Value(parameter.Id!);
             return types.Find(parameter.Type)?.Kind == ParameterKind.Enum && value is string ? FormatValue(Schema, parameter, value, fragment.UseKey, culture, types) : value;
@@ -457,10 +481,20 @@ public sealed class ObjectCalculation
 
         string Text(FormatFragment fragment)
         {
-            var parameter = Schema.Parameters[fragment.Reference!];
+            if (fragment.IsExplicitEntityProperty || !Schema.Parameters.TryGetValue(fragment.Reference!, out var parameter))
+                return EntityProperties.Format(EntityValue(fragment), culture);
             if (Formulas.Find(parameter.Id) is Formula used) return results.TryGetValue(used.Id, out var result) ? result.Text : "";
             return FormatValue(Schema, parameter, Value(parameter.Id!), fragment.UseKey, culture, types);
         }
+    }
+
+    private object? EntityValue(FormatFragment fragment)
+    {
+        var id = fragment.Reference!;
+        if (fragment.IsGeometry) return Source.EntityProperties.Geometry(id);
+        if (fragment.UseKey || !fragment.IsAttribute && Schema.Parameters.TryGetValue(id, out _)) return null;
+        if (!fragment.IsAttribute && EntityProperties.IsGeometryId(id)) return Source.EntityProperties.Geometry(id);
+        return Source.EntityProperties.Attributes.TryGetValue(id, out var value) ? value : null;
     }
 
     /// <summary>The template default overrides the parameter default; no default gives an empty value (TZXDATA 7.2).</summary>

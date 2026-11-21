@@ -135,13 +135,14 @@ public static class MigrationCommands
         var selected = implied.Status == PromptStatus.OK && implied.Value != null ? implied.Value.GetObjectIds() : null;
         var entries = new List<Entry>();
         using var transaction = database.TransactionManager.StartOpenCloseTransaction();
+        var reader = new AutoCadDataReader(transaction);
         var lockedLayers = new Dictionary<ObjectId, bool>();
         void Add(ObjectId id)
         {
             if (!(transaction.GetObject(id, OpenMode.ForRead) is Entity entity)) return;
             if (!lockedLayers.TryGetValue(entity.LayerId, out var locked))
                 lockedLayers[entity.LayerId] = locked = transaction.GetObject(entity.LayerId, OpenMode.ForRead) is LayerTableRecord layer && layer.IsLocked;
-            entries.Add(new Entry(id, AutoCadDataReader.ReadEntity(transaction, entity), locked));
+            entries.Add(new Entry(id, reader.ReadEntity(entity), locked));
         }
         if (selected != null)
             foreach (var id in selected) Add(id);

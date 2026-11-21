@@ -102,7 +102,7 @@ public sealed class SchemaValidatorTests
         P("InvalidFormat", "Параметр N", "format", "{ 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[1S]' }"),
         P("InvalidFormat", "Параметр N", "format", "{ 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[S:key]' }"),
         P("InvalidFormat", "Параметр N", "format", "{ 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[T]' }"),
-        P("UnknownReference", "Параметр N", "format", "{ 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[S] @@[Missing]' }"),
+        P("UnknownReference", "Параметр N", "format", "{ 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[S] @@[Missing]' }", Warning),
         P("CyclicFormat", "Параметр N", "format", "{ 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '<@@[n]>' }"),
         P("CyclicFormat", "Параметр N1", "format",
             "{ 'id': 'N1', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[N2]' }, " +
@@ -138,7 +138,7 @@ public sealed class SchemaValidatorTests
         P("InvalidFormat", "Параметр N", "format",
             "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'S' } }, { 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[R]' }"),
         P("UnknownReference", "Параметр N", "format",
-            "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'S' } }, { 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[R_1_b]' }"),
+            "{ 'id': 'R', 'type': 'Repeat', 'caption': 'c', 'fields': { 'a': 'S' } }, { 'id': 'N', 'type': 'CalculatedString', 'caption': 'c', 'format': '@@[R_1_b]' }", Warning),
 
         // Enum items.
         En("Required", "Справочник M / элемент #2", "key", "{ 'id': 'M', 'items': [ { 'key': 'a' }, { 'caption': 'Без ключа' } ] }"),

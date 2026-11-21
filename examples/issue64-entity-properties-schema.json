@@ -1,0 +1,14 @@
+{
+  "format": "BobrovXDATA.schema",
+  "version": 1,
+  "parameters": [
+    { "id": "Project", "type": "String", "caption": "Проект", "group": "Обозначение" },
+    { "id": "PartLabel", "type": "CalculatedString", "caption": "Маркировка", "group": "Обозначение", "format": "=\"П\" & @@[Project] & \": \" & @@[PART_CODE]" },
+    { "id": "Measurements", "type": "CalculatedString", "caption": "Габариты", "group": "Обозначение", "format": "@@[geomLength] ед. / @@[geomSquare] ед.²" },
+    { "id": "DoubleArea", "type": "CalculatedString", "caption": "Двойная площадь", "group": "Обозначение", "format": "=@@[geomSquare] * 2" }
+  ],
+  "templates": [
+    { "id": "PART", "caption": "Деталь", "entityTypes": ["BlockReference"], "parameters": ["Project", "PartLabel"] },
+    { "id": "OUTLINE", "caption": "Контур", "entityTypes": ["Polyline"], "parameters": ["Measurements", "DoubleArea"] }
+  ]
+}

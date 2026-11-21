@@ -76,9 +76,9 @@ public sealed class CalculatedStringTests
         Assert.Contains("циклическая ссылка: Self → Self", formulas.Find("Self")!.Errors);
         Assert.False(formulas.Find("C")!.InCycle);
         Assert.Contains("зависит от ошибочного параметра A", formulas.Find("C")!.Errors);
-        Assert.Equal(new[] { "неизвестная ссылка @@[Missing]" }, formulas.Find("U")!.Errors);
+        Assert.Empty(formulas.Find("U")!.Errors);
         Assert.Contains("незакрытая ссылка", formulas.Find("Bad")!.Error);
-        Assert.Equal(new[] { "A", "B", "C", "Self", "U", "Bad" }.OrderBy(id => id), formulas.Diagnostics.Select(line => line.Split(':')[0]).OrderBy(id => id));
+        Assert.Equal(new[] { "A", "B", "C", "Self", "Bad" }.OrderBy(id => id), formulas.Diagnostics.Select(line => line.Split(':')[0]).OrderBy(id => id));
         // The schema validator, which refuses the import, finds the same cycles.
         var issues = new SchemaValidator().Validate(snapshot.Schema!);
         Assert.Contains(issues, issue => issue.Code == SchemaIssueCode.CyclicFormat && issue.Message.Contains("A → B → A"));
@@ -86,7 +86,7 @@ public sealed class CalculatedStringTests
         // An unknown reference stays in the text; references inside a cycle have no value and stay as well.
         var calculation = Calculate(V2("X", Pair("S", "s")), snapshot);
         Assert.Equal("@@[Missing] и s", calculation.Text("U"));
-        Assert.True(calculation.Find("U")!.IsError);
+        Assert.Equal("неизвестная ссылка @@[Missing]", calculation.Find("U")!.EvaluationError);
         Assert.Equal("@@[B]-a", calculation.Text("A"));
         Assert.Equal("@@[A]-b", calculation.Text("B"));
         Assert.Equal("@@[B]-a!", calculation.Text("C"));

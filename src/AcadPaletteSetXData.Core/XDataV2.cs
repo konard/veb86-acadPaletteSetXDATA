@@ -82,6 +82,7 @@ public sealed class ObjectValues
         IReadOnlyList<ObjectValue> values, IReadOnlyList<string> warnings, int size)
     {
         Handle = snapshot.Handle; EntityType = snapshot.EntityType; XData = snapshot.XData; Schema = schema;
+        EntityProperties = snapshot.EntityProperties;
         Format = format; DeviceId = deviceId; Template = template; Values = values; Warnings = warnings; XDataSize = size;
         byId = new Dictionary<string, ObjectValue>(StringComparer.OrdinalIgnoreCase);
         foreach (var value in values) if (!byId.ContainsKey(value.Id)) byId.Add(value.Id, value);
@@ -89,6 +90,7 @@ public sealed class ObjectValues
 
     public string Handle { get; }
     public string EntityType { get; }
+    public EntityProperties EntityProperties { get; }
     /// <summary>The parsed XDATA; the cache compares it with a fresh read instead of parsing again.</summary>
     public IReadOnlyList<DataValue> XData { get; }
     /// <summary>The schema the values were typed with.</summary>

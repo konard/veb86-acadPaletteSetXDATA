@@ -180,7 +180,7 @@ public sealed class FormulaExpressionTests
     [Fact]
     public void TextErrorsAreFormulaErrors()
     {
-        AssertFormulaError("=@@[Missing] + 1", "неизвестная ссылка @@[Missing]");
+        Assert.Equal("неизвестная ссылка @@[Missing]", Error("=@@[Missing] + 1", Sample()));
         AssertFormulaError("=@@[Rows] & \"!\"", "таблица Rows не подставляется в @@[Rows]");
         AssertFormulaError("=@@[Power:key]", "@@[Power:key]: модификатор :key применим только к Enum");
         AssertFormulaError("=Power * 2", "неизвестное имя Power");
@@ -202,8 +202,9 @@ public sealed class FormulaExpressionTests
         AssertFormulaError("=\"" + new string('x', FormulaExpression.MaxLength) + "\"", "формула длиннее 4096 символов");
         // A formula over an erroneous one is an error as well.
         var snapshot = Snapshot("=@@[Missing]", ("Next", "=@@[F] & \"!\""));
-        Assert.Contains("зависит от ошибочного параметра F", snapshot.Formulas.Find("Next")!.Errors);
-        Assert.Equal(FormulaExpression.ErrorText, Calculate(Sample(), snapshot).Text("Next"));
+        var next = Calculate(Sample(), snapshot).Find("Next")!;
+        Assert.Equal("зависит от ошибочного параметра F", next.EvaluationError);
+        Assert.Equal(FormulaExpression.ErrorText, next.Text);
     }
 
     [Fact]

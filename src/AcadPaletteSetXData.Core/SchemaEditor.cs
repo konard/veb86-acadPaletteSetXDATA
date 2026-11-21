@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace AcadPaletteSetXData.Core;
 
@@ -338,10 +337,7 @@ public sealed class SchemaEditorViewModel : ObservableObject
         return (capital ? char.ToUpperInvariant(name[0]) + name.Substring(1) : name) + id;
     }
 
-    private static string RenameReference(string format, string old, string value) =>
-        // A formula keeps the text of its string literals: ="@@[Old]" is a text, not a reference (issue #43).
-        CalculatedFormat.IsFormula(format) ? FormulaExpression.RenameReference(format, old, value) : Regex.Replace(format, @"(?<!@)((?:@@@@)*)@@\[" + Regex.Escape(old) + @"(:key)?\]",
-            match => match.Groups[1].Value + "@@[" + value + match.Groups[2].Value + "]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static string RenameReference(string format, string old, string value) => FormulaExpression.RenameReference(format, old, value);
 
     // ---- Enums -------------------------------------------------------------------------------------------------------
 

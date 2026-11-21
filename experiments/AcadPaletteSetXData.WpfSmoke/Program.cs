@@ -73,6 +73,7 @@ internal static class Program
             VerifyLegacy(view, model, tabs, source, output);
             VerifyEditing(view, model, source, output);
             VerifySelectionGroups(view, model, tabs, source, output);
+            VerifyEntityProperties(view, model, tabs, output);
             source.Select(SampleSelection());
             VerifyMinimum(window, view, model, tabs, output);
             Check(bindingErrors.Messages.Count == 0, "WPF binding failures: " + string.Join("\n", bindingErrors.Messages));
@@ -872,6 +873,30 @@ internal static class Program
         Typed(new EntityDataSnapshot("15", "Line", Array.Empty<DataValue>(), Array.Empty<DataRecord>()), "Отрезок"),
         Typed(new EntityDataSnapshot("16", "BlockReference", Array.Empty<DataValue>(), Array.Empty<DataRecord>()), "Вхождение блока")
     };
+
+    private static void VerifyEntityProperties(PaletteView view, PaletteViewModel model, TabControl tabs, string output)
+    {
+        var cache = Cache(Path.Combine(AppContext.BaseDirectory, "examples", "issue64-entity-properties-schema.json"));
+        var list = List(Grid(view));
+        tabs.SelectedIndex = 0;
+        var block = Object("A1", "PART", "BlockReference", Pair("Project", "42"));
+        var attributes = new EntityProperties(new Dictionary<string, string> { ["PART_CODE"] = "A-17", ["PART_SERIES"] = "S-1" });
+        model.Selection.Apply(new[] { new EntityDataSnapshot(block.Handle, block.EntityType, block.XData, block.Records,
+            typeDisplayName: "Вхождение блока", entityProperties: attributes) }, cache: cache);
+        Invoke((Button)Grid(view).FindName("ExpandAllButton"), view);
+        Check(Cell(list, "Атрибуты").IsVisible && Cell(list, "PART_CODE").IsVisible && Cell(list, "A-17").IsVisible &&
+            Cell(list, "S-1").IsVisible && Cell(list, "П42: A-17").IsVisible, "The palette must show attributes and the formula using them.");
+        Save(view, Path.Combine(output, "issue64-attributes.png"));
+
+        var outline = Object("B2", "OUTLINE", "Polyline");
+        model.Selection.Apply(new[] { new EntityDataSnapshot(outline.Handle, outline.EntityType, outline.XData, outline.Records,
+            typeDisplayName: "Полилиния", entityProperties: new EntityProperties(length: 14, area: 12)) }, cache: cache);
+        Invoke((Button)Grid(view).FindName("ExpandAllButton"), view);
+        Check(Cell(list, "Геометрия").IsVisible && Cell(list, "Длина").IsVisible && Cell(list, "Площадь").IsVisible &&
+            Cell(list, "14").IsVisible && Cell(list, "12").IsVisible && Cell(list, "24").IsVisible &&
+            Cell(list, "14 ед. / 12 ед.²").IsVisible, "The palette must show length and area and the formulas using them.");
+        Save(view, Path.Combine(output, "issue64-geometry.png"));
+    }
 
     private static EntityDataSnapshot Typed(EntityDataSnapshot snapshot, string typeDisplayName) =>
         new EntityDataSnapshot(snapshot.Handle, snapshot.EntityType, snapshot.XData, snapshot.Records, typeDisplayName: typeDisplayName);

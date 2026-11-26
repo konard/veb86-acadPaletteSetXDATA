@@ -1359,7 +1359,7 @@ internal static class Program
             Check(shown == 1 && navigatorModel.Profile!.Name == "По фазам и количеству" && combo.Text == "По фазам и количеству" &&
                   grid.Columns.Count == 5 && Equals(grid.Columns[3].Header, "Количество"),
                 "«ОК» must apply the profile: " + string.Join(", ", grid.Columns.Select(column => column.Header)));
-            Check(store.LoadProfile("by-phase")!.Profile!.Tree.Expression == "+Phase|+@@[NMO_Name]", "«ОК» must save the profile file.");
+            Check(store.LoadProfile("by-phase")!.Profile!.TreeExpression == "+Phase|+@@[NMO_Name]", "«ОК» must save the profile file.");
 
             // A new profile from the ⚙ menu.
             SettingsWindow.ShowModal = window => ShowDialog(window, "New profile window", root =>

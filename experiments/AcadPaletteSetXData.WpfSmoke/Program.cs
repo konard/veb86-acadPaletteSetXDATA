@@ -23,6 +23,7 @@ internal static class Program
 {
     private static readonly string SchemaPath = Path.Combine(AppContext.BaseDirectory, "examples", "schema.json");
     private static readonly string SystemSchemaPath = Path.Combine(AppContext.BaseDirectory, "examples", "issue48-system-group-schema.json");
+    private static readonly string NavigatorSchemaPath = Path.Combine(AppContext.BaseDirectory, "examples", "navigator-schema.json");
 
     [STAThread]
     private static int Main(string[] args)
@@ -35,7 +36,9 @@ internal static class Program
             var bindingErrors = new BindingErrorListener();
             PresentationTraceSources.DataBindingSource.Listeners.Add(bindingErrors);
             PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Warning;
-            var model = new PaletteViewModel();
+            // Issue #66: the profiles of the navigator live in a temporary folder seeded with examples/navigator.
+            var navigatorFolder = NavigatorFolder();
+            var model = new PaletteViewModel(navigatorStore: new NavigatorProfileStore(navigatorFolder));
             var source = new MemorySelection();
             // Issue #59: the controller limits the selection by the settings of the palette, as in AutoCAD.
             using var controller = new SelectionController(source, model.Selection, model.Settings);
@@ -56,7 +59,7 @@ internal static class Program
             window.Show();
             var tabs = (TabControl)view.FindName("Tabs");
             Check(tabs.TabStripPlacement == Dock.Right, "Tabs must be on the right.");
-            Check(tabs.Items.Count == 3, "Expected three tabs.");
+            Check(tabs.Items.Count == 4, "Expected four tabs.");
             Pump(view);
             VerifyEmpty(view, model, tabs, output);
             source.Select(SampleSelection());
@@ -74,6 +77,7 @@ internal static class Program
             VerifyEditing(view, model, source, output);
             VerifySelectionGroups(view, model, tabs, source, output);
             VerifyEntityProperties(view, model, tabs, output);
+            VerifyNavigator(view, model, tabs, navigatorFolder, output);
             source.Select(SampleSelection());
             VerifyMinimum(window, view, model, tabs, output);
             Check(bindingErrors.Messages.Count == 0, "WPF binding failures: " + string.Join("\n", bindingErrors.Messages));
@@ -85,7 +89,8 @@ internal static class Program
             Console.WriteLine("WPF checks passed: VST columns and states, «Разное», table rows, control panel, filter, column menu, " +
                               "virtualization, kept expansion and scroll, template menu, assigning and changing templates, committed defaults, legacy data, editors, Enter/Esc, check boxes, × ✎ «+ Добавить», " +
                               "«+ Параметр», write errors, selection groups with * and − (issue #41), ⚙ schema menu, " +
-                              "hidden SYSTEM group and the settings window, theme background of the empty lists (issue #48), schema editor (draft, formula preview, NCalc formulas (issue #43), guards, errors, import, apply, cancel, light theme), XDATA tree, themes, resize and disposal.");
+                              "hidden SYSTEM group and the settings window, theme background of the empty lists (issue #48), " +
+                              "«Навигатор» tab (issue #66: profiles, multi-column tree, sort, column order, width and visibility, profile window, select by handle), schema editor (draft, formula preview, NCalc formulas (issue #43), guards, errors, import, apply, cancel, light theme), XDATA tree, themes, resize and disposal.");
             return 0;
         }
         catch (Exception error)
@@ -1146,6 +1151,355 @@ internal static class Program
         list.ScrollIntoView(row);
         list.UpdateLayout();
         return Descendants<Button>(Container(list, row)).Single(button => button.IsVisible && AutomationProperties.GetName(button) == name);
+    }
+
+    /// <summary>
+    /// Issue #66: the «Навигатор» tab over a drawing in memory. The profile bar, the multi-column tree with groups,
+    /// expansion, sort, header drag, resize and the header menu; switching, editing, creating and deleting profiles in
+    /// the profile window; a leaf selects its object by handle; a hidden tab does not read the drawing.
+    /// </summary>
+    private static void VerifyNavigator(PaletteView view, PaletteViewModel model, TabControl tabs, string folder, string output)
+    {
+        var navigatorModel = model.Navigator;
+        var drawing = new MemoryDrawing(NavigatorCache(), NavigatorObjects());
+        navigatorModel.Source = drawing;
+        Check(drawing.Reads == 0, "A hidden navigator must not read the drawing.");
+        tabs.SelectedIndex = PaletteViewModel.NavigatorTabIndex;
+        Pump(view);
+        Check(navigatorModel.IsShown && drawing.Reads == 1, "Showing the tab must read the drawing once: " + drawing.Reads);
+        var navigator = Descendants<NavigatorView>(view).Single();
+        var list = (ListView)navigator.FindName("Rows");
+        var grid = (GridView)list.View;
+        var combo = (ComboBox)navigator.FindName("ProfileField");
+        var status = (TextBlock)navigator.FindName("StatusText");
+        Check(combo.Items.Count == 2 && combo.SelectedItem is NavigatorProfile { Id: "electrical" } && combo.Text == "Электрооборудование",
+            "The profile list must show the profiles of the folder and the active profile of navigator.json: " + combo.Text);
+        Check(grid.Columns.Count == 6 && Equals(grid.Columns[0].Header, "Объект ▲") &&
+              grid.Columns.Skip(1).Select(column => column.Header).SequenceEqual(new object[] { "Наименование", "Базовое имя", "Суффикс", "Мощность", "Фаза" }),
+            "The tree column and the visible columns of the profile must be shown: " + string.Join(", ", grid.Columns.Select(column => column.Header)));
+        Check(navigatorModel.Rows.All(row => row.Depth == 0) && list.Items.Count == navigatorModel.Rows.Count &&
+              navigatorModel.Rows.Select(row => row.Caption).SequenceEqual(new[] { "ВРУ (1)", "Лампа (1)", "ЩР (3)", "Не задано (1)" }),
+            "The tree must start with the collapsed groups of NMO_BaseName, «Не задано» last: " + string.Join(", ", navigatorModel.Rows.Select(row => row.Caption)));
+        Check(status.Text == "Объектов: 6 · групп: 9", "The status must count the objects and groups: " + status.Text);
+
+        Invoke((Button)navigator.FindName("ExpandAllButton"), view);
+        var leaf = navigatorModel.Rows.Single(row => row.Node.Handle == "N1");
+        Check(leaf.IsLeaf && leaf.Caption == "Блок «Щит»" && leaf.Depth == 2, "Leaves must be named by the object type (-@@[NMO_Name]): " + leaf.Caption);
+        Check(navigatorModel.Rows.Count(row => row.Node.Handle != null) == 6 && list.Items.Count == navigatorModel.Rows.Count,
+            "«Развернуть всё» must show every object.");
+        var power = navigatorModel.Columns.Single(column => column.Id == "power");
+        list.ScrollIntoView(leaf);
+        Pump(view);
+        var powerText = leaf.Cells[power.Slot].Text;
+        Check(powerText.Length != 0 && Descendants<TextBlock>(list).Any(text => text.Text == powerText), "The cells must show the values of the object: " + powerText);
+        Check(navigatorModel.Rows.Where(row => row.IsGroup).All(row => row.Cells[power.Slot].IsEmpty), "Group rows must have no values.");
+        foreach (var theme in new[] { PaletteTheme.Dark, PaletteTheme.Light })
+        {
+            model.Theme = theme;
+            Pump(view);
+            var name = theme == PaletteTheme.Dark ? "dark" : "light";
+            var group = Descendants<TextBlock>(list).First(text => text.Text == "ЩР (3)");
+            Check(Fore(group) == Resource(view, "PaletteForeground") && group.FontWeight == FontWeights.SemiBold, "Groups must be semibold in the theme colors: " + name);
+            Check(Fore(Descendants<TextBlock>(list).First(text => text.Text == "Не задано (1)")) == Resource(view, "PaletteMuted"),
+                "The «Не задано» group must be grey: " + name);
+            Check(((SolidColorBrush)list.Background).Color == Resource(view, "PaletteBackground"), "The tree must use the theme background: " + name);
+            Save(view, Path.Combine(output, "issue66-navigator-" + name + ".png"));
+        }
+        model.Theme = PaletteTheme.Dark;
+        Pump(view);
+
+        // A leaf selects its object in AutoCAD; Enter also zooms to it; a group selects nothing.
+        list.SelectedItem = leaf;
+        Pump(view);
+        Check(drawing.Selected.SequenceEqual(new[] { ("N1", false) }), "Selecting a leaf must select its object by handle.");
+        Press(list, Key.Enter, view);
+        Check(drawing.Selected.Last() == ("N1", true), "Enter on a leaf must show the object.");
+        var shield = navigatorModel.Rows.First(row => row.Caption == "ЩР (3)");
+        list.SelectedItem = shield;
+        Pump(view);
+        Check(drawing.Selected.Count == 2, "A group must not select objects.");
+        Press(list, Key.Left, view);
+        Check(!shield.IsExpanded && navigatorModel.Rows.All(row => row.Node.Handle != "N2"), "← must collapse the group.");
+        Press(list, Key.Right, view);
+        Check(shield.IsExpanded, "→ must expand the group.");
+        drawing.Erased.Add("N2");
+        list.SelectedItem = navigatorModel.Rows.First(row => row.Node.Handle == "N2");
+        Pump(view);
+        var diagnostics = (FrameworkElement)navigator.FindName("DiagnosticsPanel");
+        Check(diagnostics.IsVisible && navigatorModel.Diagnostics.Any(text => text.Contains("N2") && text.Contains("Обновить")),
+            "An erased object must be reported, not selected: " + string.Join("; ", navigatorModel.Diagnostics));
+        Save(view, Path.Combine(output, "issue66-navigator-erased.png"));
+        drawing.Erased.Clear();
+        drawing.Objects = NavigatorObjects().Where(item => item.Snapshot.Handle != "N2").ToArray();
+        var reads = drawing.Reads;
+        Invoke((Button)navigator.FindName("RefreshButton"), view);
+        Check(drawing.Reads == reads + 1 && navigatorModel.Rows.All(row => row.Node.Handle != "N2") &&
+              navigatorModel.Rows.Any(row => row.Caption == "ЩР (2)" && row.IsExpanded),
+            "«Обновить» must read the drawing and keep the expanded groups: " + string.Join(", ", navigatorModel.Rows.Select(row => row.Caption)));
+        drawing.Objects = NavigatorObjects();
+        drawing.RaiseChanged();
+        Pump(view);
+        Check(navigatorModel.Rows.Any(row => row.Node.Handle == "N2"), "A change of the drawing must refresh the shown tree.");
+
+        // Sort by a column keeps the groups; a click on the tree header sorts by name.
+        var headers = Descendants<GridViewColumnHeader>(list).Where(header => header.Column != null).ToList();
+        var powerHeader = headers.Single(header => ReferenceEquals(header.Column, grid.Columns[4]));
+        powerHeader.RaiseEvent(new RoutedEventArgs(GridViewColumnHeader.ClickEvent, powerHeader));
+        Pump(view);
+        Check(power.SortGlyph == " ▲" && Equals(grid.Columns[4].Header, "Мощность ▲") && Equals(grid.Columns[0].Header, "Объект"),
+            "A header click must sort by the column: " + grid.Columns[4].Header);
+        Check(navigatorModel.Rows.Where(row => row.Depth == 0).Select(row => row.Caption).SequenceEqual(new[] { "ВРУ (1)", "Лампа (1)", "ЩР (3)", "Не задано (1)" }),
+            "Sorting by a column must keep the groups.");
+        var treeHeader = headers.Single(header => ReferenceEquals(header.Column, grid.Columns[0]));
+        treeHeader.RaiseEvent(new RoutedEventArgs(GridViewColumnHeader.ClickEvent, treeHeader));
+        Pump(view);
+        Check(power.SortGlyph == "" && Equals(grid.Columns[0].Header, "Объект ▲"), "A click on the tree header must sort by name: " + grid.Columns[0].Header);
+
+        // A header drag changes the order of the profile, the tree column stays first; resize changes the width.
+        Check(!navigatorModel.IsDirty || navigatorModel.Save(), "The sort must not leave unsaved columns.");
+        var tree = navigatorModel.Tree;
+        grid.Columns.Move(4, 1);
+        Pump(view);
+        Check(navigatorModel.VisibleColumns.Select(column => column.Id).SequenceEqual(new[] { "power", "name", "base", "suffix", "phase" }) && navigatorModel.IsDirty,
+            "A header drag must change the order of the profile: " + string.Join(", ", navigatorModel.VisibleColumns.Select(column => column.Id)));
+        grid.Columns.Move(3, 0);
+        Pump(view);
+        Check(Equals(grid.Columns[0].Header, "Объект ▲") && navigatorModel.VisibleColumns.Select(column => column.Id).SequenceEqual(new[] { "base", "power", "name", "suffix", "phase" }),
+            "The tree column must stay first: " + string.Join(", ", grid.Columns.Select(column => column.Header)));
+        grid.Columns[2].Width = 150;
+        Pump(view);
+        Check(power.Width == 150 && ReferenceEquals(tree, navigatorModel.Tree), "Width and order must not rebuild the tree.");
+        Check(((Button)navigator.FindName("SaveButton")).IsEnabled, "Changed columns must enable «Сохранить».");
+
+        // The header menu hides and shows columns.
+        var columnMenu = grid.ColumnHeaderContextMenu;
+        columnMenu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent, columnMenu));
+        Check(columnMenu.Items.OfType<MenuItem>().Count(item => item.IsCheckable && item.IsChecked) == 6, "The header menu must check the shown columns.");
+        var phase = Item(columnMenu, "phase");
+        phase.IsChecked = false;
+        Click(phase, columnMenu, view);
+        columnMenu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent, columnMenu));
+        var link = Item(columnMenu, "link");
+        link.IsChecked = true;
+        Click(link, columnMenu, view);
+        Check(grid.Columns.Count == 6 && grid.Columns.Select(column => column.Header).Contains("Связь") && !grid.Columns.Select(column => column.Header).Contains("Фаза"),
+            "The header menu must hide and show columns: " + string.Join(", ", grid.Columns.Select(column => column.Header)));
+        list.ScrollIntoView(navigatorModel.Rows.First(row => row.Node.Handle == "N1"));
+        Pump(view);
+        Check(Descendants<TextBlock>(list).Any(text => text.Text == "db-01"), "A shown column must display its values at once.");
+        Save(view, Path.Combine(output, "issue66-navigator-columns.png"));
+        Invoke((Button)navigator.FindName("SaveButton"), view);
+        var store = new NavigatorProfileStore(folder);
+        var saved = store.LoadProfile("electrical")!.Profile!;
+        Check(!navigatorModel.IsDirty && saved.Columns.Take(4).Select(column => column.Id).SequenceEqual(new[] { "base", "power", "name", "suffix" }) &&
+              saved.Columns.Single(column => column.Id == "power").Width == 150 && !saved.Columns.Single(column => column.Id == "phase").Visible &&
+              saved.Columns.Single(column => column.Id == "link").Visible,
+            "«Сохранить» must write the order, width and visibility to the profile file.");
+
+        // Another profile without a restart: the same objects are not read again.
+        reads = drawing.Reads;
+        combo.SelectedItem = navigatorModel.Profiles.Single(profile => profile.Id == "by-phase");
+        Pump(view);
+        Check(navigatorModel.Profile!.Id == "by-phase" && drawing.Reads == reads && store.LoadSettings(out _).ActiveProfile == "by-phase",
+            "Choosing a profile must switch the tree without reading the drawing and remember the choice.");
+        Check(grid.Columns.Count == 4 && Equals(grid.Columns[1].Header, "Мощность"), "The columns of the profile must be shown.");
+        navigatorModel.ExpandAllCommand.Execute(null);
+        Pump(view);
+        Check(navigatorModel.Rows[0].Caption == "Фаза A (2)", "The tree must follow the expression of the profile: " + navigatorModel.Rows[0].Caption);
+        var unit = navigatorModel.Columns.Single(column => column.Id == "unit");
+        list.ScrollIntoView(navigatorModel.Rows.First(row => row.Node.Handle == "N5"));
+        Pump(view);
+        var error = Descendants<TextBlock>(list).FirstOrDefault(text => text.Text == FormulaExpression.ErrorText);
+        Check(error != null && Fore(error) == Resource(view, "PaletteError") && error.ToolTip is string tip && tip.Contains("PowerPerUnit"),
+            "A failing formula must show a red #ERR with the reason: " + string.Join(", ", navigatorModel.Rows.Select(row => row.Cells[unit.Slot].Text)));
+        Save(view, Path.Combine(output, "issue66-navigator-by-phase.png"));
+
+        var shown = 0;
+        var previous = SettingsWindow.ShowModal;
+        var confirm = NavigatorView.ConfirmDialog;
+        try
+        {
+            // Edit the active profile: a broken expression keeps «ОК» disabled, a fixed one applies.
+            SettingsWindow.ShowModal = window => ShowDialog(window, "Profile window", root =>
+            {
+                shown++;
+                var profileWindow = (NavigatorProfileWindow)window;
+                var editor = profileWindow.Editor;
+                var expression = (TextBox)window.FindName("ExpressionBox");
+                var ok = (Button)window.FindName("OkButton");
+                Check(window.Owner == Window.GetWindow(view) && ((SolidColorBrush)window.Background).Color == Resource(view, "PaletteBackground"),
+                    "The profile window must belong to the palette and use its theme.");
+                Check(((TextBox)window.FindName("NameBox")).Text == "По фазам" && !((TextBox)window.FindName("IdBox")).IsEnabled &&
+                      ((ListView)window.FindName("ColumnList")).Items.Count == 3 && ok.IsEnabled,
+                    "The window must show the profile.");
+                expression.Text = "+Phase|";
+                Pump(root);
+                var problems = (TextBlock)window.FindName("ProblemsText");
+                Check(!ok.IsEnabled && problems.Text.Contains("уровень 2 пустой"), "A broken expression must disable «ОК»: " + problems.Text);
+                Save(Client(window), Path.Combine(output, "issue66-profile-error.png"));
+                expression.Text = "+Phase|+@@[NMO_Name]";
+                Invoke((Button)window.FindName("AddColumnButton"), root);
+                var added = editor.SelectedColumn!;
+                added.Caption = "Количество";
+                added.Value = "not an id";
+                Pump(root);
+                Check(!ok.IsEnabled && added.SourceError != null, "A wrong column value must disable «ОК».");
+                added.Value = "Count";
+                Invoke((Button)window.FindName("MoveUpButton"), root);
+                ((TextBox)window.FindName("NameBox")).Text = "По фазам и количеству";
+                Pump(root);
+                Check(ok.IsEnabled && editor.Columns[2] == added && ((TextBlock)window.FindName("ExpressionInfoText")).Text.Length != 0,
+                    "The fixed profile must be valid: " + problems.Text);
+                Save(Client(window), Path.Combine(output, "issue66-profile-window-dark.png"));
+                Invoke(ok, root);
+            });
+            var menu = navigator.FillProfileMenu();
+            Check(!Item(menu, NavigatorView.SaveCommand).IsEnabled, "«Сохранить» must be disabled without changes.");
+            Click(Item(menu, NavigatorView.EditCommand), menu, view);
+            Check(shown == 1 && navigatorModel.Profile!.Name == "По фазам и количеству" && combo.Text == "По фазам и количеству" &&
+                  grid.Columns.Count == 5 && Equals(grid.Columns[3].Header, "Количество"),
+                "«ОК» must apply the profile: " + string.Join(", ", grid.Columns.Select(column => column.Header)));
+            Check(store.LoadProfile("by-phase")!.Profile!.Tree.Expression == "+Phase|+@@[NMO_Name]", "«ОК» must save the profile file.");
+
+            // A new profile from the ⚙ menu.
+            SettingsWindow.ShowModal = window => ShowDialog(window, "New profile window", root =>
+            {
+                shown++;
+                var id = (TextBox)window.FindName("IdBox");
+                Check(id.IsEnabled && ((NavigatorProfileWindow)window).Editor.IsNew, "A new profile must have an editable id.");
+                id.Text = "by-base";
+                ((TextBox)window.FindName("NameBox")).Text = "По базовому имени";
+                ((TextBox)window.FindName("ExpressionBox")).Text = "+NMO_BaseName|+@@[NMO_Name]";
+                Pump(root);
+                Invoke((Button)window.FindName("OkButton"), root);
+            });
+            menu = navigator.FillProfileMenu();
+            Click(Item(menu, NavigatorView.NewCommand), menu, view);
+            Check(shown == 2 && navigatorModel.Profile!.Id == "by-base" && combo.Items.Count == 3 && File.Exists(store.ProfilePath("by-base")),
+                "«Новый профиль…» must create, save and activate the profile.");
+
+            // The light theme gives a light window; «Отмена» changes nothing.
+            model.Theme = PaletteTheme.Light;
+            Pump(view);
+            SettingsWindow.ShowModal = window => ShowDialog(window, "Light profile window", root =>
+            {
+                shown++;
+                Check(((SolidColorBrush)window.Background).Color == Resource(view, "PaletteBackground"), "The profile window must use the light theme.");
+                ((TextBox)window.FindName("NameBox")).Text = "Не применять";
+                Save(Client(window), Path.Combine(output, "issue66-profile-window-light.png"));
+                Invoke((Button)window.FindName("CancelButton"), root);
+            });
+            menu = navigator.FillProfileMenu();
+            Click(Item(menu, NavigatorView.EditCommand), menu, view);
+            Check(shown == 3 && navigatorModel.Profile!.Name == "По базовому имени", "«Отмена» must keep the profile.");
+            model.Theme = PaletteTheme.Dark;
+            Pump(view);
+
+            // Deleting asks first.
+            var questions = new List<string>();
+            NavigatorView.ConfirmDialog = text => { questions.Add(text); return questions.Count > 1; };
+            menu = navigator.FillProfileMenu();
+            Click(Item(menu, NavigatorView.DeleteCommand), menu, view);
+            Check(questions.Count == 1 && File.Exists(store.ProfilePath("by-base")) && navigatorModel.Profile!.Id == "by-base", "«Нет» must keep the profile.");
+            menu = navigator.FillProfileMenu();
+            Click(Item(menu, NavigatorView.DeleteCommand), menu, view);
+            Check(questions.Count == 2 && questions[1].Contains("По базовому имени") && !File.Exists(store.ProfilePath("by-base")) &&
+                  combo.Items.Count == 2 && navigatorModel.Profile!.Id != "by-base",
+                "«Да» must delete the profile file and switch to another profile.");
+        }
+        finally
+        {
+            SettingsWindow.ShowModal = previous;
+            NavigatorView.ConfirmDialog = confirm;
+            model.Theme = PaletteTheme.Dark;
+        }
+
+        // The drawing is closed: the tree is emptied; a hidden tab does not read, it reads when shown again.
+        drawing.Document = null;
+        drawing.RaiseChanged();
+        Pump(view);
+        Check(list.Items.Count == 0 && status.Text == "Нет активного чертежа", "A closed drawing must empty the tree: " + status.Text);
+        drawing.Document = "drawing.dwg";
+        tabs.SelectedIndex = 0;
+        Pump(view);
+        reads = drawing.Reads;
+        drawing.RaiseChanged();
+        Check(drawing.Reads == reads && !navigatorModel.IsShown, "A hidden navigator must not read the drawing.");
+        tabs.SelectedIndex = PaletteViewModel.NavigatorTabIndex;
+        Pump(view);
+        Check(drawing.Reads == reads + 1 && list.Items.Count > 0, "Showing the tab must read the changed drawing.");
+        tabs.SelectedIndex = 0;
+        Pump(view);
+    }
+
+    /// <summary>The profiles of examples/navigator in a temporary folder, as in %APPDATA%\AcadPaletteSetXData\navigator.</summary>
+    private static string NavigatorFolder()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "xdata-navigator-smoke-" + Guid.NewGuid().ToString("N"));
+        var examples = Path.Combine(AppContext.BaseDirectory, "examples", "navigator");
+        Directory.CreateDirectory(Path.Combine(folder, NavigatorProfileStore.ProfilesFolder));
+        File.Copy(Path.Combine(examples, NavigatorProfileStore.SettingsFileName), Path.Combine(folder, NavigatorProfileStore.SettingsFileName));
+        foreach (var file in Directory.GetFiles(Path.Combine(examples, NavigatorProfileStore.ProfilesFolder), "*.json"))
+            File.Copy(file, Path.Combine(folder, NavigatorProfileStore.ProfilesFolder, Path.GetFileName(file)));
+        return folder;
+    }
+
+    private static ObjectValuesCache NavigatorCache() => Cache(NavigatorSchemaPath);
+
+    /// <summary>Six objects of examples/navigator-schema.json: duplicates, an empty base name and a division by zero.</summary>
+    private static (EntityDataSnapshot Snapshot, string Type)[] NavigatorObjects() => new[]
+    {
+        (Object("N1", "DEVICE", "BlockReference", Pair("NMO_BaseName", "ЩР"), Pair("NMO_Suffix", "1"), Pair("Power", 4.5), Pair("Phase", "A"), Pair("DB_link", "db-01")), "Блок «Щит»"),
+        (Object("N2", "DEVICE", "BlockReference", Pair("NMO_BaseName", "ЩР"), Pair("NMO_Suffix", "2"), Pair("Power", 2.0), Pair("Phase", "B")), "Блок «Щит»"),
+        (Object("N3", "DEVICE", "BlockReference", Pair("NMO_BaseName", "ЩР"), Pair("NMO_Suffix", "2"), Pair("Power", 1.0), Pair("Phase", "C")), "Блок «Щит»"),
+        (Object("N4", "DEVICE", "BlockReference", Pair("NMO_BaseName", "ВРУ"), Pair("NMO_Suffix", "1"), Pair("Power", 12.5), Pair("Phase", "A")), "Блок «ВРУ»"),
+        (Object("N5", "DEVICE", "Line", Pair("Power", 0.5), Pair("Count", 0)), "Отрезок"),
+        (Object("N6", "DEVICE", "Circle", Pair("NMO_BaseName", "Лампа"), Pair("Power", 0.1), Pair("Count", 2), Pair("Phase", "B")), "Круг")
+    };
+
+    /// <summary>The objects of the active document for the navigator, as the AutoCAD source reads them.</summary>
+    private sealed class MemoryDrawing : INavigatorSource
+    {
+        private readonly ObjectValuesCache cache;
+
+        public MemoryDrawing(ObjectValuesCache cache, (EntityDataSnapshot Snapshot, string Type)[] objects) { this.cache = cache; Objects = objects; }
+
+        public event EventHandler? Changed;
+        public (EntityDataSnapshot Snapshot, string Type)[] Objects { get; set; }
+        public string? Document { get; set; } = "drawing.dwg";
+        public int Reads { get; private set; }
+        public List<(string, bool)> Selected { get; } = new List<(string, bool)>();
+        public HashSet<string> Erased { get; } = new HashSet<string>();
+
+        public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
+
+        public NavigatorSnapshot Read(bool full)
+        {
+            Reads++;
+            if (Document is null) return NavigatorSnapshot.Empty;
+            return new NavigatorSnapshot(Document, Objects.Select(item => new NavigatorItem(cache.Get(item.Snapshot), item.Type)).ToArray(), cache.Schema);
+        }
+
+        public bool Select(string handle, bool zoom)
+        {
+            if (Erased.Contains(handle)) return false;
+            Selected.Add((handle, zoom));
+            return true;
+        }
+    }
+
+    /// <summary>Shows a modal window and runs <paramref name="checks"/> inside its dialog loop on its root.</summary>
+    private static bool? ShowDialog(Window window, string name, Action<FrameworkElement> checks)
+    {
+        Exception? failure = null;
+        window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            try { checks((FrameworkElement)window.FindName("Root")); }
+            catch (Exception error) { failure = error; window.Close(); }
+        }));
+        var result = window.ShowDialog();
+        if (failure != null) throw new InvalidOperationException(name + ": " + failure.Message, failure);
+        return result;
     }
 
     private static void VerifyMinimum(Window window, PaletteView view, PaletteViewModel model, TabControl tabs, string output)

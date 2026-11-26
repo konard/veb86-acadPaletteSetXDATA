@@ -15,6 +15,7 @@
             </ResourceDictionary.MergedDictionaries>
             <Style TargetType="Label"><Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" /></Style>
             <DataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Grid}}"><ui:PropertyGridView /></DataTemplate>
+            <DataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Navigator}}"><ui:NavigatorView /></DataTemplate>
             <HierarchicalDataTemplate x:Key="{DataTemplateKey {x:Static ui:ViewModelTypes.Node}}" ItemsSource="{Binding Children}">
                 <TextBlock Text="{Binding DisplayText}" ToolTip="{Binding Value}" />
             </HierarchicalDataTemplate>

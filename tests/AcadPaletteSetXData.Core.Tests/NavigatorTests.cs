@@ -696,6 +696,50 @@ public sealed class NavigatorTests
 
     // ---- helpers ----
 
+    [Fact]
+    public void TheExampleProfilesGroupTheExampleObjects()
+    {
+        // The drawing of the WPF smoke test: duplicates, an object without a base name and a division by zero.
+        using var folder = new TempFolder();
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "examples", "navigator", "navigator.json"), Path.Combine(folder.Path, "navigator.json"));
+        Copy(folder, "electrical.json");
+        Copy(folder, "by-phase.json");
+        var source = new FakeSource(Cache(),
+            Device("N1", Pair("NMO_BaseName", "ЩР"), Pair("NMO_Suffix", "1"), Pair("Power", 4.5), Pair("Phase", "A"), Pair("DB_link", "db-01")),
+            Device("N2", Pair("NMO_BaseName", "ЩР"), Pair("NMO_Suffix", "2"), Pair("Power", 2.0), Pair("Phase", "B")),
+            Device("N3", Pair("NMO_BaseName", "ЩР"), Pair("NMO_Suffix", "2"), Pair("Power", 1.0), Pair("Phase", "C")),
+            Device("N4", Pair("NMO_BaseName", "ВРУ"), Pair("NMO_Suffix", "1"), Pair("Power", 12.5), Pair("Phase", "A")),
+            Device("N5", Pair("Power", 0.5), Pair("Count", 0)),
+            Device("N6", Pair("NMO_BaseName", "Лампа"), Pair("Power", 0.1), Pair("Count", 2), Pair("Phase", "B")));
+        source.Types["N1"] = "Блок «Щит»";
+        var model = new NavigatorViewModel(new NavigatorProfileStore(folder.Path)) { Source = source };
+        model.IsShown = true;
+
+        Assert.Equal("electrical", model.Profile!.Id);
+        Assert.Equal(new[] { "ВРУ (1)", "Лампа (1)", "ЩР (3)", "Не задано (1)" }, Captions(model));
+        Assert.Equal("Объектов: 6 · групп: 9", model.Status);
+        Assert.Equal(" ▲", model.TreeSortGlyph);
+        Assert.Equal(new[] { "name", "base", "suffix", "power", "phase" }, model.VisibleColumns.Select(column => column.Id));
+        model.ExpandAllCommand.Execute(null);
+        var leaf = model.Rows.Single(row => row.Node.Handle == "N1");
+        Assert.Equal("Блок «Щит»", leaf.Caption);
+        Assert.Equal(2, leaf.Depth);
+        Assert.Equal(6, model.Rows.Count(row => row.IsLeaf));
+        var power = model.Columns.Single(column => column.Id == "power");
+        Assert.NotEqual("", leaf.Cells[power.Slot].Text);
+        Assert.True(model.Rows.Where(row => row.IsGroup).All(row => row.Cells[power.Slot].IsEmpty));
+        Assert.True(model.Rows.Single(row => row.Caption == "Не задано (1)" && row.Depth == 0).IsEmptyValue);
+
+        model.SelectedProfile = model.Profiles.Single(profile => profile.Id == "by-phase");
+        model.ExpandAllCommand.Execute(null);
+        Assert.Equal("Фаза A (2)", model.Rows[0].Caption);
+        var unit = model.Columns.Single(column => column.Id == "unit");
+        var failed = model.Rows.Single(row => row.Node.Handle == "N5").Cells[unit.Slot];
+        Assert.Equal(FormulaExpression.ErrorText, failed.Text);
+        Assert.True(failed.IsError);
+        Assert.Contains("PowerPerUnit", failed.Error);
+    }
+
     private static NavigatorValue Value(NavigatorObject target, string source) => target.Value(NavigatorValueSource.Parse(source));
 
     private static int CountEvaluations(NavigatorViewModel model) => model.Tree!.Leaves.Sum(node => node.Object!.EvaluationCount);
@@ -760,6 +804,7 @@ public sealed class NavigatorTests
         public bool Fail { get; set; }
         public List<(string, bool)> Selected { get; } = new List<(string, bool)>();
         public HashSet<string> Erased { get; } = new HashSet<string>();
+        public Dictionary<string, string> Types { get; } = new Dictionary<string, string>();
 
         public void Set(params EntityDataSnapshot[] objects) => Objects = objects;
         public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
@@ -769,7 +814,7 @@ public sealed class NavigatorTests
             Reads++;
             if (Fail) throw new InvalidOperationException("нет доступа");
             if (Document is null) return NavigatorSnapshot.Empty;
-            return new NavigatorSnapshot(Document, Objects.Select(item => new NavigatorItem(cache.Get(item))).ToArray(), cache.Schema);
+            return new NavigatorSnapshot(Document, Objects.Select(item => new NavigatorItem(cache.Get(item), Types.TryGetValue(item.Handle, out var type) ? type : null)).ToArray(), cache.Schema);
         }
 
         public bool Select(string handle, bool zoom)

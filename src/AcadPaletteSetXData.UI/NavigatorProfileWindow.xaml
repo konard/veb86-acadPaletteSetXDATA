@@ -1,0 +1,178 @@
+<Window x:Class="AcadPaletteSetXData.UI.NavigatorProfileWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding Title}" Width="620" Height="600" MinWidth="460" MinHeight="420"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource PaletteBackground}" Foreground="{DynamicResource PaletteForeground}"
+        FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" SnapsToDevicePixels="True"
+        AutomationProperties.Name="Профиль навигатора">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Dark.xaml" />
+                <ResourceDictionary Source="Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="Visible" />
+            <Style TargetType="Label">
+                <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+                <Setter Property="Padding" Value="0,0,8,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="Wide" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="MinWidth" Value="96" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="12,3" />
+                <Setter Property="Margin" Value="6,0,0,0" />
+            </Style>
+            <Style x:Key="ToolButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="MinWidth" Value="28" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="Padding" Value="6,0" />
+                <Setter Property="Margin" Value="0,0,4,0" />
+                <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            </Style>
+            <Style x:Key="CellBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                <Setter Property="Height" Value="22" />
+                <Setter Property="Padding" Value="2,0" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="ColumnHeader" TargetType="GridViewColumnHeader">
+                <Setter Property="Foreground" Value="{DynamicResource PaletteMuted}" />
+                <Setter Property="Background" Value="{DynamicResource PaletteTabBackground}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PaletteBorder}" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="GridViewColumnHeader">
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0,0,1,1" Padding="5,3">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="Row" TargetType="ListViewItem">
+                <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PaletteTabBackground}" BorderThickness="0,0,0,1">
+                                <GridViewRowPresenter VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PaletteSelectedBackground}" />
+                                    <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource PaletteAccent}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid x:Name="Root" Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid Margin="0,0,0,10">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="160" /></Grid.ColumnDefinitions>
+            <Label Content="_Название:" Target="{Binding ElementName=NameBox}" />
+            <TextBox x:Name="NameBox" Grid.Column="1" Height="24" Padding="4,2" VerticalContentAlignment="Center"
+                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Название профиля"
+                     ToolTip="Название в списке профилей навигатора" />
+            <Label Grid.Column="2" Content="_Id:" Margin="12,0,0,0" Target="{Binding ElementName=IdBox}" />
+            <TextBox x:Name="IdBox" Grid.Column="3" Height="24" Padding="4,2" VerticalContentAlignment="Center"
+                     Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditId}" AutomationProperties.Name="Id профиля"
+                     ToolTip="Имя файла профиля в папке navigator\profiles; задаётся при создании" ToolTipService.ShowOnDisabled="True" />
+        </Grid>
+        <DockPanel Grid.Row="1" Margin="0,0,0,4">
+            <Button x:Name="ResetExpressionButton" DockPanel.Dock="Right" Content="Контрольное" Style="{StaticResource ToolButton}" Margin="4,0,0,0"
+                    Command="{Binding ResetExpressionCommand}" AutomationProperties.Name="Контрольное выражение"
+                    ToolTip="{Binding ControlExpression}" />
+            <Label Content="_Выражение дерева:" Target="{Binding ElementName=ExpressionBox}" />
+        </DockPanel>
+        <TextBox x:Name="ExpressionBox" Grid.Row="2" Height="24" Padding="4,2" VerticalContentAlignment="Center" FontFamily="Consolas"
+                 Text="{Binding Expression, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Выражение дерева"
+                 ToolTip="Уровни через |; + уровень включён, - отключён; последний уровень — имя объекта. Пример: -DB_link|+NMO_BaseName|-@@[NMO_Name]" />
+        <TextBlock x:Name="ExpressionInfoText" Grid.Row="3" Margin="0,4,0,10" Text="{Binding ExpressionInfo}" TextWrapping="Wrap"
+                   FontSize="12" Foreground="{DynamicResource PaletteMuted}" />
+        <DockPanel Grid.Row="4" Margin="0,0,0,4">
+            <TextBlock Text="Колонки" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0" />
+            <Button x:Name="AddColumnButton" Content="+" Style="{StaticResource ToolButton}" Command="{Binding AddColumnCommand}"
+                    AutomationProperties.Name="Добавить колонку" ToolTip="Добавить колонку" />
+            <Button x:Name="RemoveColumnButton" Content="−" Style="{StaticResource ToolButton}" Command="{Binding RemoveColumnCommand}"
+                    AutomationProperties.Name="Удалить колонку" ToolTip="Удалить выбранную колонку" />
+            <Button x:Name="MoveUpButton" Content="▲" Style="{StaticResource ToolButton}" Command="{Binding MoveUpCommand}"
+                    AutomationProperties.Name="Колонку выше" ToolTip="Переместить колонку левее" />
+            <Button x:Name="MoveDownButton" Content="▼" Style="{StaticResource ToolButton}" Command="{Binding MoveDownCommand}"
+                    AutomationProperties.Name="Колонку ниже" ToolTip="Переместить колонку правее" />
+            <TextBlock Text="Значение: Id параметра или формат @@[Id]" FontSize="11" Foreground="{DynamicResource PaletteMuted}"
+                       VerticalAlignment="Center" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+        <ListView x:Name="ColumnList" Grid.Row="5" ItemsSource="{Binding Columns}" SelectedItem="{Binding SelectedColumn, Mode=TwoWay}" SelectionMode="Single"
+                  Style="{StaticResource ThemedListView}" ItemContainerStyle="{StaticResource Row}" Background="{DynamicResource PaletteBackground}"
+                  Foreground="{DynamicResource PaletteForeground}" BorderBrush="{DynamicResource PaletteBorder}" BorderThickness="1"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                  AutomationProperties.Name="Колонки профиля">
+            <ListView.View>
+                <GridView ColumnHeaderContainerStyle="{StaticResource ColumnHeader}" AllowsColumnReorder="False">
+                    <GridViewColumn Header="✓" Width="34">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding Visible, Mode=TwoWay}" HorizontalAlignment="Center" AutomationProperties.Name="Колонка видима" ToolTip="Колонка видима" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Id" Width="100">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate><TextBox Style="{StaticResource CellBox}" Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Id колонки" /></DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Заголовок" Width="130">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate><TextBox Style="{StaticResource CellBox}" Text="{Binding Caption, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Заголовок колонки" /></DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Значение" Width="190">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas" AutomationProperties.Name="Значение колонки">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox" BasedOn="{StaticResource CellBox}">
+                                            <Setter Property="BorderBrush" Value="{DynamicResource PaletteError}" />
+                                            <Setter Property="ToolTip" Value="{Binding SourceError}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SourceError}" Value="{x:Null}">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource PaletteBorder}" />
+                                                    <Setter Property="ToolTip" Value="Id параметра или формат CalculatedString: @@[Id], =@@[A]*2" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Ширина" Width="70">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate><TextBox Style="{StaticResource CellBox}" Text="{Binding Width, StringFormat=0, ValidatesOnExceptions=True}" HorizontalContentAlignment="Right" AutomationProperties.Name="Ширина колонки" /></DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                </GridView>
+            </ListView.View>
+        </ListView>
+        <TextBlock x:Name="ProblemsText" Grid.Row="6" Margin="0,8,0,0" Text="{Binding Problems}" TextWrapping="Wrap" Foreground="{DynamicResource PaletteError}" />
+        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="OkButton" Content="ОК" Style="{StaticResource Wide}" IsDefault="True" IsEnabled="{Binding IsValid}" Click="OnOk"
+                    AutomationProperties.Name="ОК" ToolTip="Применить и сохранить профиль" ToolTipService.ShowOnDisabled="True" />
+            <Button x:Name="CancelButton" Content="Отмена" Style="{StaticResource Wide}" IsCancel="True" Click="OnCancel"
+                    AutomationProperties.Name="Отмена" ToolTip="Закрыть без изменений" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -23,8 +23,6 @@ namespace AcadPaletteSetXData.AutoCAD;
 /// </summary>
 internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
 {
-    /// <summary>Above this number of changed nested objects (attributes, XRecords) the next read reads every object.</summary>
-    private const int NestedLimit = 2000;
     /// <summary>Owners walked up from a changed XRecord to its object (XRecord → dictionary → extension dictionary → object).</summary>
     private const int NestedDepth = 4;
     private static readonly HashSet<string> UndoCommands =
@@ -60,7 +58,6 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
         var state = StateFor(active);
         lastRead = active;
         var timer = Stopwatch.StartNew();
-        var all = full || !state.Loaded || state.Full;
         int read;
         NavigatorItem[] items;
         SchemaSnapshot schema;
@@ -71,11 +68,14 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
             using var transaction = database.TransactionManager.StartOpenCloseTransaction();
             var reader = new AutoCadDataReader(transaction);
             var modelSpace = SymbolUtilityServices.GetBlockModelSpaceId(database);
-            if (state.ModelSpace != modelSpace) { state.ModelSpace = modelSpace; all = true; }
-            if (all)
+            if (state.ModelSpace != modelSpace)
             {
-                state.Objects.Clear();
-                state.Failed.Clear();
+                state.ModelSpace = modelSpace;
+                full = true;
+            }
+            var plan = state.Objects.BeginRead(full);
+            if (plan == null)
+            {
                 var ids = new List<ObjectId>();
                 var space = (BlockTableRecord)transaction.GetObject(modelSpace, OpenMode.ForRead);
                 foreach (ObjectId id in space) ids.Add(id);
@@ -84,21 +84,17 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
             }
             else
             {
-                var ids = new HashSet<ObjectId>(state.Dirty);
-                foreach (var id in state.Nested) Resolve(state, transaction, id, ids);
+                var ids = new HashSet<ObjectId>(plan.Objects);
+                foreach (var id in plan.Nested) Resolve(state, transaction, id, ids);
                 foreach (var id in ids) ReadObject(state, transaction, reader, id);
                 read = ids.Count;
             }
-            state.Dirty.Clear();
-            state.Nested.Clear();
-            state.Full = false;
-            state.Loaded = true;
-            state.Pending = false;
+            state.Objects.EndRead();
             // The schema is loaded and XDATA v2 is parsed under the same lock; unchanged objects come from the cache.
             var values = AutoCadSchemaCaches.ValuesFor(active);
             schema = values.Schema;
             var list = new List<NavigatorItem>(state.Objects.Count);
-            foreach (var entry in state.Objects.Values)
+            foreach (var entry in state.Objects.Items)
             {
                 try { list.Add(new NavigatorItem(values.Get(entry.Snapshot), entry.TypeName)); }
                 catch (Exception error) when (error is not OutOfMemoryException)
@@ -112,31 +108,42 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
             if (traceEnabled)
                 Trace(active, string.Format(CultureInfo.InvariantCulture,
                     "Навигатор: {0} чтение, просмотрено {1}, объектов BobrovXDATA {2}, ошибок {3}; {4} мс; кэш значений {5}, разборов XDATA {6}.",
-                    all ? "полное" : "частичное", read, items.Length, state.Failed.Count + failed, timer.ElapsedMilliseconds, values.Count, values.ParseCount));
+                    plan == null ? "полное" : "частичное", read, items.Length, state.Objects.FailedCount + failed, timer.ElapsedMilliseconds,
+                    values.Count, values.ParseCount));
         }
-        return new NavigatorSnapshot(state.Key, items, schema, null, state.Failed.Count + failed);
+        return new NavigatorSnapshot(state.Objects.Key, items, schema, null, state.Objects.FailedCount + failed);
     }
 
     /// <summary>Reads one object of the ModelSpace again: an erased object, an object of another space or without BobrovXDATA is dropped.</summary>
     private void ReadObject(State state, Transaction transaction, AutoCadDataReader reader, ObjectId id)
     {
-        state.Objects.Remove(id);
-        state.Failed.Remove(id);
-        if (id.IsNull || !id.IsValid || id.IsErased) return;
+        if (id.IsNull || !id.IsValid || id.IsErased)
+        {
+            state.Objects.Drop(id);
+            return;
+        }
         try
         {
-            if (!(transaction.GetObject(id, OpenMode.ForRead, false) is Entity entity) || entity.OwnerId != state.ModelSpace) return;
+            if (!(transaction.GetObject(id, OpenMode.ForRead, false) is Entity entity) || entity.OwnerId != state.ModelSpace)
+            {
+                state.Objects.Drop(id);
+                return;
+            }
             using (var data = entity.GetXDataForApplication(DrawingNames.RegApp))
             {
-                if (data == null) return;
+                if (data == null)
+                {
+                    state.Objects.Drop(id);
+                    return;
+                }
             }
             var typeName = TypeDisplayName(entity);
-            state.Objects[id] = new Entry(reader.ReadEntity(entity, typeDisplayName: typeName), typeName);
+            state.Objects.Store(id, new Entry(reader.ReadEntity(entity, typeDisplayName: typeName), typeName));
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
             // Issue #66: an object that cannot be read is counted; the others are shown.
-            state.Failed.Add(id);
+            state.Objects.Fail(id);
             if (traceEnabled) Trace(documents.MdiActiveDocument, "Объект [" + id.Handle + "] не прочитан: " + error.Message);
         }
     }
@@ -247,7 +254,7 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
     private State StateFor(Document document)
     {
         if (states.TryGetValue(document, out var state)) return state;
-        state = new State(this, document, document.Name + "#" + (++serial).ToString(CultureInfo.InvariantCulture));
+        state = new State(this, document, new NavigatorReadState<ObjectId, Entry>(document.Name + "#" + (++serial).ToString(CultureInfo.InvariantCulture)));
         states.Add(document, state);
         return state;
     }
@@ -291,7 +298,7 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
         if (active != null && !active.Editor.IsQuiescent) return;
         AcApplication.Idle -= OnIdle;
         idleArmed = false;
-        var relevant = !ReferenceEquals(active, lastRead) || (active != null && states.TryGetValue(active, out var state) && state.Pending);
+        var relevant = !ReferenceEquals(active, lastRead) || (active != null && states.TryGetValue(active, out var state) && state.Objects.Pending);
         if (relevant) Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -321,10 +328,7 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
         public string? TypeName { get; }
     }
 
-    /// <summary>
-    /// The objects read of one document and the identities changed since then. Database events only record identities;
-    /// objects are opened by the next <see cref="Read"/>, on Idle.
-    /// </summary>
+    /// <summary>The events of one document read by the navigator; what was read and what changed is kept in <see cref="Objects"/>.</summary>
     private sealed class State : IDisposable
     {
         private readonly AutoCadNavigatorSource owner;
@@ -332,12 +336,12 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
         private readonly Database database;
         private readonly SchemaCache schema;
 
-        public State(AutoCadNavigatorSource owner, Document document, string key)
+        public State(AutoCadNavigatorSource owner, Document document, NavigatorReadState<ObjectId, Entry> objects)
         {
             this.owner = owner;
             this.document = document;
             database = document.Database;
-            Key = key;
+            Objects = objects;
             ModelSpace = SymbolUtilityServices.GetBlockModelSpaceId(database);
             schema = AutoCadSchemaCaches.For(document);
             database.ObjectAppended += OnObjectChanged;
@@ -350,55 +354,33 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
             schema.Invalidated += OnSchemaInvalidated;
         }
 
-        /// <summary>The key of the document in <see cref="NavigatorSnapshot.Document"/>; a reopened drawing gets a new one.</summary>
-        public string Key { get; }
+        public NavigatorReadState<ObjectId, Entry> Objects { get; }
         public ObjectId ModelSpace { get; set; }
-        /// <summary>BobrovXDATA objects of the ModelSpace in the order they were read.</summary>
-        public Dictionary<ObjectId, Entry> Objects { get; } = new Dictionary<ObjectId, Entry>();
-        public HashSet<ObjectId> Failed { get; } = new HashSet<ObjectId>();
-        public HashSet<ObjectId> Dirty { get; } = new HashSet<ObjectId>();
-        public HashSet<ObjectId> Nested { get; } = new HashSet<ObjectId>();
-        public bool Loaded { get; set; }
-        public bool Full { get; set; }
-        /// <summary>Something changed since the last read: Idle raises <see cref="Changed"/>.</summary>
-        public bool Pending { get; set; }
 
         private void OnObjectChanged(object? sender, ObjectEventArgs args) => Record(args.DBObject);
 
         private void OnObjectErased(object? sender, ObjectErasedEventArgs args) => Record(args.DBObject);
 
+        // Only the identity is recorded: the object is opened by the next read, on Idle.
         private void Record(DBObject item)
         {
-            if (!Loaded) return;
-            if (item is Entity && item.OwnerId == ModelSpace) Dirty.Add(item.ObjectId);
-            else if (item is AttributeReference) Dirty.Add(item.OwnerId);
-            else if (item is Xrecord || item is DBDictionary)
-            {
-                if (Nested.Count < NestedLimit) Nested.Add(item.ObjectId);
-                else Full = true;
-            }
-            else return;
-            Notify();
+            var marked =
+                item is Entity && item.OwnerId == ModelSpace ? Objects.MarkObject(item.ObjectId) :
+                item is AttributeReference ? Objects.MarkObject(item.OwnerId) :
+                (item is Xrecord || item is DBDictionary) && Objects.MarkNested(item.ObjectId);
+            if (marked) owner.Arm();
         }
 
         private void OnCommandEnded(object? sender, CommandEventArgs args)
         {
-            if (!Loaded || !UndoCommands.Contains(args.GlobalCommandName)) return;
             // Undo/Redo restores objects in ways events do not describe exactly: every object is read again.
-            Full = true;
-            Notify();
+            if (UndoCommands.Contains(args.GlobalCommandName) && Objects.MarkAll()) owner.Arm();
         }
 
         // The values are parsed again against the new schema (the value cache was cleared with it).
         private void OnSchemaInvalidated(object? sender, EventArgs args)
         {
-            if (Loaded) Notify();
-        }
-
-        private void Notify()
-        {
-            Pending = true;
-            owner.Arm();
+            if (Objects.MarkValues()) owner.Arm();
         }
 
         public void Dispose()
@@ -411,9 +393,6 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
             document.CommandEnded -= OnCommandEnded;
             document.CommandCancelled -= OnCommandEnded;
             schema.Invalidated -= OnSchemaInvalidated;
-            Objects.Clear();
-            Dirty.Clear();
-            Nested.Clear();
         }
     }
 }

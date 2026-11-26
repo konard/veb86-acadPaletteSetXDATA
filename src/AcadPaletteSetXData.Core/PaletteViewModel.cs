@@ -10,8 +10,10 @@ public sealed class PaletteViewModel : INotifyPropertyChanged
     private PaletteTheme theme;
     private int selectedTabIndex;
 
-    public PaletteViewModel(bool enableDraftPreview = false)
+    /// <param name="navigatorStore">The profile files of the «Навигатор» tab; null keeps its profiles in memory.</param>
+    public PaletteViewModel(bool enableDraftPreview = false, NavigatorProfileStore? navigatorStore = null)
     {
+        Navigator = new NavigatorViewModel(navigatorStore);
         Selection = new SelectionViewModel(Properties, enableDraftPreview);
         Grid = new PropertyGridViewModel(Selection, settings: Settings);
         Tabs = Array.AsReadOnly(new[]
@@ -19,7 +21,8 @@ public sealed class PaletteViewModel : INotifyPropertyChanged
             new PaletteTab("Свойства", "Свойства объектов", "", Grid),
             new PaletteTab("XDATA", "Расширенные данные", "", Selection),
             new PaletteTab("Команды", "Управление панелью",
-                "Введите XDATAPALETTE в командной строке AutoCAD, чтобы показать или скрыть панель.")
+                "Введите XDATAPALETTE в командной строке AutoCAD, чтобы показать или скрыть панель."),
+            new PaletteTab("Навигатор", "Навигатор объектов", "", Navigator)
         });
     }
 
@@ -29,7 +32,10 @@ public sealed class PaletteViewModel : INotifyPropertyChanged
     public SelectionViewModel Selection { get; }
     /// <summary>The read-only VST of the «Свойства» tab (TZXDATA 8, stage 5).</summary>
     public PropertyGridViewModel Grid { get; }
+    /// <summary>The read-only tree of the objects of the drawing (issue #66), the fourth tab.</summary>
+    public NavigatorViewModel Navigator { get; }
     public IReadOnlyList<PaletteTab> Tabs { get; }
+    public const int NavigatorTabIndex = 3;
 
     public PaletteTheme Theme
     {
@@ -52,6 +58,8 @@ public sealed class PaletteViewModel : INotifyPropertyChanged
             if (selectedTabIndex == value) return;
             selectedTabIndex = value;
             OnPropertyChanged();
+            // The navigator reads the drawing only while it is shown.
+            Navigator.IsShown = value == NavigatorTabIndex;
         }
     }
 

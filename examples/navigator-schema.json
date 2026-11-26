@@ -1,0 +1,35 @@
+{
+  "format": "BobrovXDATA.schema",
+  "version": 1,
+  "parameters": [
+    { "id": "DB_link", "type": "String", "caption": "Связь с базой", "group": "Навигатор" },
+    { "id": "DESC_MountingParts", "type": "String", "caption": "Монтажные части", "group": "Навигатор" },
+    { "id": "NMO_BaseName", "type": "String", "caption": "Базовое имя", "group": "Навигатор" },
+    { "id": "NMO_Suffix", "type": "String", "caption": "Суффикс", "group": "Навигатор" },
+    { "id": "NMO_Name", "type": "CalculatedString", "caption": "Наименование", "description": "базовое имя и суффикс", "group": "Навигатор", "format": "@@[NMO_BaseName]@@[NMO_Suffix]" },
+    { "id": "Power", "type": "Double", "caption": "Мощность", "group": "Электрика", "editor": { "unit": "кВт", "precision": 2, "min": 0 } },
+    { "id": "Count", "type": "Integer", "caption": "Количество", "group": "Электрика", "default": 1 },
+    { "id": "Phase", "type": "Enum", "caption": "Фаза", "group": "Электрика", "enum": "Phase" },
+    { "id": "Reserve", "type": "Boolean", "caption": "Резерв", "group": "Электрика", "default": false },
+    { "id": "PowerPerUnit", "type": "CalculatedString", "caption": "Мощность на единицу", "description": "деление на ноль даёт ошибку", "group": "Формулы", "format": "=@@[Power] / @@[Count]" }
+  ],
+  "enums": [
+    {
+      "id": "Phase",
+      "caption": "Фаза",
+      "items": [
+        { "key": "A", "caption": "Фаза A" },
+        { "key": "B", "caption": "Фаза B" },
+        { "key": "C", "caption": "Фаза C" }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "DEVICE",
+      "caption": "Устройство",
+      "entityTypes": [ "Line", "Circle", "BlockReference" ],
+      "parameters": [ "DB_link", "DESC_MountingParts", "NMO_BaseName", "NMO_Suffix", "NMO_Name", "Power", "Count", "Phase", "Reserve", "PowerPerUnit" ]
+    }
+  ]
+}

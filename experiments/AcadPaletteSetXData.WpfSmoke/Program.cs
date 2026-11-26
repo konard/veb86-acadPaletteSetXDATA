@@ -1236,6 +1236,8 @@ internal static class Program
         Check(drawing.Reads == reads + 1 && navigatorModel.Rows.All(row => row.Node.Handle != "N2") &&
               navigatorModel.Rows.Any(row => row.Caption == "ЩР (2)" && row.IsExpanded),
             "«Обновить» must read the drawing and keep the expanded groups: " + string.Join(", ", navigatorModel.Rows.Select(row => row.Caption)));
+        Check(navigatorModel.Message == null && !navigatorModel.Diagnostics.Any(text => text.Contains("N2")),
+            "«Обновить» must remove the message about the erased object: " + string.Join("; ", navigatorModel.Diagnostics));
         drawing.Objects = NavigatorObjects();
         drawing.RaiseChanged();
         Pump(view);

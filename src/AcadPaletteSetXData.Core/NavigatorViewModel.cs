@@ -32,6 +32,7 @@ public sealed class NavigatorViewModel : ObservableObject
     private string? readError;
     private string status = "";
     private string? message;
+    private bool selectionMessage; // the message is about the last selection of an object
     private bool isDirty;
     private bool settingsDirty;
     private bool isShown;
@@ -181,7 +182,25 @@ public sealed class NavigatorViewModel : ObservableObject
     public string Status { get => status; private set => SetProperty(ref status, value); }
 
     /// <summary>The last message of an action (an object not found, a profile not applied).</summary>
-    public string? Message { get => message; private set { SetProperty(ref message, value); Notify(nameof(Diagnostics)); Notify(nameof(HasDiagnostics)); } }
+    public string? Message
+    {
+        get => message;
+        private set
+        {
+            selectionMessage = false;
+            SetProperty(ref message, value);
+            Notify(nameof(Diagnostics));
+            Notify(nameof(HasDiagnostics));
+        }
+    }
+
+    /// <summary>Sets a message about selecting an object: a later selection or a refresh of the drawing removes it.</summary>
+    private void SetSelectionMessage(string? text)
+    {
+        if (text is null && !selectionMessage) return; // the message of another action stays
+        Message = text;
+        selectionMessage = text != null;
+    }
 
     /// <summary>Problems to show: broken profile files, unknown parameters of the profile, errors of reading.</summary>
     public IReadOnlyList<string> Diagnostics
@@ -262,6 +281,7 @@ public sealed class NavigatorViewModel : ObservableObject
     public void Refresh(bool full = true)
     {
         EnsureLoaded();
+        SetSelectionMessage(null); // the drawing is read again: the object that was not found is no longer shown
         if (source is null)
         {
             stale = false;
@@ -678,10 +698,10 @@ public sealed class NavigatorViewModel : ObservableObject
         try { found = source.Select(handle, zoom); }
         catch (Exception failure) when (failure is not OutOfMemoryException)
         {
-            Message = "Объект " + handle + " не выбран: " + failure.Message;
+            SetSelectionMessage("Объект " + handle + " не выбран: " + failure.Message);
             return;
         }
-        Message = found ? null : "Объект " + handle + " не найден в чертеже (удалён?). Нажмите «Обновить».";
+        SetSelectionMessage(found ? null : "Объект " + handle + " не найден в чертеже (удалён?). Нажмите «Обновить».");
         if (!found) stale = true;
     }
 

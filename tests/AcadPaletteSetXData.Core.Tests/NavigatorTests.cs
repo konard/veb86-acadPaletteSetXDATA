@@ -447,6 +447,27 @@ public sealed class NavigatorTests
         model.SelectedRow = model.Rows[1];
         Assert.Contains("80", model.Message);
         Assert.Contains(model.Diagnostics, line => line.Contains("не найден"));
+
+        // The message about the selection is gone after «Обновить» and after a selection that succeeded...
+        source.Erased.Clear();
+        model.Refresh();
+        Assert.Null(model.Message);
+        model.SelectedRow = null;
+        source.Erased.Add("80");
+        model.SelectedRow = model.Rows[1];
+        Assert.Contains("80", model.Message);
+        source.Erased.Clear();
+        model.SelectedRow = null;
+        model.SelectedRow = model.Rows[1];
+        Assert.Null(model.Message);
+
+        // ...but a selection does not hide the message of another action, and a refresh does not either.
+        Assert.False(model.SwitchProfile("missing"));
+        model.SelectedRow = null;
+        model.SelectedRow = model.Rows[1];
+        Assert.Contains("missing", model.Message);
+        model.Refresh();
+        Assert.Contains("missing", model.Message);
     }
 
     [Fact]

@@ -83,11 +83,11 @@
         <Grid Margin="0,0,0,10">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="160" /></Grid.ColumnDefinitions>
             <Label Content="_Название:" Target="{Binding ElementName=NameBox}" />
-            <TextBox x:Name="NameBox" Grid.Column="1" Height="24" Padding="4,2" VerticalContentAlignment="Center"
+            <TextBox x:Name="NameBox" Grid.Column="1" Height="24" Padding="4,1" VerticalContentAlignment="Center"
                      Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Название профиля"
                      ToolTip="Название в списке профилей навигатора" />
             <Label Grid.Column="2" Content="_Id:" Margin="12,0,0,0" Target="{Binding ElementName=IdBox}" />
-            <TextBox x:Name="IdBox" Grid.Column="3" Height="24" Padding="4,2" VerticalContentAlignment="Center"
+            <TextBox x:Name="IdBox" Grid.Column="3" Height="24" Padding="4,1" VerticalContentAlignment="Center"
                      Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditId}" AutomationProperties.Name="Id профиля"
                      ToolTip="Имя файла профиля в папке navigator\profiles; задаётся при создании" ToolTipService.ShowOnDisabled="True" />
         </Grid>
@@ -97,7 +97,7 @@
                     ToolTip="{Binding ControlExpression}" />
             <Label Content="_Выражение дерева:" Target="{Binding ElementName=ExpressionBox}" />
         </DockPanel>
-        <TextBox x:Name="ExpressionBox" Grid.Row="2" Height="24" Padding="4,2" VerticalContentAlignment="Center" FontFamily="Consolas"
+        <TextBox x:Name="ExpressionBox" Grid.Row="2" Height="24" Padding="4,1" VerticalContentAlignment="Center" FontFamily="Consolas"
                  Text="{Binding Expression, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Выражение дерева"
                  ToolTip="Уровни через |; + уровень включён, - отключён; последний уровень — имя объекта. Пример: -DB_link|+NMO_BaseName|-@@[NMO_Name]" />
         <TextBlock x:Name="ExpressionInfoText" Grid.Row="3" Margin="0,4,0,10" Text="{Binding ExpressionInfo}" TextWrapping="Wrap"

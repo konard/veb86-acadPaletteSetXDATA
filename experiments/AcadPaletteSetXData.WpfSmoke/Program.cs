@@ -1427,7 +1427,11 @@ internal static class Program
         Check(drawing.Reads == reads && !navigatorModel.IsShown, "A hidden navigator must not read the drawing.");
         tabs.SelectedIndex = PaletteViewModel.NavigatorTabIndex;
         Pump(view);
-        Check(drawing.Reads == reads + 1 && list.Items.Count > 0, "Showing the tab must read the changed drawing.");
+        Check(drawing.Reads == reads + 1, "Showing the tab must read the changed drawing once: reads " + (drawing.Reads - reads) + ".");
+        // The TabControl creates the view of the tab again: the tree is shown by the new one.
+        var shownAgain = (ListView)Descendants<NavigatorView>(view).Single().FindName("Rows");
+        Check(navigatorModel.Rows.Count > 0 && shownAgain.Items.Count == navigatorModel.Rows.Count,
+            "The navigator shown again must show the tree: " + shownAgain.Items.Count + " of " + navigatorModel.Rows.Count + ".");
         tabs.SelectedIndex = 0;
         Pump(view);
     }

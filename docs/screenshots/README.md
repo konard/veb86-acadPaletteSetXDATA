@@ -1,5 +1,43 @@
 # Рендеры WPF-панели
 
+## Задача #66: вкладка «Навигатор»
+
+`issue66-*.png` — настоящие `PaletteView` с `NavigatorView` и `NavigatorProfileWindow` на Windows **net48**
+без AutoCAD, на объектах примера [issue66-navigator.lsp](../../examples/issue66-navigator.lsp) и профилях
+[examples/navigator](../../examples/navigator).
+
+- `issue66-navigator-dark.png`, `issue66-navigator-light.png` — профиль «Электрооборудование»
+  (`-DB_link|-DESC_MountingParts|+NMO_BaseName|+NMO_Suffix|-@@[NMO_Name]`) в обеих темах. Видны группы по
+  базовому имени и суффиксу, автогруппа «Блок «Щит» (2)», группы «Не задано» и листы, названные по типу объекта.
+- `issue66-navigator-erased.png` — выбор листа, объект которого удалён из чертежа: сообщение над деревом.
+- `issue66-navigator-columns.png` — колонки, изменённые мышью: заголовок «Мощность» перетащен влево и
+  расширен до 150, через меню заголовка скрыта «Фаза» и показана «Связь» (правее, за горизонтальной прокруткой), дерево
+  отсортировано по «Объект ▲». Кнопка `✓` активна: изменения колонок ещё не сохранены в профиле.
+- `issue66-navigator-by-phase.png` — профиль «По фазам» (`+Phase|+NMO_BaseName|+@@[NMO_Name] (@@[Power] кВт)`):
+  деление на ноль в колонке «На единицу» показано красным «#ОШИБКА».
+- `issue66-profile-window-dark.png`, `issue66-profile-window-light.png` — окно «Настроить профиль…»
+  с добавленной колонкой и разбором выражения по уровням; `issue66-profile-error.png` — ошибка выражения
+  блокирует «ОК».
+
+Источник — [CI, commit 06f5527](https://github.com/veb86/acadPaletteSetXDATA/actions/runs/45848207334),
+артефакт `wpf-renders`, папка `net48`; те же проверки пройдены на .NET 8. Генератор — `VerifyNavigator`
+в `experiments/AcadPaletteSetXData.WpfSmoke`. Описание — [navigator.md](../navigator.md).
+
+| Тёмная тема | Светлая тема |
+| --- | --- |
+| ![Навигатор, тёмная тема](issue66-navigator-dark.png) | ![Навигатор, светлая тема](issue66-navigator-light.png) |
+
+| Профиль «По фазам» | Колонки и сортировка |
+| --- | --- |
+| ![Профиль по фазам](issue66-navigator-by-phase.png) | ![Колонки](issue66-navigator-columns.png) |
+
+| Окно профиля | Ошибка выражения |
+| --- | --- |
+| ![Окно профиля](issue66-profile-window-dark.png) | ![Ошибка выражения](issue66-profile-error.png) |
+
+![Удалённый объект](issue66-navigator-erased.png)
+![Окно профиля, светлая тема](issue66-profile-window-light.png)
+
 ## Задача #59: предел количества выделенных объектов
 
 `issue59-*.png` — настоящие `SettingsWindow` и `PaletteView` на Windows **net48** без AutoCAD.

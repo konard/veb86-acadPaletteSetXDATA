@@ -106,21 +106,28 @@
     <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <StackPanel Margin="6,6,6,4">
-            <TextBlock Text="{Binding Selection.Status}" TextWrapping="Wrap" Margin="0,0,0,4" />
             <!-- Issue #41: the selection grouped by SYSTEMTYPE or by the AutoCAD name of the object type, «Все (N)» for
                  more than one group; * keeps only the chosen group selected, − removes it from the selection. -->
             <Grid x:Name="GroupBar">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <Grid.Style><Style TargetType="Grid">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers><DataTrigger Binding="{Binding Selection.Groups.Count}" Value="0">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                    </DataTrigger></Style.Triggers>
-                </Style></Grid.Style>
                 <ComboBox x:Name="SelectedGroupField" ItemsSource="{Binding Selection.Groups}" DisplayMemberPath="Text"
                           SelectedItem="{Binding Selection.SelectedGroup, Mode=TwoWay}"
+                          IsEnabled="{Binding HasItems, RelativeSource={RelativeSource Self}}"
                           AutomationProperties.Name="Группа выделенных объектов"
                           ToolTip="Объекты выделения по SYSTEMTYPE или по типу объекта AutoCAD; кнопки * и − работают с выбранной группой." />
+                <TextBlock x:Name="SelectionPlaceholder" Text="Выберите объекты на чертеже"
+                           Foreground="{DynamicResource PaletteMuted}" VerticalAlignment="Center" Margin="6,0,25,0"
+                           TextTrimming="CharacterEllipsis" IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasItems, ElementName=SelectedGroupField}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
                 <Button x:Name="KeepGroupButton" Grid.Column="1" Content="*" Style="{StaticResource GroupButton}"
                         Command="{Binding Selection.KeepGroupCommand}"
                         AutomationProperties.Name="Оставить только группу" ToolTip="Оставить выделенными только объекты выбранной группы" />
@@ -128,6 +135,17 @@
                         Command="{Binding Selection.ExcludeGroupCommand}"
                         AutomationProperties.Name="Исключить группу" ToolTip="Снять выделение с объектов выбранной группы" />
             </Grid>
+            <TextBlock Text="{Binding Selection.Status}" TextWrapping="Wrap" Margin="0,4,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Selection.Status}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </StackPanel>
     <TabControl x:Name="Tabs" Grid.Row="1" TabStripPlacement="Right"
                 ItemsSource="{Binding Tabs}" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"

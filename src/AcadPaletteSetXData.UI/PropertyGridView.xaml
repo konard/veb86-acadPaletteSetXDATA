@@ -8,6 +8,20 @@
             <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Themes/Controls.xaml" /></ResourceDictionary.MergedDictionaries>
             <ui:IndentConverter x:Key="Indent" />
             <BooleanToVisibilityConverter x:Key="Visible" />
+            <ContextMenu x:Key="PropertyMenu" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                <MenuItem Header="Скопировать ID параметра" Tag="{Binding Id}" Click="OnCopyPropertyText" />
+                <MenuItem Header="Скопировать значение параметра" Tag="{Binding Value}" Click="OnCopyPropertyText">
+                    <MenuItem.Style>
+                        <Style TargetType="MenuItem">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMixed}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </MenuItem.Style>
+                </MenuItem>
+            </ContextMenu>
             <Style x:Key="ToolButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                 <Setter Property="Width" Value="26" />
                 <Setter Property="Height" Value="24" />
@@ -282,7 +296,7 @@
                 </TextBlock>
             </Grid>
         </DockPanel>
-        <!-- Messages of TZXDATA 8.5: no selection, no schema, objects without BobrovXDATA; input and write errors in red. -->
+        <!-- Messages of TZXDATA 8.5: no schema, objects without BobrovXDATA; read, input and write errors in red. -->
         <DockPanel Grid.Row="1" Margin="6,0,6,4">
             <DockPanel.Style>
                 <Style TargetType="DockPanel">
@@ -311,6 +325,7 @@
                   Foreground="{DynamicResource PaletteForeground}" BorderBrush="{DynamicResource PaletteBorder}" BorderThickness="0,1,0,0"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
                   ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                  ContextMenuOpening="OnPropertyMenuOpening"
                   KeyboardNavigation.DirectionalNavigation="Contained" AutomationProperties.Name="Дерево свойств">
             <ListView.View>
                 <GridView x:Name="Columns" ColumnHeaderContainerStyle="{StaticResource ColumnHeader}" AllowsColumnReorder="False">
@@ -343,7 +358,8 @@
                     <GridViewColumn x:Name="CaptionColumn" Header="ПАРАМЕТР">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
-                                <DockPanel Margin="{Binding Level, Converter={StaticResource Indent}}">
+                                <DockPanel Margin="{Binding Level, Converter={StaticResource Indent}}" Background="Transparent"
+                                           ContextMenu="{StaticResource PropertyMenu}">
                                     <Button DockPanel.Dock="Left" Style="{StaticResource ExpandButton}" Margin="0,0,3,0"
                                             Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                             CommandParameter="{Binding}" AutomationProperties.Name="Развернуть или свернуть" />
@@ -355,7 +371,7 @@
                     <GridViewColumn x:Name="ValueColumn" Header="ЗНАЧЕНИЕ">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
-                                <Grid Tag="ValueCell">
+                                <Grid Tag="ValueCell" Background="Transparent" ContextMenu="{StaticResource PropertyMenu}">
                                     <TextBlock Style="{StaticResource ShownValue}" />
                                     <CheckBox Style="{StaticResource FlagBox}" Click="OnFlagClick" HorizontalAlignment="Left" AutomationProperties.Name="Значение флажка"
                                               Visibility="{Binding IsFlagEditor, Converter={StaticResource Visible}}" />
@@ -363,9 +379,11 @@
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding Unit}" Margin="3,0,0,0" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource PaletteMuted}" />
                                         <TextBox Style="{StaticResource ValueBox}" Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}"
+                                                 ContextMenu="{StaticResource PropertyMenu}"
                                                  LostKeyboardFocus="OnEditorLostFocus" AutomationProperties.Name="Редактор значения" />
                                     </DockPanel>
                                     <ComboBox Style="{StaticResource ChoiceEditor}" ItemsSource="{Binding Options}" DisplayMemberPath="Caption"
+                                              ContextMenu="{StaticResource PropertyMenu}"
                                               Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}" LostKeyboardFocus="OnEditorLostFocus"
                                               DropDownClosed="OnChoiceClosed" AutomationProperties.Name="Список значений" />
                                 </Grid>

@@ -105,7 +105,8 @@
                                                   ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
                                                   Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
                                 <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" BorderThickness="0" Padding="{TemplateBinding Padding}"
-                                         VerticalAlignment="Center" Background="Transparent" IsReadOnly="{TemplateBinding IsReadOnly}" />
+                                         VerticalAlignment="Center" Background="Transparent" IsReadOnly="{TemplateBinding IsReadOnly}"
+                                         ContextMenu="{TemplateBinding ContextMenu}" />
                                 <TextBlock x:Name="MixedPlaceholder" Text="Разное" FontStyle="Italic" Foreground="{DynamicResource PaletteMuted}"
                                            Margin="{TemplateBinding Padding}" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" />
                                 <ToggleButton Grid.Column="1" Focusable="False"

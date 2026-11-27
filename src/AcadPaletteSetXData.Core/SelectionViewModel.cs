@@ -11,7 +11,7 @@ public sealed class SelectionViewModel : ObservableObject
     private readonly PropertyEditorViewModel editor;
     private ParsedEntityData? selectedEntity;
     private bool hasSelection;
-    private string status = "Выберите объекты в чертеже";
+    private string status = "";
     private string diagnostics = "";
     private string? error;
     private bool canWrite;
@@ -196,7 +196,7 @@ public sealed class SelectionViewModel : ObservableObject
         ApplyGroups(snapshots, calculations);
         editor.LoadSelection(Entities);
         Error = error;
-        Status = error ?? (HasSelection ? "Выделено объектов: " + Entities.Count + " • Групповые свойства" : "Выберите объекты в чертеже");
+        Status = error ?? "";
         Applied?.Invoke(this, EventArgs.Empty);
     }
 

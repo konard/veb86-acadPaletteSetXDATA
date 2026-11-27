@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "id": "by-phase",
+  "name": "По фазам",
+  "tree": {
+    "expression": "+Phase|+NMO_BaseName|+@@[NMO_Name] (@@[Power] кВт)"
+  },
+  "columns": [
+    { "id": "power", "caption": "Мощность", "value": "Power", "width": 90, "visible": true },
+    { "id": "unit", "caption": "На единицу", "value": "PowerPerUnit", "width": 100, "visible": true },
+    { "id": "link", "caption": "Связь", "value": "DB_link", "width": 120, "visible": true }
+  ]
+}

@@ -11,11 +11,14 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
 {
     // A stable ID lets AutoCAD associate the palette with its saved window state.
     private static readonly Guid PaletteId = new Guid("c167ea9c-6f53-47a6-ad70-3e731d87da12");
-    private readonly PaletteViewModel viewModel = new PaletteViewModel();
+    // Issue #66: the profiles of the «Навигатор» tab are kept per user in %APPDATA%\AcadPaletteSetXData\navigator.
+    private readonly PaletteViewModel viewModel =
+        new PaletteViewModel(navigatorStore: new NavigatorProfileStore(NavigatorProfileStore.DefaultDirectory));
     private readonly PaletteView view;
     private readonly PaletteSet palette;
     private readonly AutoCadSelectionSource selectionSource;
     private readonly SelectionController selectionController;
+    private readonly AutoCadNavigatorSource navigatorSource;
 
     public AutoCadPaletteHost()
     {
@@ -40,6 +43,9 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
             // Issue #59: the palette follows the selection only while it is shown, and does not read a selection
             // over the limit of the settings. It is created hidden; XDATAPALETTE shows it.
             selectionController = new SelectionController(selectionSource, viewModel.Selection, viewModel.Settings, palette.Visible);
+            // Issue #66: the navigator reads the ModelSpace of the active document while its tab is shown.
+            navigatorSource = new AutoCadNavigatorSource();
+            viewModel.Navigator.Source = navigatorSource;
             palette.StateChanged += OnStateChanged;
             // «⚙» starts the schema commands as commands of the document: one Undo step, no write from the palette.
             viewModel.Grid.SchemaCommandRunner = RunCommand;
@@ -47,6 +53,8 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
         }
         catch
         {
+            viewModel.Navigator.Shutdown();
+            navigatorSource?.Dispose();
             selectionSource?.Dispose();
             palette.Dispose();
             view.Dispose();
@@ -61,6 +69,7 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
         {
             palette.Visible = value;
             selectionController.Active = palette.Visible;
+            UpdateNavigator(palette.Visible);
         }
     }
 
@@ -70,9 +79,24 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
     /// </summary>
     private void OnStateChanged(object sender, PaletteSetStateEventArgs args)
     {
-        if (args.NewState == StateEventIndex.Hide) selectionController.Active = false;
-        else if (args.NewState == StateEventIndex.Show) selectionController.Active = true;
+        if (args.NewState == StateEventIndex.Hide)
+        {
+            selectionController.Active = false;
+            UpdateNavigator(false);
+        }
+        else if (args.NewState == StateEventIndex.Show)
+        {
+            selectionController.Active = true;
+            UpdateNavigator(true);
+        }
     }
+
+    /// <summary>
+    /// Issue #66: a closed palette does not read the drawing; the navigator reads it when it is shown again. While the
+    /// palette is shown, choosing the tab turns the navigator on and off (<see cref="PaletteViewModel.SelectedTabIndex"/>).
+    /// </summary>
+    private void UpdateNavigator(bool visible) =>
+        viewModel.Navigator.IsShown = visible && viewModel.SelectedTabIndex == PaletteViewModel.NavigatorTabIndex;
 
     public void ApplyTheme(PaletteTheme theme) => viewModel.Theme = theme;
 
@@ -102,6 +126,9 @@ internal sealed class AutoCadPaletteHost : IPaletteHost
         palette.StateChanged -= OnStateChanged;
         viewModel.Grid.Built -= OnGridBuilt;
         viewModel.Settings.PropertyChanged -= OnSettingsChanged;
+        // Saves the unsaved column widths and order of the navigator and detaches it from the drawing.
+        viewModel.Navigator.Shutdown();
+        navigatorSource.Dispose();
         selectionController.Dispose();
         selectionSource.Dispose();
         palette.Dispose();

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "electrical",
+  "name": "Электрооборудование",
+  "tree": {
+    "expression": "-DB_link|-DESC_MountingParts|+NMO_BaseName|+NMO_Suffix|-@@[NMO_Name]"
+  },
+  "columns": [
+    { "id": "name", "caption": "Наименование", "value": "@@[NMO_Name]", "width": 160, "visible": true },
+    { "id": "base", "caption": "Базовое имя", "value": "NMO_BaseName", "width": 110, "visible": true },
+    { "id": "suffix", "caption": "Суффикс", "value": "NMO_Suffix", "width": 80, "visible": true },
+    { "id": "power", "caption": "Мощность", "value": "Power", "width": 90, "visible": true },
+    { "id": "phase", "caption": "Фаза", "value": "Phase", "width": 80, "visible": true },
+    { "id": "link", "caption": "Связь", "value": "DB_link", "width": 120, "visible": false },
+    { "id": "mounting", "caption": "Монтажные части", "value": "DESC_MountingParts", "width": 140, "visible": false }
+  ]
+}

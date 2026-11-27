@@ -7,6 +7,7 @@ namespace AcadPaletteSetXData.UI;
 public static class ViewModelTypes
 {
     public static Type Grid => typeof(PropertyGridViewModel);
+    public static Type Navigator => typeof(NavigatorViewModel);
     public static Type Node => typeof(XDataNode);
     public static Type Selection => typeof(SelectionViewModel);
     public static Type Tab => typeof(PaletteTab);

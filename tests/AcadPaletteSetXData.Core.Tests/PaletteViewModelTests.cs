@@ -8,10 +8,10 @@ namespace AcadPaletteSetXData.Core.Tests;
 public sealed class PaletteViewModelTests
 {
     [Fact]
-    public void ExposesTheThreeSpecifiedTabsAndSelectsPropertiesInitially()
+    public void ExposesTheFourSpecifiedTabsAndSelectsPropertiesInitially()
     {
         var model = new PaletteViewModel();
-        Assert.Equal(new[] { "Свойства", "XDATA", "Команды" }, model.Tabs.Select(tab => tab.Header));
+        Assert.Equal(new[] { "Свойства", "XDATA", "Команды", "Навигатор" }, model.Tabs.Select(tab => tab.Header));
         Assert.Equal(0, model.SelectedTabIndex);
     }
 

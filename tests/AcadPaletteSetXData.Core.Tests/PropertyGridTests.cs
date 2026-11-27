@@ -216,12 +216,13 @@ public sealed class PropertyGridTests
     }
 
     [Fact]
-    public void EmptySelectionAndObjectsWithoutBobrovXDataAreExplained()
+    public void EmptySelectionHasNoGridMessageAndObjectsWithoutBobrovXDataAreExplained()
     {
         var model = new PaletteViewModel();
         Assert.False(model.Grid.IsEnabled);
         Assert.Empty(model.Grid.Rows);
-        Assert.Equal("Выберите объекты в чертеже", model.Grid.Message);
+        Assert.Empty(model.Grid.Message);
+        Assert.Empty(model.Selection.Status);
         Assert.Same(model.Grid, model.Tabs[0].Content);
 
         var none = Grid(Raw("A", "Line"));

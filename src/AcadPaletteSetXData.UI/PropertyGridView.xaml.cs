@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -154,6 +156,20 @@ public partial class PropertyGridView : UserControl
         if (editor?.IsKeyboardFocusWithin == true || editor == null && !Up(source).OfType<FrameworkElement>().Any(element => Equals(element.Tag, "ValueCell"))) return;
         if (ItemsControl.ContainerFromElement(Rows, source) is ListViewItem { DataContext: PropertyRow clicked } && ReferenceEquals(clicked, row))
             FocusEditor(row);
+    }
+
+    private void OnPropertyMenuOpening(object sender, ContextMenuEventArgs args)
+    {
+        if (args.OriginalSource is DependencyObject source &&
+            ItemsControl.ContainerFromElement(Rows, source) is ListViewItem { DataContext: PropertyRow { Id: null or "" } })
+            args.Handled = true;
+    }
+
+    private void OnCopyPropertyText(object sender, RoutedEventArgs args)
+    {
+        if (sender is not MenuItem { Tag: string text, IsEnabled: true }) return;
+        try { Clipboard.SetText(text); }
+        catch (ExternalException error) { Trace.TraceWarning("XDATAPALETTE clipboard: {0}", error.Message); }
     }
 
     /// <summary>Leaving the editor writes it after the focus has settled, so a click on another row selects it first.</summary>

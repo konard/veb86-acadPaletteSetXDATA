@@ -260,7 +260,7 @@ public sealed class PropertyGridViewModel : ObservableObject
     private string? reveal;
     private string templateKey = "";
     private string templateText = "";
-    private string message = "Выберите объекты в чертеже";
+    private string message = "";
     private string filter = "";
     private bool isEnabled;
     private bool canEdit;
@@ -324,7 +324,7 @@ public sealed class PropertyGridViewModel : ObservableObject
     public bool CanEdit { get => canEdit; private set => SetProperty(ref canEdit, value); }
     /// <summary>The template of the selection: its caption, «Разное» when templates differ, «нет» without one (TZXDATA 8.4).</summary>
     public string TemplateText { get => templateText; private set => SetProperty(ref templateText, value); }
-    /// <summary>Message above the tree: no selection, objects without <c>BobrovXDATA</c>, no schema, a write or input error.</summary>
+    /// <summary>Message above the tree: objects without <c>BobrovXDATA</c>, no schema, a read, write or input error.</summary>
     public string Message { get => message; private set => SetProperty(ref message, value); }
     /// <summary><see cref="Message"/> is the error of the last write or input (TZXDATA 8.5): shown in red.</summary>
     public bool HasError { get => hasError; private set => SetProperty(ref hasError, value); }
@@ -976,7 +976,7 @@ public sealed class PropertyGridViewModel : ObservableObject
         {
             var result = new List<PropertyRow>();
             var count = selection.Entities.Count;
-            if (count == 0) { Message = "Выберите объекты в чертеже"; return result; }
+            if (count == 0) return result;
             Templates();
             if (values.Count != 0) Schema(result);
             EntityGroups(result);

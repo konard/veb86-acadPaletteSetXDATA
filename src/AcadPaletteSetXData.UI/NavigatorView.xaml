@@ -123,7 +123,7 @@
             <Button x:Name="CollapseAllButton" DockPanel.Dock="Left" Content="⊟" Style="{StaticResource ToolButton}" Command="{Binding CollapseAllCommand}"
                     AutomationProperties.Name="Свернуть все" ToolTip="Свернуть все группы" />
             <Button x:Name="ProfileMenuButton" DockPanel.Dock="Right" Content="⚙" Style="{StaticResource ToolButton}" Margin="3,0,0,0" Click="OnProfileMenu"
-                    AutomationProperties.Name="Профили навигатора" ToolTip="Настройка, создание, удаление и сохранение профилей навигатора">
+                    AutomationProperties.Name="Профили навигатора" ToolTip="Настройка, импорт и экспорт профилей навигатора">
                 <Button.ContextMenu><ContextMenu x:Name="ProfileMenu" Placement="Custom" /></Button.ContextMenu>
             </Button>
             <Button x:Name="SaveButton" DockPanel.Dock="Right" Content="✓" Style="{StaticResource ToolButton}" Margin="3,0,0,0" Command="{Binding SaveCommand}"

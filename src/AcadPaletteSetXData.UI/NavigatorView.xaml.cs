@@ -13,6 +13,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AcadPaletteSetXData.Core;
+using Microsoft.Win32;
 
 namespace AcadPaletteSetXData.UI;
 
@@ -24,6 +25,7 @@ namespace AcadPaletteSetXData.UI;
 /// </summary>
 public partial class NavigatorView : UserControl
 {
+    private const string ProfileFileFilter = "Профиль навигатора (*.json)|*.json";
     private readonly Dictionary<NavigatorColumnViewModel, GridViewColumn> shown = new Dictionary<NavigatorColumnViewModel, GridViewColumn>();
     private NavigatorViewModel? model;
     private ScrollViewer? scroll;
@@ -50,7 +52,7 @@ public partial class NavigatorView : UserControl
     public static IValueConverter Indent { get; } = new LeftMargin();
 
     /// <summary>
-    /// «Удалить профиль?». The default is a message box; the WPF smoke test replaces it to answer without a window.
+    /// Confirms profile deletion or replacement. The WPF smoke test replaces the message box.
     /// </summary>
     public static Func<string, bool> ConfirmDialog { get; set; } = text =>
         MessageBox.Show(text, "Навигатор", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
@@ -63,6 +65,10 @@ public partial class NavigatorView : UserControl
             MessageBoxResult.No => false,
             _ => null
         };
+
+    /// <summary>Shows the JSON file picker. The WPF smoke test supplies a path here.</summary>
+    public static Func<FileDialog, Window?, bool?> ShowProfileFileDialog { get; set; } = (dialog, owner) =>
+        owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner);
 
     /// <summary>The scroll host of the rows, available after the list is loaded.</summary>
     public ScrollViewer? RowsScroll => scroll ??= Find<ScrollViewer>(Rows);
@@ -241,6 +247,8 @@ public partial class NavigatorView : UserControl
     public const string NewCommand = "new";
     public const string DeleteCommand = "delete";
     public const string SaveCommand = "save";
+    public const string ImportCommand = "import";
+    public const string ExportCommand = "export";
 
     private void OnProfileMenu(object sender, RoutedEventArgs args)
     {
@@ -270,7 +278,28 @@ public partial class NavigatorView : UserControl
         Add("Удалить профиль…", DeleteCommand, "Удалить файл активного профиля (с подтверждением)", target.Profile != null, () => target.DeleteProfile());
         ProfileMenu.Items.Add(new Separator());
         Add("Сохранить", SaveCommand, "Сохранить ширину, порядок и видимость колонок", target.IsDirty, () => target.Save());
+        ProfileMenu.Items.Add(new Separator());
+        Add("Импорт JSON…", ImportCommand, "Загрузить профиль навигатора из файла JSON", true, () => ImportProfile(target));
+        Add("Экспорт JSON…", ExportCommand, "Сохранить активный профиль навигатора в файл JSON", target.Profile != null, () => ExportProfile(target));
         return ProfileMenu;
+    }
+
+    private void ImportProfile(NavigatorViewModel target)
+    {
+        var dialog = new OpenFileDialog { Filter = ProfileFileFilter, DefaultExt = ".json", Title = "Импорт профиля навигатора" };
+        if (ShowProfileFileDialog(dialog, Window.GetWindow(this)) == true) target.ImportProfile(dialog.FileName);
+    }
+
+    private void ExportProfile(NavigatorViewModel target)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Filter = ProfileFileFilter,
+            DefaultExt = ".json",
+            Title = "Экспорт профиля навигатора",
+            FileName = target.Profile?.Id + ".json"
+        };
+        if (ShowProfileFileDialog(dialog, Window.GetWindow(this)) == true) target.ExportProfile(dialog.FileName);
     }
 
     // ---- rows ----

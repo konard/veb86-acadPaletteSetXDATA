@@ -16,6 +16,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using AcadPaletteSetXData.Core;
 using AcadPaletteSetXData.UI;
+using Microsoft.Win32;
 
 namespace AcadPaletteSetXData.WpfSmoke;
 
@@ -1525,6 +1526,8 @@ internal static class Program
             model.Theme = PaletteTheme.Dark;
         }
 
+        VerifyNavigatorProfileFiles(view, navigator, navigatorModel, combo, store, output);
+
         // The drawing is closed: the tree is emptied; a hidden tab does not read, it reads when shown again.
         drawing.Document = null;
         drawing.RaiseChanged();
@@ -1545,6 +1548,63 @@ internal static class Program
             "The navigator shown again must show the tree: " + shownAgain.Items.Count + " of " + navigatorModel.Rows.Count + ".");
         tabs.SelectedIndex = 0;
         Pump(view);
+    }
+
+    private static void VerifyNavigatorProfileFiles(PaletteView view, NavigatorView navigator, NavigatorViewModel model,
+        ComboBox profiles, NavigatorProfileStore store, string output)
+    {
+        var original = model.Profile!;
+        var backup = Path.Combine(store.Directory, "portable profile.json");
+        var showDialog = NavigatorView.ShowProfileFileDialog;
+        try
+        {
+            var button = (Button)navigator.FindName("ProfileMenuButton");
+            var menu = button.ContextMenu;
+            Invoke(button, view);
+            var export = Item(menu, NavigatorView.ExportCommand);
+            var import = Item(menu, NavigatorView.ImportCommand);
+            Check(menu.IsOpen && export.IsEnabled && import.IsEnabled && Equals(export.Header, "Экспорт JSON…") &&
+                  Equals(import.Header, "Импорт JSON…"), "The profile menu must offer JSON import and export.");
+            SaveWithPopup(view, menu, Path.Combine(output, "issue72-navigator-profile-json.png"));
+
+            NavigatorView.ShowProfileFileDialog = (dialog, owner) =>
+            {
+                Check(ReferenceEquals(owner, Window.GetWindow(view)) && dialog.Filter.EndsWith("|*.json") &&
+                      dialog.DefaultExt.TrimStart('.') == "json", "The picker must belong to the palette and filter JSON files.");
+                Check(dialog is SaveFileDialog && dialog.FileName == original.Id + ".json", "Export must suggest the active profile filename.");
+                dialog.FileName = backup;
+                return true;
+            };
+            Click(export, menu, view);
+            var transferred = NavigatorProfile.Parse(File.ReadAllText(backup));
+            Check(transferred.ToJson() == original.ToJson(), "Export must write the active navigator profile.");
+            transferred.Id = "transferred";
+            transferred.Name = "Импортированный профиль";
+            File.WriteAllText(backup, transferred.ToJson());
+
+            NavigatorView.ShowProfileFileDialog = (dialog, _) =>
+            {
+                Check(dialog is OpenFileDialog, "Import must open a file picker.");
+                dialog.FileName = backup;
+                return false;
+            };
+            Click(import, menu, view);
+            Check(ReferenceEquals(model.Profile, original) && store.LoadProfile(transferred.Id) == null, "Cancelling import must keep the current profile.");
+
+            NavigatorView.ShowProfileFileDialog = (dialog, _) =>
+            {
+                dialog.FileName = backup;
+                return true;
+            };
+            Click(import, menu, view);
+            Check(profiles.SelectedItem is NavigatorProfile chosen && chosen.Id == transferred.Id && profiles.Text == transferred.Name &&
+                  model.Profile!.ToJson() == transferred.ToJson() && store.LoadProfile(transferred.Id)?.Profile?.ToJson() == transferred.ToJson(),
+                "Import must add, save and select the profile from a renamed JSON file.");
+        }
+        finally
+        {
+            NavigatorView.ShowProfileFileDialog = showDialog;
+        }
     }
 
     /// <summary>The profiles of examples/navigator in a temporary folder, as in %APPDATA%\AcadPaletteSetXData\navigator.</summary>

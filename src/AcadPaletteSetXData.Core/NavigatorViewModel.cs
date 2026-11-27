@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 
 namespace AcadPaletteSetXData.Core;
@@ -19,7 +20,7 @@ public sealed class NavigatorViewModel : ObservableObject
     private readonly NavigatorProfileStore? store;
     private readonly HashSet<string> expanded = new HashSet<string>(StringComparer.Ordinal);
     private readonly Dictionary<string, NavigatorObject> objects = new Dictionary<string, NavigatorObject>(StringComparer.OrdinalIgnoreCase);
-    private readonly List<string> loadErrors = new List<string>();
+    private readonly Dictionary<string, string> loadErrors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private INavigatorSource? source;
     private NavigatorSettings settings = new NavigatorSettings();
     private NavigatorProfile? profile;
@@ -221,7 +222,7 @@ public sealed class NavigatorViewModel : ObservableObject
             var result = new List<string>();
             if (message != null) result.Add(message);
             if (readError != null) result.Add(readError);
-            result.AddRange(loadErrors);
+            result.AddRange(loadErrors.Values);
             result.AddRange(warnings);
             return result;
         }
@@ -238,12 +239,12 @@ public sealed class NavigatorViewModel : ObservableObject
         if (store != null)
         {
             settings = store.LoadSettings(out var error);
-            if (error != null) loadErrors.Add("navigator.json не прочитан, используются настройки по умолчанию: " + error);
+            if (error != null) loadErrors[store.SettingsPath] = "navigator.json не прочитан, используются настройки по умолчанию: " + error;
             foreach (var file in store.LoadProfiles())
             {
                 if (file.Profile != null && !Profiles.Any(item => string.Equals(item.Id, file.Profile.Id, StringComparison.OrdinalIgnoreCase)))
                     Profiles.Add(file.Profile);
-                else if (file.Error != null) loadErrors.Add("Профиль не загружен (файл не изменён): " + file.Path + ": " + file.Error);
+                else if (file.Error != null) loadErrors[file.Path] = "Профиль не загружен (файл не изменён): " + file.Path + ": " + file.Error;
             }
         }
         if (Profiles.Count == 0) Profiles.Add(NavigatorProfile.CreateDefault());
@@ -281,6 +282,7 @@ public sealed class NavigatorViewModel : ObservableObject
             return false;
         }
         // 4–6. Build from the objects read, apply the columns, refresh the view.
+        IsDirty = false;
         Apply(candidate);
         Message = null;
         settings.ActiveProfile = candidate.Id;
@@ -370,9 +372,67 @@ public sealed class NavigatorViewModel : ObservableObject
             Message = "Профиль не сохранён, файл не изменён: " + error;
             return false;
         }
-        Replace(profile.Clone());
+        var saved = profile.Clone();
+        UpdateProfileList(saved);
+        selectedProfile = saved;
+        Notify(nameof(SelectedProfile));
         IsDirty = false;
         Message = null;
+        SaveSettings();
+        return true;
+    }
+
+    /// <summary>Exports the active profile, including its current column layout, to a chosen JSON file.</summary>
+    public bool ExportProfile(string path)
+    {
+        if (profile is null) return false;
+        if (!NavigatorProfileStore.TryWrite(path, profile.ToJson(), out var error))
+        {
+            Message = "Профиль не экспортирован: " + error;
+            return false;
+        }
+        Message = "Профиль экспортирован в «" + path + "».";
+        return true;
+    }
+
+    /// <summary>Reads a chosen JSON file, saves the validated profile locally and activates it.</summary>
+    public bool ImportProfile(string path)
+    {
+        EnsureLoaded();
+        var file = NavigatorProfileStore.ReadProfileFile(path);
+        var imported = file.Profile;
+        if (imported is null)
+        {
+            Message = "Профиль не импортирован из «" + path + "»: " + file.Error;
+            return false;
+        }
+
+        var existing = Profiles.FirstOrDefault(item => string.Equals(item.Id, imported.Id, StringComparison.OrdinalIgnoreCase));
+        if (existing != null) imported.Id = existing.Id;
+        var replacingActive = string.Equals(profile?.Id, imported.Id, StringComparison.OrdinalIgnoreCase);
+        var replaceExisting = existing != null || (store != null && File.Exists(store.ProfilePath(imported.Id)));
+        if (replaceExisting)
+        {
+            var question = "Заменить профиль навигатора с id «" + imported.Id + "»?";
+            if (replacingActive && IsDirty) question += " Несохранённые изменения профиля будут потеряны.";
+            if (Confirm?.Invoke(question) != true) return false;
+        }
+        if (!replacingActive && !ConfirmLeave()) return false;
+        if (store != null)
+        {
+            if (!store.SaveProfile(imported, replaceExisting, out var error))
+            {
+                Message = "Профиль не импортирован: " + error;
+                return false;
+            }
+            loadErrors.Remove(store.ProfilePath(imported.Id));
+        }
+
+        IsDirty = false;
+        UpdateProfileList(imported);
+        Apply(imported.Clone());
+        settings.ActiveProfile = imported.Id;
+        Message = "Профиль «" + imported.Name + "» импортирован.";
         SaveSettings();
         return true;
     }
@@ -450,8 +510,7 @@ public sealed class NavigatorViewModel : ObservableObject
         var answer = AskSave?.Invoke("Профиль навигатора «" + profile.Name + "» изменён (ширина, порядок или видимость колонок). Сохранить изменения?");
         if (answer is null && AskSave != null) return false;
         if (answer == true) return Save();
-        // «Нет»: the changes are dropped, the saved profile stays.
-        IsDirty = false;
+        // Keep the current changes until the new profile has been applied.
         return true;
     }
 
@@ -462,7 +521,7 @@ public sealed class NavigatorViewModel : ObservableObject
         for (var i = 1; ; i++)
         {
             var id = "profile" + i.ToString(CultureInfo.InvariantCulture);
-            if (!Exists(id) && (store is null || !System.IO.File.Exists(store.ProfilePath(id)))) return id;
+            if (!Exists(id) && (store is null || !File.Exists(store.ProfilePath(id)))) return id;
         }
     }
 
@@ -475,13 +534,11 @@ public sealed class NavigatorViewModel : ObservableObject
         }
     }
 
-    private void Replace(NavigatorProfile saved)
+    private void UpdateProfileList(NavigatorProfile saved)
     {
         var index = Profiles.ToList().FindIndex(item => string.Equals(item.Id, saved.Id, StringComparison.OrdinalIgnoreCase));
         if (index < 0) Profiles.Add(saved);
         else Profiles[index] = saved;
-        selectedProfile = saved;
-        Notify(nameof(SelectedProfile));
     }
 
     private void SaveSettings()

@@ -345,15 +345,15 @@ public sealed class NavigatorTests
     }
 
     [Fact]
-    public void AFailedWriteKeepsThePreviousFile()
+    public void AFailedWriteCleansUpTheTempFile()
     {
         using var folder = new TempFolder();
         var path = Path.Combine(folder.Path, "navigator.json");
-        Assert.True(NavigatorProfileStore.TryWrite(path, "{\"a\":1}", out var error), error);
-        Directory.CreateDirectory(path + ".tmp"); // the temporary file cannot be written
-        Assert.False(NavigatorProfileStore.TryWrite(path, "{\"a\":2}", out error));
+        Directory.CreateDirectory(path); // the temporary file cannot be moved onto the destination
+        Assert.False(NavigatorProfileStore.TryWrite(path, "{\"a\":1}", out var error));
         Assert.NotNull(error);
-        Assert.Equal("{\"a\":1}", File.ReadAllText(path));
+        Assert.True(Directory.Exists(path));
+        Assert.Empty(Directory.GetFiles(folder.Path));
     }
 
     // ---- the view model ----
@@ -725,6 +725,142 @@ public sealed class NavigatorTests
         Assert.False(File.Exists(store.ProfilePath("profile1")));
         Assert.Equal(NavigatorProfile.DefaultId, model.Profile!.Id);
         Assert.Equal(new[] { NavigatorProfile.DefaultId }, model.Profiles.Select(profile => profile.Id));
+    }
+
+    [Fact]
+    public void ExportsTheCurrentLayoutAndImportsARenamedProfileIntoAnotherStore()
+    {
+        using var folder = new TempFolder();
+        var sourceStore = new NavigatorProfileStore(Path.Combine(folder.Path, "source"));
+        var original = new NavigatorProfile("phases", "По фазам", "+Phase|-x", new[]
+        {
+            new NavigatorColumn("phase", "Фаза", "Phase", 100),
+            new NavigatorColumn("power", "Мощность", "Power", 80)
+        });
+        original.Extra.Add("metadata", new JsonString("переносится"));
+        original.TreeExtra.Add("future", JsonBoolean.From(true));
+        original.Columns[1].Extra.Add("unit", new JsonString("кВт"));
+        Assert.True(sourceStore.SaveProfile(original, out var error), error);
+        var exporter = new NavigatorViewModel(sourceStore);
+        exporter.EnsureLoaded();
+        exporter.MoveVisibleColumn(1, 0);
+        exporter.Columns[1].Width = 157;
+        exporter.Columns[1].Visible = false;
+        exporter.TreeWidth = 399;
+
+        var backupPath = Path.Combine(folder.Path, "renamed backup.json");
+        Assert.True(exporter.ExportProfile(backupPath), exporter.Message);
+        Assert.True(exporter.IsDirty);
+        Assert.Equal(original.ToJson(), sourceStore.LoadProfile("phases")!.Profile!.ToJson());
+
+        var targetStore = new NavigatorProfileStore(Path.Combine(folder.Path, "target"));
+        var source = new FakeSource(Cache(), Device("C0", Pair("Phase", "B")));
+        var importer = new NavigatorViewModel(targetStore) { Source = source, IsShown = true };
+        var reads = source.Reads;
+        var targetTreeWidth = importer.TreeWidth;
+        Assert.True(importer.ImportProfile(backupPath), importer.Message);
+        Assert.Equal(reads, source.Reads);
+        Assert.Equal(new[] { "Фаза B (1)" }, Captions(importer));
+        Assert.Equal("phases", importer.SelectedProfile!.Id);
+        Assert.Equal("По фазам", importer.Profile!.Name);
+        Assert.Equal(targetTreeWidth, importer.TreeWidth);
+        Assert.Equal(new[] { "power", "phase" }, importer.Columns.Select(column => column.Id));
+        Assert.Equal((157d, false), (importer.Columns[1].Width, importer.Columns[1].Visible));
+        Assert.Equal("переносится", Assert.IsType<JsonString>(importer.Profile.Extra["metadata"]).Value);
+        Assert.True(Assert.IsType<JsonBoolean>(importer.Profile.TreeExtra["future"]).Value);
+        Assert.Equal("кВт", Assert.IsType<JsonString>(importer.Profile.Columns[0].Extra["unit"]).Value);
+        Assert.Equal(importer.Profile.ToJson(), File.ReadAllText(backupPath));
+        Assert.Equal(importer.Profile.ToJson(), targetStore.LoadProfile("phases")!.Profile!.ToJson());
+        var reopened = new NavigatorViewModel(targetStore);
+        reopened.EnsureLoaded();
+        Assert.Equal(importer.Profile.ToJson(), reopened.Profile!.ToJson());
+    }
+
+    [Theory]
+    [InlineData("{")]
+    [InlineData("{\"version\":1,\"parameters\":[],\"enums\":[],\"templates\":[]}")]
+    [InlineData("{\"version\":2,\"id\":\"backup\",\"name\":\"Backup\",\"tree\":{\"expression\":\"+Phase\"}}")]
+    [InlineData("{\"version\":1,\"id\":\"../backup\",\"name\":\"Backup\",\"tree\":{\"expression\":\"+Phase|\"}}")]
+    public void InvalidProfileImportKeepsTheActiveProfileAndItsChanges(string json)
+    {
+        using var folder = new TempFolder();
+        var store = new NavigatorProfileStore(Path.Combine(folder.Path, "local"));
+        var importPath = Path.Combine(folder.Path, "invalid.json");
+        File.WriteAllText(importPath, json);
+        var model = new NavigatorViewModel(store) { AskSave = _ => throw new InvalidOperationException() };
+        model.EnsureLoaded();
+        model.Columns[0].Width = 222;
+        var original = model.Profile;
+
+        Assert.False(model.ImportProfile(importPath));
+        Assert.Contains(importPath, model.Message);
+        Assert.Single(model.Profiles);
+        Assert.Same(original, model.Profile);
+        Assert.True(model.IsDirty);
+        Assert.False(Directory.Exists(store.Directory));
+    }
+
+    [Fact]
+    public void ImportReplacesAMatchingIdOnlyAfterConfirmation()
+    {
+        using var folder = new TempFolder();
+        var store = new NavigatorProfileStore(Path.Combine(folder.Path, "local"));
+        var original = NavigatorProfile.CreateDefault();
+        Assert.True(store.SaveProfile(original, out var error), error);
+        var model = new NavigatorViewModel(store);
+        model.EnsureLoaded();
+        model.Columns[0].Width = 222;
+        var backup = new NavigatorProfile("ELECTRICAL", "Копия профиля", "+Phase");
+        var importPath = Path.Combine(folder.Path, "backup.json");
+        File.WriteAllText(importPath, backup.ToJson());
+
+        var confirmed = false;
+        model.Confirm = question =>
+        {
+            Assert.Contains("Несохранённые изменения", question);
+            return confirmed;
+        };
+        Assert.False(model.ImportProfile(importPath));
+        Assert.True(model.IsDirty);
+        Assert.Equal(222, model.Columns[0].Width);
+        Assert.Equal(original.ToJson(), store.LoadProfile(original.Id)!.Profile!.ToJson());
+
+        confirmed = true;
+        Assert.True(model.ImportProfile(importPath), model.Message);
+        Assert.Single(model.Profiles);
+        Assert.False(model.IsDirty);
+        Assert.Equal(original.Id, model.Profile!.Id);
+        Assert.Equal(backup.Name, store.LoadProfile(original.Id)!.Profile!.Name);
+        Assert.Equal(backup.ToJson(), File.ReadAllText(importPath));
+    }
+
+    [Fact]
+    public void ImportKeepsUnsavedChangesWhenCancelledOrWhenTheWriteFails()
+    {
+        using var folder = new TempFolder();
+        var store = new NavigatorProfileStore(Path.Combine(folder.Path, "local"));
+        var importPath = Path.Combine(folder.Path, "backup.json");
+        File.WriteAllText(importPath, new NavigatorProfile("backup", "Копия", "+Phase").ToJson());
+        var model = new NavigatorViewModel(store) { AskSave = _ => null };
+        model.EnsureLoaded();
+        model.Columns[0].Width = 222;
+
+        Assert.False(model.ImportProfile(importPath));
+        Assert.False(File.Exists(store.ProfilePath("backup")));
+
+        model.AskSave = _ =>
+        {
+            Directory.CreateDirectory(store.ProfilesDirectory);
+            File.WriteAllText(store.ProfilePath("backup"), "new file from another process");
+            return false;
+        };
+        Assert.False(model.ImportProfile(importPath));
+        Assert.Contains("не импортирован", model.Message);
+        Assert.Equal("new file from another process", File.ReadAllText(store.ProfilePath("backup")));
+        Assert.Empty(Directory.GetFiles(store.ProfilesDirectory, "*.tmp"));
+        Assert.True(model.IsDirty);
+        Assert.Equal(222, model.Columns[0].Width);
+        Assert.Equal(NavigatorProfile.DefaultId, model.Profile!.Id);
     }
 
     [Fact]

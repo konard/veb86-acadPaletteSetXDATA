@@ -336,7 +336,7 @@ public sealed class NavigatorProfileStore
             result.Add(new NavigatorProfileFile(ProfilesDirectory, null, failure.Message));
             return result;
         }
-        foreach (var file in files.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)) result.Add(LoadFile(file));
+        foreach (var file in files.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)) result.Add(ReadProfileFile(file, matchFileName: true));
         return result;
     }
 
@@ -345,33 +345,38 @@ public sealed class NavigatorProfileStore
     {
         if (!NavigatorProfile.IsValidId(id)) return new NavigatorProfileFile(id, null, "некорректный id профиля «" + id + "»");
         var path = ProfilePath(id);
-        return File.Exists(path) ? LoadFile(path) : null;
+        return File.Exists(path) ? ReadProfileFile(path, matchFileName: true) : null;
     }
 
-    private static NavigatorProfileFile LoadFile(string path)
+    internal static NavigatorProfileFile ReadProfileFile(string path, bool matchFileName = false)
     {
         try
         {
             var profile = NavigatorProfile.Parse(File.ReadAllText(path, Utf8));
-            var name = System.IO.Path.GetFileNameWithoutExtension(path);
-            if (!string.Equals(profile.Id, name, StringComparison.OrdinalIgnoreCase))
-                return new NavigatorProfileFile(path, null, "id «" + profile.Id + "» не совпадает с именем файла «" + name + "»");
+            if (matchFileName)
+            {
+                var name = System.IO.Path.GetFileNameWithoutExtension(path);
+                if (!string.Equals(profile.Id, name, StringComparison.OrdinalIgnoreCase))
+                    return new NavigatorProfileFile(path, null, "id «" + profile.Id + "» не совпадает с именем файла «" + name + "»");
+            }
             var validation = profile.Validate();
             return validation.IsValid ? new NavigatorProfileFile(path, profile, null) : new NavigatorProfileFile(path, null, string.Join("; ", validation.Errors));
         }
-        catch (Exception failure) when (failure is FormatException or IOException or UnauthorizedAccessException)
+        catch (Exception failure) when (failure is FormatException or IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
             return new NavigatorProfileFile(path, null, failure.Message);
         }
     }
 
     /// <summary>Saves a valid profile to <c>profiles\&lt;id&gt;.json</c>.</summary>
-    public bool SaveProfile(NavigatorProfile profile, out string? error)
+    public bool SaveProfile(NavigatorProfile profile, out string? error) => SaveProfile(profile, overwrite: true, out error);
+
+    internal bool SaveProfile(NavigatorProfile profile, bool overwrite, out string? error)
     {
         if (profile is null) throw new ArgumentNullException(nameof(profile));
         var validation = profile.Validate();
         if (!validation.IsValid) { error = string.Join("; ", validation.Errors); return false; }
-        return TryWrite(ProfilePath(profile.Id), profile.ToJson(), out error);
+        return TryWrite(ProfilePath(profile.Id), profile.ToJson(), overwrite, out error);
     }
 
     public bool DeleteProfile(string id, out string? error)
@@ -392,19 +397,22 @@ public sealed class NavigatorProfileStore
     }
 
     /// <summary>
-    /// Writes <paramref name="text"/> to <c>path.tmp</c> and replaces <paramref name="path"/> with it; on an error the
+    /// Writes <paramref name="text"/> to a temporary file next to <paramref name="path"/> and replaces it; on an error the
     /// temporary file is removed and the old file stays as it was.
     /// </summary>
-    public static bool TryWrite(string path, string text, out string? error)
+    public static bool TryWrite(string path, string text, out string? error) => TryWrite(path, text, overwrite: true, out error);
+
+    private static bool TryWrite(string path, string text, bool overwrite, out string? error)
     {
         error = null;
-        var temp = path + ".tmp";
+        string? temp = null;
         try
         {
             var folder = System.IO.Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(folder)) System.IO.Directory.CreateDirectory(folder);
+            temp = System.IO.Path.Combine(folder ?? "", Guid.NewGuid().ToString("N") + ".tmp");
             File.WriteAllText(temp, text, Utf8);
-            if (File.Exists(path))
+            if (overwrite && File.Exists(path))
             {
                 try { File.Replace(temp, path, null); }
                 catch (PlatformNotSupportedException) { File.Copy(temp, path, true); File.Delete(temp); }
@@ -415,7 +423,7 @@ public sealed class NavigatorProfileStore
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
             error = path + ": " + failure.Message;
-            try { if (File.Exists(temp)) File.Delete(temp); } catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException) { }
+            try { if (temp != null && File.Exists(temp)) File.Delete(temp); } catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException) { }
             return false;
         }
     }

@@ -471,6 +471,92 @@ public sealed class NavigatorTests
     }
 
     [Fact]
+    public void AGroupSelectsAllItsObjectsOnAllLevelsAndAMissingPartIsReported()
+    {
+        // Issue #68: the menu of a group selects every object grouped inside it, nested and automatic groups included.
+        var source = new FakeSource(Cache(),
+            Device("90", Pair("NMO_BaseName", "A"), Pair("NMO_Suffix", "1")),
+            Device("91", Pair("NMO_BaseName", "A"), Pair("NMO_Suffix", "1")),
+            Device("92", Pair("NMO_BaseName", "A"), Pair("NMO_Suffix", "2")),
+            Device("93", Pair("NMO_BaseName", "B"), Pair("NMO_Suffix", "1")));
+        var model = Shown(source);
+        model.ExpandAllCommand.Execute(null);
+        Assert.Equal(new[] { "A (3)", "1 (2)", "Line (2)", "Line", "Line", "2 (1)", "Line", "B (1)", "1 (1)", "Line" }, Captions(model));
+
+        Assert.True(model.SelectGroupCommand.CanExecute(model.Rows[0]));
+        Assert.True(model.SelectGroupCommand.CanExecute(model.Rows[2])); // an automatic group
+        Assert.False(model.SelectGroupCommand.CanExecute(model.Rows[3])); // an object has no such command
+        Assert.Equal(new[] { "90", "91", "92" }, NavigatorViewModel.HandlesOf(model.Rows[0]));
+        Assert.Equal(new[] { "90" }, NavigatorViewModel.HandlesOf(model.Rows[3]));
+
+        model.SelectGroupCommand.Execute(model.Rows[0]);
+        Assert.Equal(new[] { "90", "91", "92" }, Assert.Single(source.SelectedGroups));
+        model.SelectGroupCommand.Execute(model.Rows[2]);
+        Assert.Equal(new[] { "90", "91" }, source.SelectedGroups[1]);
+        model.SelectGroupCommand.Execute(model.Rows[3]); // nothing for an object
+        Assert.Equal(2, source.SelectedGroups.Count);
+        Assert.Empty(source.Selected); // a group never selects one object
+        Assert.Equal(new[] { "A (3)", "1 (2)", "Line (2)", "Line", "Line", "2 (1)", "Line", "B (1)", "1 (1)", "Line" }, Captions(model));
+        Assert.Null(model.Message);
+
+        // Without an argument the command works with the chosen row (the keyboard and the menu of the list).
+        model.SelectedRow = model.Rows[7];
+        Assert.True(model.SelectGroupCommand.CanExecute(null));
+        model.SelectGroupCommand.Execute(null);
+        Assert.Equal(new[] { "93" }, source.SelectedGroups[2]);
+        model.SelectedRow = model.Rows[9];
+        Assert.False(model.SelectGroupCommand.CanExecute(null));
+        Assert.Equal(new[] { ("93", false) }, source.Selected);
+
+        // Erased objects are reported, the rest is selected.
+        source.Erased.Add("91");
+        model.SelectGroupCommand.Execute(model.Rows[0]);
+        Assert.Equal(new[] { "90", "92" }, source.SelectedGroups[3]);
+        Assert.Contains("2 из 3", model.Message);
+        Assert.Contains("«A»", model.Message);
+        model.Refresh();
+        Assert.Null(model.Message);
+
+        source.Erased.Add("93");
+        model.SelectGroupCommand.Execute(model.Rows.First(row => row.Caption == "B (1)"));
+        Assert.Equal(4, source.SelectedGroups.Count); // nothing is passed to AutoCAD
+        Assert.Contains("не найдены", model.Message);
+
+        source.Fail = true;
+        source.Erased.Clear();
+        Assert.Null(Record.Exception(() => model.SelectGroupCommand.Execute(model.Rows[0])));
+        Assert.Contains("не выбраны: нет доступа", model.Message);
+    }
+
+    [Fact]
+    public void AClickOnTheChosenObjectSelectsItAgainAndActivateStillZoomsAndExpands()
+    {
+        // Issue #68: AutoCAD may drop the selection; a click on the row that is already chosen selects the object again.
+        var source = new FakeSource(Cache(), Device("95", Pair("NMO_BaseName", "A")), Device("96", Pair("NMO_BaseName", "A")));
+        var model = Shown(source, "+NMO_BaseName|+@@[NMO_Name]");
+        model.SelectCommand.Execute(model.Rows[0]); // a group: nothing
+        Assert.Empty(source.Selected);
+
+        model.ActivateCommand.Execute(model.Rows[0]); // a double click on a group expands it...
+        Assert.Equal(new[] { "A (2)", "A (2)" }, Captions(model)); // objects of the same name are grouped automatically
+        model.ActivateCommand.Execute(model.Rows[1]); // ...an automatic group too...
+        Assert.Equal(new[] { "A (2)", "A (2)", "A", "A" }, Captions(model));
+        model.ActivateCommand.Execute(model.Rows[0]); // ...and collapses it again
+        Assert.Equal(new[] { "A (2)" }, Captions(model));
+        model.ActivateCommand.Execute(model.Rows[0]);
+        Assert.Equal(new[] { "A (2)", "A (2)", "A", "A" }, Captions(model));
+        Assert.Empty(source.Selected);
+
+        model.SelectedRow = model.Rows[2];
+        model.SelectCommand.Execute(model.Rows[2]);
+        model.SelectCommand.Execute(null);
+        Assert.Equal(new[] { ("95", false), ("95", false), ("95", false) }, source.Selected);
+        model.ActivateCommand.Execute(model.Rows[3]); // a double click on an object selects and shows it
+        Assert.Equal(("96", true), source.Selected[3]);
+        Assert.Empty(source.SelectedGroups);
+    }
+
+    [Fact]
     public void SwitchingProfilesReusesTheParsedAndComputedValues()
     {
         using var folder = new TempFolder();
@@ -843,6 +929,16 @@ public sealed class NavigatorTests
             if (Erased.Contains(handle)) return false;
             Selected.Add((handle, zoom));
             return true;
+        }
+
+        public List<string[]> SelectedGroups { get; } = new List<string[]>();
+
+        public int SelectAll(IReadOnlyList<string> handles)
+        {
+            if (Fail) throw new InvalidOperationException("нет доступа");
+            var found = handles.Where(handle => !Erased.Contains(handle)).ToArray();
+            if (found.Length > 0) SelectedGroups.Add(found);
+            return found.Length;
         }
     }
 

@@ -1492,6 +1492,15 @@ internal static class Program
             Selected.Add((handle, zoom));
             return true;
         }
+
+        public List<string[]> SelectedGroups { get; } = new List<string[]>();
+
+        public int SelectAll(IReadOnlyList<string> handles)
+        {
+            var found = handles.Where(handle => !Erased.Contains(handle)).ToArray();
+            if (found.Length > 0) SelectedGroups.Add(found);
+            return found.Length;
+        }
     }
 
     /// <summary>Shows a modal window and runs <paramref name="checks"/> inside its dialog loop on its root.</summary>

@@ -28,6 +28,13 @@ public interface INavigatorSource
     /// <paramref name="zoom"/> also shows it. False when the object does not exist or is erased.
     /// </summary>
     bool Select(string handle, bool zoom);
+
+    /// <summary>
+    /// Issue #68: passes the objects of a group of the tree to the standard selection of AutoCAD as one selection
+    /// (the PICKFIRST set, highlighted with grips) and returns how many of them were found; unknown or erased handles
+    /// are skipped. When none is found the selection of AutoCAD is not changed.
+    /// </summary>
+    int SelectAll(IReadOnlyList<string> handles);
 }
 
 /// <summary>An object of the drawing read for the navigator: its parsed values (from the cache) and its type name.</summary>

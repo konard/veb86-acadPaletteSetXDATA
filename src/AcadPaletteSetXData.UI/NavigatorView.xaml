@@ -147,6 +147,8 @@
                   ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
                   ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                   KeyboardNavigation.DirectionalNavigation="Contained" AutomationProperties.Name="Дерево объектов">
+            <!-- Issue #68: the menu of a group, filled when it opens; objects have no menu. -->
+            <ListView.ContextMenu><ContextMenu x:Name="RowMenu" /></ListView.ContextMenu>
             <ListView.View>
                 <GridView x:Name="Columns" ColumnHeaderContainerStyle="{StaticResource ColumnHeader}" AllowsColumnReorder="True">
                     <GridView.ColumnHeaderContextMenu>

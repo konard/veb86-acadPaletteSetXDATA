@@ -41,6 +41,8 @@ public partial class NavigatorView : UserControl
         Rows.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler(OnHeaderClick));
         Rows.PreviewKeyDown += OnKey;
         Rows.MouseDoubleClick += OnDoubleClick;
+        Rows.PreviewMouseLeftButtonDown += OnRowMouseDown;
+        Rows.ContextMenuOpening += OnRowMenuOpening;
         ColumnMenu.Opened += (_, _) => FillColumnMenu();
     }
 
@@ -282,10 +284,60 @@ public partial class NavigatorView : UserControl
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => RowsScroll?.ScrollToVerticalOffset(offset)));
     }
 
+    /// <summary>The row of the element under the mouse or with the focus; null for headers and the empty space.</summary>
+    private NavigatorRow? RowAt(object? element) =>
+        element is DependencyObject source && ItemsControl.ContainerFromElement(Rows, source) is ListViewItem { DataContext: NavigatorRow row } ? row : null;
+
+    /// <summary>
+    /// Issue #68: a click on an object selects it in AutoCAD. Choosing another row does it through
+    /// <see cref="NavigatorViewModel.SelectedRow"/>; a click on the row that is already chosen selects the object again
+    /// (AutoCAD may have dropped the selection since). The second click of a double click does not: it shows the object.
+    /// </summary>
+    private void OnRowMouseDown(object sender, MouseButtonEventArgs args)
+    {
+        if (model == null || args.ClickCount != 1 || args.OriginalSource is not DependencyObject source || Up(source).OfType<ButtonBase>().Any()) return;
+        if (RowAt(source) is { IsLeaf: true } row && ReferenceEquals(row, model.SelectedRow)) model.SelectCommand.Execute(row);
+    }
+
+    /// <summary><see cref="MenuItem.Tag"/> of «Выделить все устройства группы» of the menu of a group.</summary>
+    public const string SelectGroupCommand = "select-group";
+
+    /// <summary>
+    /// Issue #68: the right button on a group opens its menu; objects have no menu. The header keeps its own menu of columns.
+    /// </summary>
+    private void OnRowMenuOpening(object sender, ContextMenuEventArgs args)
+    {
+        if (args.OriginalSource is DependencyObject source && Up(source).OfType<GridViewColumnHeader>().Any()) return;
+        if (model == null || RowAt(args.OriginalSource) is not { IsGroup: true } row)
+        {
+            args.Handled = true;
+            return;
+        }
+        FillRowMenu(row);
+    }
+
+    /// <summary>Fills the menu of a group (also used by the smoke test to click its items).</summary>
+    public ContextMenu FillRowMenu(NavigatorRow row)
+    {
+        RowMenu.Items.Clear();
+        if (model == null || row == null || !row.IsGroup) return RowMenu;
+        var target = model;
+        var count = row.Node.LeafCount.ToString(CultureInfo.InvariantCulture);
+        var select = new MenuItem
+        {
+            Header = "Выделить все устройства группы (" + count + ")",
+            Tag = SelectGroupCommand,
+            ToolTip = "Выделить в чертеже все объекты, сгруппированные в «" + row.Node.Name + "», на всех уровнях"
+        };
+        select.Click += (_, _) => target.SelectGroupCommand.Execute(row);
+        RowMenu.Items.Add(select);
+        return RowMenu;
+    }
+
     private void OnDoubleClick(object sender, MouseButtonEventArgs args)
     {
         if (model == null || args.OriginalSource is not DependencyObject source || Up(source).OfType<ButtonBase>().Any()) return;
-        if (ItemsControl.ContainerFromElement(Rows, source) is not ListViewItem { DataContext: NavigatorRow row }) return;
+        if (RowAt(source) is not NavigatorRow row) return;
         if (row.IsLeaf) model.ActivateCommand.Execute(row);
         else model.ToggleCommand.Execute(row);
         args.Handled = true;

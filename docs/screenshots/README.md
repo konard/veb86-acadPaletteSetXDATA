@@ -1,5 +1,17 @@
 # Рендеры WPF-панели
 
+## Задача #68: выделение устройства и группы в навигаторе
+
+`issue68-navigator-group-menu.png` — правая кнопка на группе «ЩР (3)»: строка группы выбрана, открыто меню
+«Выделить все устройства группы (3)»; пункт выделяет в чертеже все три объекта группы на всех уровнях.
+У листа меню нет, у заголовка колонок остаётся меню колонок.
+
+Источник — [CI, commit 6e04628](https://github.com/konard/veb86-acadPaletteSetXDATA/actions/runs/45954048718),
+артефакт `wpf-renders`, папка `net48`; те же проверки пройдены на .NET 8. Генератор —
+`VerifyNavigatorGroupSelection` в `experiments/AcadPaletteSetXData.WpfSmoke`. Описание — [navigator.md](../navigator.md).
+
+![Меню группы навигатора](issue68-navigator-group-menu.png)
+
 ## Задача #66: вкладка «Навигатор»
 
 `issue66-*.png` — настоящие `PaletteView` с `NavigatorView` и `NavigatorProfileWindow` на Windows **net48**

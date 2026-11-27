@@ -9,6 +9,7 @@ using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.Internal.PropertyInspector;
 using AcApplication = Autodesk.AutoCAD.ApplicationServices.Core.Application;
 using AcException = Autodesk.AutoCAD.Runtime.Exception;
+using InternalUtils = Autodesk.AutoCAD.Internal.Utils;
 
 namespace AcadPaletteSetXData.AutoCAD;
 
@@ -18,7 +19,8 @@ namespace AcadPaletteSetXData.AutoCAD;
 /// the value cache of the document, so unchanged XDATA is not parsed again. Each document keeps its own objects; after the
 /// first read only the objects changed since the last read are read again. <see cref="Changed"/> is raised on Idle after a
 /// command changed the drawing, after Undo/Redo, a change of the schema, when another document becomes active or the
-/// document is closed. The source does not follow the selection of AutoCAD: it only sets it when a leaf is chosen.
+/// document is closed. The source does not follow the selection of AutoCAD: it only sets it when a leaf is chosen or the
+/// objects of a group are selected from its menu (issue #68).
 /// Set <c>XDATAPALETTE_TRACE=1</c> to log reads.
 /// </summary>
 internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
@@ -37,6 +39,7 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
     private bool idleArmed;
     private bool disposed;
     private bool displayNameFailed;
+    private bool highlightFailed;
     private int serial;
 
     public AutoCadNavigatorSource()
@@ -193,24 +196,85 @@ internal sealed class AutoCadNavigatorSource : INavigatorSource, IDisposable
     /// </summary>
     public bool Select(string handle, bool zoom)
     {
+        var active = SelectionDocument();
+        if (!TryParseHandle(handle, out var value)) return false;
+        using (active.LockDocument())
+        {
+            var database = active.Database;
+            if (!TryFind(database, value, out var id)) return false;
+            SetSelection(active, new[] { id });
+            if (zoom) Zoom(active, id);
+            if (traceEnabled) Trace(active, "Навигатор: выбран объект [" + handle + "]" + (zoom ? " с показом." : "."));
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Issue #68: selects every object of a group of the tree as one PICKFIRST set; unknown and erased handles are
+    /// skipped. Nothing found — the selection of AutoCAD stays as it is.
+    /// </summary>
+    public int SelectAll(IReadOnlyList<string> handles)
+    {
+        if (handles == null) throw new ArgumentNullException(nameof(handles));
+        var active = SelectionDocument();
+        using (active.LockDocument())
+        {
+            var database = active.Database;
+            var ids = new List<ObjectId>(handles.Count);
+            var seen = new HashSet<ObjectId>();
+            foreach (var handle in handles)
+                if (TryParseHandle(handle, out var value) && TryFind(database, value, out var id) && seen.Add(id)) ids.Add(id);
+            if (ids.Count != 0) SetSelection(active, ids.ToArray());
+            if (traceEnabled)
+                Trace(active, string.Format(CultureInfo.InvariantCulture, "Навигатор: выбраны объекты группы: {0} из {1}.", ids.Count, handles.Count));
+            return ids.Count;
+        }
+    }
+
+    /// <summary>The document to select in: the active one, when no command runs.</summary>
+    private Document SelectionDocument()
+    {
         var active = disposed ? null : documents.MdiActiveDocument;
         if (active == null || ReferenceEquals(active, closing))
             throw new InvalidOperationException("Нет активного чертежа.");
         if (!active.Editor.IsQuiescent)
             throw new InvalidOperationException("Выполняется команда; завершите её и повторите выбор.");
-        long value;
-        try { value = Convert.ToInt64(handle, 16); }
+        return active;
+    }
+
+    private static bool TryParseHandle(string handle, out long value)
+    {
+        value = 0;
+        try { value = Convert.ToInt64(handle, 16); return true; }
         catch (Exception error) when (error is FormatException || error is OverflowException || error is ArgumentException) { return false; }
-        using (active.LockDocument())
+    }
+
+    private static bool TryFind(Database database, long handle, out ObjectId id) =>
+        database.TryGetObjectId(new Handle(handle), out id) && !id.IsNull && id.IsValid && !id.IsErased;
+
+    /// <summary>
+    /// Issue #68: the objects become the PICKFIRST set of AutoCAD and are highlighted with grips at once, as when they are
+    /// picked in the drawing. <c>Editor.SetImpliedSelection</c> called from a palette (the application context, not a
+    /// command) sets the set but AutoCAD draws its grips only after the cursor enters the drawing, so the click in the
+    /// navigator seemed to select nothing. <c>Utils.SelectObjects</c> of AutoCAD selects and highlights the objects; the
+    /// screen is then updated. The focus stays in the palette (the keyboard keeps moving in the tree).
+    /// </summary>
+    private void SetSelection(Document document, ObjectId[] ids)
+    {
+        var editor = document.Editor;
+        editor.SetImpliedSelection(ids);
+        if (!highlightFailed)
         {
-            var database = active.Database;
-            if (!database.TryGetObjectId(new Handle(value), out var id) || id.IsNull || !id.IsValid || id.IsErased) return false;
-            var editor = active.Editor;
-            editor.SetImpliedSelection(new[] { id });
-            if (zoom) Zoom(active, id);
-            if (traceEnabled) Trace(active, "Навигатор: выбран объект [" + handle + "]" + (zoom ? " с показом." : "."));
+            try { InternalUtils.SelectObjects(ids); }
+            catch (Exception error) when (error is not OutOfMemoryException)
+            {
+                // An internal API of AutoCAD: without it the objects stay selected, the grips appear later.
+                highlightFailed = true;
+                System.Diagnostics.Trace.WriteLine(error, "XDATAPALETTE navigator highlight");
+                Trace(document, "Навигатор: подсветка выбора недоступна: " + error.Message);
+            }
         }
-        return true;
+        editor.UpdateScreen();
     }
 
     /// <summary>Shows the extents of the object in the current view of the model with a margin; the layout switches to Model.</summary>

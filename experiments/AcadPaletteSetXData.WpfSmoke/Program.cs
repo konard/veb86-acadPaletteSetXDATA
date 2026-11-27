@@ -1243,6 +1243,8 @@ internal static class Program
         Pump(view);
         Check(navigatorModel.Rows.Any(row => row.Node.Handle == "N2"), "A change of the drawing must refresh the shown tree.");
 
+        VerifyNavigatorGroupSelection(view, navigator, list, navigatorModel, drawing, output);
+
         // Sort by a column keeps the groups; a click on the tree header sorts by name.
         var headers = Descendants<GridViewColumnHeader>(list).Where(header => header.Column != null).ToList();
         var powerHeader = headers.Single(header => ReferenceEquals(header.Column, grid.Columns[4]));
@@ -1464,6 +1466,117 @@ internal static class Program
     };
 
     /// <summary>The objects of the active document for the navigator, as the AutoCAD source reads them.</summary>
+    /// <summary>
+    /// Issue #68: a click on the chosen object selects it again; the right button on a group opens the menu
+    /// «Выделить все устройства группы (N)», which selects every object of the group; objects and the empty space have
+    /// no menu, the header keeps the menu of columns; double clicks still show an object and expand a group.
+    /// </summary>
+    private static void VerifyNavigatorGroupSelection(PaletteView view, NavigatorView navigator, ListView list, NavigatorViewModel model, MemoryDrawing drawing, string output)
+    {
+        var leaf = model.Rows.First(row => row.Node.Handle == "N1");
+        list.SelectedItem = leaf;
+        Pump(view);
+        var selected = drawing.Selected.Count;
+        Check(drawing.Selected.Last() == ("N1", false), "Choosing an object must select it.");
+        MouseDown(list, Caption(list, leaf), view);
+        Check(drawing.Selected.Count == selected + 1 && drawing.Selected.Last() == ("N1", false),
+            "A click on the chosen object must select it again: " + string.Join(", ", drawing.Selected));
+        // Another row is chosen by the list itself (MouseLeftButtonDown, not raised here): the previous object is not selected again.
+        MouseDown(list, Caption(list, model.Rows.First(row => row.Node.Handle == "N3")), view);
+        Check(drawing.Selected.Count == selected + 1, "A click on another row must not select the previous object again.");
+        MouseDown(list, Caption(list, model.Rows.First(row => row.Caption == "ЩР (3)")), view);
+        Check(drawing.Selected.Count == selected + 1 && drawing.SelectedGroups.Count == 0, "A click on a group must select nothing.");
+        DoubleClick(list, Caption(list, leaf), view);
+        Check(drawing.Selected.Last() == ("N1", true), "A double click on an object must show it.");
+
+        var shield = model.Rows.First(row => row.Caption == "ЩР (3)");
+        Check(shield.IsExpanded && shield.ToolTip.Contains("Правая кнопка"), "The tooltip of a group must name its menu: " + shield.ToolTip);
+        var menu = (ContextMenu)navigator.FindName("RowMenu");
+        Check(ReferenceEquals(list.ContextMenu, menu), "The rows must have the menu of groups.");
+        Check(MenuOpening(Caption(list, leaf), view), "An object must have no menu.");
+        var header = Descendants<GridViewColumnHeader>(list).First(item => item.Column != null);
+        Check(!MenuOpening(header, view), "The header must keep the menu of columns.");
+        Check(!MenuOpening(Caption(list, shield), view), "A group must open its menu.");
+        var item = Item(menu, NavigatorView.SelectGroupCommand);
+        Check(menu.Items.Count == 1 && Equals(item.Header, "Выделить все устройства группы (3)"), "The menu of a group must offer to select its objects: " + item.Header);
+        var picked = drawing.Selected.Count;
+        list.SelectedItem = shield; // the right button chooses the row, as ListBoxItem does
+        Pump(view);
+        Check(drawing.Selected.Count == picked, "Choosing a group must select nothing.");
+        var container = (ListViewItem)list.ItemContainerGenerator.ContainerFromItem(shield);
+        menu.PlacementTarget = container;
+        menu.Placement = PlacementMode.Bottom;
+        menu.HorizontalOffset = 40;
+        menu.IsOpen = true;
+        Pump(view);
+        SaveWithPopup(view, menu, Path.Combine(output, "issue68-navigator-group-menu.png"));
+        var groups = drawing.SelectedGroups.Count;
+        Click(item, menu, view);
+        var expected = shield.Node.Descendants().Select(node => node.Handle).OfType<string>().ToArray();
+        Check(drawing.SelectedGroups.Count == groups + 1 && expected.Length == 3 && drawing.SelectedGroups.Last().SequenceEqual(expected),
+            "«Выделить все устройства группы» must select every object of the group: " + string.Join(", ", drawing.SelectedGroups.LastOrDefault() ?? new string[0]));
+        Check(shield.IsExpanded && model.Message == null, "Selecting a group must not change the tree.");
+
+        drawing.Erased.Add(expected[0]);
+        Check(!MenuOpening(Caption(list, shield), view), "A group must open its menu again.");
+        Click(Item(menu, NavigatorView.SelectGroupCommand), menu, view);
+        Check(drawing.SelectedGroups.Last().Length == 2 && model.Message != null && model.Message.Contains("2 из 3"),
+            "An erased object of the group must be reported: " + model.Message);
+        drawing.Erased.Clear();
+        Invoke((Button)navigator.FindName("RefreshButton"), view);
+        Check(model.Message == null, "«Обновить» must remove the message about the group.");
+
+        shield = model.Rows.First(row => row.Caption == "ЩР (3)");
+        DoubleClick(list, Caption(list, shield), view);
+        Check(!shield.IsExpanded, "A double click on a group must collapse it.");
+        DoubleClick(list, Caption(list, shield), view);
+        Check(shield.IsExpanded, "A double click on a group must expand it.");
+    }
+
+    /// <summary>The caption of the row (scrolled into view), a place where a click lands.</summary>
+    private static TextBlock Caption(ListView list, NavigatorRow row)
+    {
+        list.ScrollIntoView(row);
+        list.UpdateLayout();
+        var container = (ListViewItem)list.ItemContainerGenerator.ContainerFromItem(row);
+        return Descendants<TextBlock>(container).First(text => text.Text == row.Caption);
+    }
+
+    /// <summary>
+    /// PreviewMouseLeftButtonDown is a direct event that WPF raises on every element of the route of the mouse button:
+    /// raise it on the list with the clicked element as the original source.
+    /// </summary>
+    private static void MouseDown(ListView list, UIElement target, FrameworkElement view)
+    {
+        var args = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent };
+        args.Source = target;
+        list.RaiseEvent(args);
+        Pump(view);
+    }
+
+    /// <summary>
+    /// MouseDoubleClick is a direct event: like <see cref="Control"/>, raise it on the list with the clicked element
+    /// as the original source.
+    /// </summary>
+    private static void DoubleClick(ListView list, UIElement target, FrameworkElement view)
+    {
+        var args = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Control.MouseDoubleClickEvent };
+        args.Source = target;
+        list.RaiseEvent(args);
+        Pump(view);
+    }
+
+    /// <summary>Raises ContextMenuOpening as the right button does; true when the menu is suppressed.</summary>
+    private static bool MenuOpening(UIElement target, FrameworkElement view)
+    {
+        // ContextMenuEventArgs has no public constructor; this is the one the ContextMenuService uses.
+        var args = (ContextMenuEventArgs)Activator.CreateInstance(typeof(ContextMenuEventArgs),
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null, new object[] { target, true }, null)!;
+        target.RaiseEvent(args);
+        Pump(view);
+        return args.Handled;
+    }
+
     private sealed class MemoryDrawing : INavigatorSource
     {
         private readonly ObjectValuesCache cache;
@@ -1491,6 +1604,15 @@ internal static class Program
             if (Erased.Contains(handle)) return false;
             Selected.Add((handle, zoom));
             return true;
+        }
+
+        public List<string[]> SelectedGroups { get; } = new List<string[]>();
+
+        public int SelectAll(IReadOnlyList<string> handles)
+        {
+            var found = handles.Where(handle => !Erased.Contains(handle)).ToArray();
+            if (found.Length > 0) SelectedGroups.Add(found);
+            return found.Length;
         }
     }
 

@@ -52,6 +52,9 @@ public sealed class NavigatorViewModel : ObservableObject
         DeleteProfileCommand = new DelegateCommand(_ => DeleteProfile(), _ => profile != null);
         ToggleCommand = new DelegateCommand(row => { if (row is NavigatorRow item && item.HasChildren) item.IsExpanded = !item.IsExpanded; });
         ActivateCommand = new DelegateCommand(row => Activate(row as NavigatorRow ?? SelectedRow));
+        SelectCommand = new DelegateCommand(row => Select(row as NavigatorRow ?? SelectedRow));
+        SelectGroupCommand = new DelegateCommand(row => SelectGroup(row as NavigatorRow ?? SelectedRow),
+            row => (row as NavigatorRow ?? SelectedRow)?.IsGroup == true);
         SortCommand = new DelegateCommand(column => SortBy(column as NavigatorColumnViewModel));
         ExpandAllCommand = new DelegateCommand(_ => ExpandAll(true));
         CollapseAllCommand = new DelegateCommand(_ => ExpandAll(false));
@@ -71,6 +74,13 @@ public sealed class NavigatorViewModel : ObservableObject
     public DelegateCommand DeleteProfileCommand { get; }
     public DelegateCommand ToggleCommand { get; }
     public DelegateCommand ActivateCommand { get; }
+    /// <summary>
+    /// Issue #68: a click on an object selects it in AutoCAD, also when its row is already the selected one (the
+    /// selection of AutoCAD may have been cleared since). A group selects nothing.
+    /// </summary>
+    public DelegateCommand SelectCommand { get; }
+    /// <summary>Issue #68: the menu of a group — selects in AutoCAD every object grouped under it, at any depth.</summary>
+    public DelegateCommand SelectGroupCommand { get; }
     public DelegateCommand SortCommand { get; }
     public DelegateCommand ExpandAllCommand { get; }
     public DelegateCommand CollapseAllCommand { get; }
@@ -174,6 +184,7 @@ public sealed class NavigatorViewModel : ObservableObject
             if (ReferenceEquals(selectedRow, value)) return;
             selectedRow = value;
             Notify(nameof(SelectedRow));
+            SelectGroupCommand.RaiseCanExecuteChanged();
             if (!selecting && value?.Node.Kind == NavigatorNodeKind.Leaf) SelectObject(value, false);
         }
     }
@@ -689,6 +700,44 @@ public sealed class NavigatorViewModel : ObservableObject
         else row.IsExpanded = !row.IsExpanded;
     }
 
+    private void Select(NavigatorRow? row)
+    {
+        if (row?.Node.Kind == NavigatorNodeKind.Leaf) SelectObject(row, false);
+    }
+
+    /// <summary>The handles of the objects under a group (of the object itself for a leaf), in the order of the tree.</summary>
+    public static IReadOnlyList<string> HandlesOf(NavigatorRow row)
+    {
+        if (row is null) throw new ArgumentNullException(nameof(row));
+        if (row.Node.Handle is string handle) return new[] { handle };
+        return row.Node.Descendants().Select(node => node.Handle).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Issue #68: every object of the group (nested groups and automatic groups included) goes to the selection of
+    /// AutoCAD at once. Objects erased since the last read are skipped and reported.
+    /// </summary>
+    private void SelectGroup(NavigatorRow? row)
+    {
+        if (row is null || !row.IsGroup || source is null) return;
+        var handles = HandlesOf(row);
+        if (handles.Count == 0) return;
+        var name = "«" + row.Node.Name + "»";
+        int found;
+        try { found = source.SelectAll(handles); }
+        catch (Exception failure) when (failure is not OutOfMemoryException)
+        {
+            SetSelectionMessage("Объекты группы " + name + " не выбраны: " + failure.Message);
+            return;
+        }
+        if (found >= handles.Count) { SetSelectionMessage(null); return; }
+        stale = true;
+        SetSelectionMessage(found == 0
+            ? "Объекты группы " + name + " не найдены в чертеже (удалены?). Нажмите «Обновить»."
+            : "Выбрано объектов группы " + name + ": " + found.ToString(CultureInfo.InvariantCulture) + " из " +
+              handles.Count.ToString(CultureInfo.InvariantCulture) + "; остальные не найдены в чертеже (удалены?). Нажмите «Обновить».");
+    }
+
     /// <summary>A leaf goes to the standard selection of AutoCAD by its handle; a group selects nothing.</summary>
     private void SelectObject(NavigatorRow row, bool zoom)
     {
@@ -820,7 +869,11 @@ public sealed class NavigatorRow : ObservableObject
                     if (value.IsError) lines.Add(column.Caption + ": " + value.Error);
                 }
             }
-            else lines.Add(Node.LeafCount.ToString(CultureInfo.InvariantCulture) + " объект(ов)");
+            else
+            {
+                lines.Add(Node.LeafCount.ToString(CultureInfo.InvariantCulture) + " объект(ов)");
+                lines.Add("Правая кнопка — выделить все устройства группы");
+            }
             if (Node.Error != null) lines.Add(Node.Error);
             return string.Join("\n", lines);
         }

@@ -1478,13 +1478,13 @@ internal static class Program
         Pump(view);
         var selected = drawing.Selected.Count;
         Check(drawing.Selected.Last() == ("N1", false), "Choosing an object must select it.");
-        MouseDown(Caption(list, leaf), view);
+        MouseDown(list, Caption(list, leaf), view);
         Check(drawing.Selected.Count == selected + 1 && drawing.Selected.Last() == ("N1", false),
             "A click on the chosen object must select it again: " + string.Join(", ", drawing.Selected));
         // Another row is chosen by the list itself (MouseLeftButtonDown, not raised here): the previous object is not selected again.
-        MouseDown(Caption(list, model.Rows.First(row => row.Node.Handle == "N3")), view);
+        MouseDown(list, Caption(list, model.Rows.First(row => row.Node.Handle == "N3")), view);
         Check(drawing.Selected.Count == selected + 1, "A click on another row must not select the previous object again.");
-        MouseDown(Caption(list, model.Rows.First(row => row.Caption == "ЩР (3)")), view);
+        MouseDown(list, Caption(list, model.Rows.First(row => row.Caption == "ЩР (3)")), view);
         Check(drawing.Selected.Count == selected + 1 && drawing.SelectedGroups.Count == 0, "A click on a group must select nothing.");
         DoubleClick(list, Caption(list, leaf), view);
         Check(drawing.Selected.Last() == ("N1", true), "A double click on an object must show it.");
@@ -1538,9 +1538,15 @@ internal static class Program
         return Descendants<TextBlock>(container).First(text => text.Text == row.Caption);
     }
 
-    private static void MouseDown(UIElement target, FrameworkElement view)
+    /// <summary>
+    /// PreviewMouseLeftButtonDown is a direct event that WPF raises on every element of the route of the mouse button:
+    /// raise it on the list with the clicked element as the original source.
+    /// </summary>
+    private static void MouseDown(ListView list, UIElement target, FrameworkElement view)
     {
-        target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent });
+        var args = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent };
+        args.Source = target;
+        list.RaiseEvent(args);
         Pump(view);
     }
 

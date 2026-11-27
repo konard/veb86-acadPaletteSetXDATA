@@ -295,7 +295,7 @@ public partial class NavigatorView : UserControl
     /// </summary>
     private void OnRowMouseDown(object sender, MouseButtonEventArgs args)
     {
-        if (model == null || args.ClickCount != 1 || args.OriginalSource is not DependencyObject source || Up(source).OfType<ButtonBase>().Any()) return;
+        if (model == null || args.ClickCount > 1 || args.OriginalSource is not DependencyObject source || Up(source).OfType<ButtonBase>().Any()) return;
         if (RowAt(source) is { IsLeaf: true } row && ReferenceEquals(row, model.SelectedRow)) model.SelectCommand.Execute(row);
     }
 

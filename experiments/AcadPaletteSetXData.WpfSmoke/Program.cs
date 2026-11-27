@@ -1499,6 +1499,10 @@ internal static class Program
         Check(!MenuOpening(Caption(list, shield), view), "A group must open its menu.");
         var item = Item(menu, NavigatorView.SelectGroupCommand);
         Check(menu.Items.Count == 1 && Equals(item.Header, "Выделить все устройства группы (3)"), "The menu of a group must offer to select its objects: " + item.Header);
+        var picked = drawing.Selected.Count;
+        list.SelectedItem = shield; // the right button chooses the row, as ListBoxItem does
+        Pump(view);
+        Check(drawing.Selected.Count == picked, "Choosing a group must select nothing.");
         var container = (ListViewItem)list.ItemContainerGenerator.ContainerFromItem(shield);
         menu.PlacementTarget = container;
         menu.Placement = PlacementMode.Bottom;

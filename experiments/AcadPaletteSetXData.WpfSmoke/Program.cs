@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
@@ -62,9 +63,9 @@ internal static class Program
             Check(tabs.Items.Count == 4, "Expected four tabs.");
             Pump(view);
             VerifyEmpty(view, model, tabs, output);
-            source.Select(SampleSelection());
-            Pump(view);
+            VerifySelectionLayout(view, model, tabs, source);
             VerifyThemes(view, model, tabs, output);
+            VerifyPropertyCopyMenu(view, model, output);
             VerifyTree(view, model);
             VerifyToolbar(view, model, source, output);
             VerifyColumns(view, model);
@@ -107,8 +108,12 @@ internal static class Program
         var list = List(grid);
         Check(ReferenceEquals(grid.DataContext, model.Grid), "The «Свойства» tab must show the VST model.");
         Check(!list.IsEnabled && list.Items.Count == 0, "Without a selection the VST must be disabled and empty.");
-        Check(((TextBlock)grid.FindName("MessageText")).Text == "Выберите объекты в чертеже" && ((TextBlock)grid.FindName("MessageText")).IsVisible,
-            "The empty selection must explain what to do.");
+        var selector = (ComboBox)view.FindName("SelectedGroupField");
+        Check(selector.IsVisible && !selector.IsEnabled, "The drawing selection selector must stay visible when empty.");
+        var placeholder = (TextBlock)view.FindName("SelectionPlaceholder");
+        Check(placeholder.IsVisible && placeholder.Text == "Выберите объекты на чертеже",
+            "The empty selection prompt must appear inside the selector.");
+        Check(!((TextBlock)grid.FindName("MessageText")).IsVisible, "The VST must not repeat the prompt.");
         Save(view, Path.Combine(output, "tzxdata-stage6-empty.png"));
 
         // Issue #48: the disabled empty lists keep the theme background; the system templates painted them white.
@@ -134,6 +139,98 @@ internal static class Program
         model.Theme = PaletteTheme.Dark;
         tabs.SelectedIndex = 0;
         Pump(view);
+    }
+
+    private static void VerifySelectionLayout(PaletteView view, PaletteViewModel model, TabControl tabs, MemorySelection source)
+    {
+        var selector = (ComboBox)view.FindName("SelectedGroupField");
+        var placeholder = (TextBlock)view.FindName("SelectionPlaceholder");
+        var tabHeader = (TabItem)tabs.ItemContainerGenerator.ContainerFromIndex(0);
+        double Top(FrameworkElement element) => element.TranslatePoint(new Point(), view).Y;
+        var emptySelector = Top(selector);
+        var emptyTab = Top(tabHeader);
+        var emptyRows = Top(List(Grid(view)));
+
+        source.Select(SampleSelection());
+        Pump(view);
+        Check(selector.IsEnabled && !placeholder.IsVisible && selector.SelectedItem is SelectionGroup { Count: 2 },
+            "A selection must replace the prompt with its group and count.");
+        Check(model.Selection.Status.Length == 0 && !((TextBlock)Grid(view).FindName("MessageText")).IsVisible,
+            "A normal selection must not add a status line.");
+        Check(Top(selector) == emptySelector && Top(tabHeader) == emptyTab && Top(List(Grid(view))) == emptyRows,
+            "The selector, tabs and VST must stay in place when the selection changes.");
+
+        source.Select(Array.Empty<EntityDataSnapshot>());
+        Pump(view);
+        Check(placeholder.IsVisible && !selector.IsEnabled &&
+              Top(selector) == emptySelector && Top(tabHeader) == emptyTab && Top(List(Grid(view))) == emptyRows,
+            "The layout must also stay in place when the selection is cleared.");
+
+        source.Select(SampleSelection());
+        Pump(view);
+    }
+
+    private static void VerifyPropertyCopyMenu(PaletteView view, PaletteViewModel model, string output)
+    {
+        var grid = Grid(view);
+        var list = List(grid);
+        var menu = (ContextMenu)grid.Resources["PropertyMenu"];
+        var copyId = (MenuItem)menu.Items[0];
+        var copyValue = (MenuItem)menu.Items[1];
+        Check(Equals(copyId.Header, "Скопировать ID параметра") && Equals(copyValue.Header, "Скопировать значение параметра"),
+            "The property menu must offer both clipboard actions.");
+        PropertyRow Row(string id) => model.Grid.Rows.Single(row => row.Id == id);
+        TextBlock Caption(PropertyRow row) => Descendants<TextBlock>(Container(list, row)).Single(text => text.Text == row.Caption);
+
+        // Open through the same service as a right click, from a cell that is not the selected row.
+        var head = Row("GC_HeadDevice");
+        var caption = Caption(head);
+        ContextMenuService.SetPlacement((DockPanel)caption.Parent, PlacementMode.Bottom);
+        Check(OpenPointerMenu(caption, view) && menu.IsOpen, "Right-clicking a parameter name must open its menu.");
+        SaveWithPopup(view, menu, Path.Combine(output, "issue70-property-copy-menu.png"));
+        Click(copyId, menu, view);
+        Check(Clipboard.GetText() == "GC_HeadDevice", "Copy ID must copy the schema ID from the clicked row.");
+
+        var power = Row("Power");
+        var value = Descendants<TextBlock>(Container(list, power)).Single(text => text.IsVisible && text.Text == power.Value);
+        Check(OpenPointerMenu(value, view) && menu.IsOpen, "Right-clicking a value must open the same menu.");
+        Click(copyValue, menu, view);
+        Check(Clipboard.GetText() == power.Value, "Copy value must copy the formatted value from the clicked row.");
+
+        var mixed = Row("Phase");
+        Check(OpenPointerMenu(Caption(mixed), view) && menu.IsOpen && copyId.IsEnabled && !copyValue.IsEnabled,
+            "A mixed value must still offer its ID.");
+        menu.IsOpen = false;
+        Pump(view);
+
+        var group = model.Grid.Rows.First(row => row.Kind == PropertyRowKind.Group);
+        OpenPointerMenu(Caption(group), view);
+        Check(!menu.IsOpen, "A group without a parameter ID must not open the property menu.");
+        var header = Descendants<GridViewColumnHeader>(list).First(item => Equals(item.Content, "ПАРАМЕТР"));
+        var columnMenu = ((GridView)list.View).ColumnHeaderContextMenu;
+        Check(OpenPointerMenu(header, view) && columnMenu.IsOpen && !menu.IsOpen, "The header must keep its column menu.");
+        columnMenu.IsOpen = false;
+        Pump(view);
+
+        list.SelectedItem = power;
+        Pump(view);
+        var editor = Editor<TextBox>(list, power);
+        Check(OpenPointerMenu(editor, view) && menu.IsOpen && copyValue.IsEnabled,
+            "An active value editor must offer the property menu.");
+        menu.IsOpen = false;
+        list.SelectedItem = null;
+        Pump(view);
+    }
+
+    private static bool OpenPointerMenu(UIElement target, FrameworkElement view)
+    {
+        // Use WPF's popup service to exercise hit target resolution without moving the runner's mouse.
+        const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        var service = typeof(FrameworkElement).GetProperty("PopupControlService", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+        var open = service.GetType().GetMethod("RaiseContextMenuOpeningEvent", flags)!;
+        var opened = (bool)open.Invoke(service, new object[] { target, 0.0, 0.0, false })!;
+        Pump(view);
+        return opened;
     }
 
     /// <summary>The template border and the rendered pixels of a disabled list are the theme background.</summary>
@@ -851,7 +948,7 @@ internal static class Program
         Check(source.Snapshots().Count == 3 && source.Snapshots().All(snapshot => SelectionGroups.SystemType(snapshot.XData) == "Опора"),
             "The buttons must not change XDATA.");
 
-        // «Все» + − clears the selection; the list and the buttons are hidden.
+        // «Все» + − clears the selection; the list and buttons stay visible and are disabled.
         source.Select(GroupSelection());
         Pump(view);
         Check(((SelectionGroup)field.SelectedItem).Text == "Опора (3)", "The chosen group must stay chosen after the selection changes.");
@@ -859,7 +956,8 @@ internal static class Program
         Pump(view);
         Check(((SelectionGroup)field.SelectedItem).IsAll, "«Все» must be the first item.");
         Invoke(exclude, view);
-        Check(source.Handles().Length == 0 && model.Selection.Groups.Count == 0 && !field.IsVisible && !keep.IsVisible,
+        Check(source.Handles().Length == 0 && model.Selection.Groups.Count == 0 &&
+              field.IsVisible && !field.IsEnabled && keep.IsVisible && !keep.IsEnabled && !exclude.IsEnabled,
             "«Все» + − must clear the selection.");
         Check(source.Changes == changes + 3, "Every change must go through the drawing selection.");
     }

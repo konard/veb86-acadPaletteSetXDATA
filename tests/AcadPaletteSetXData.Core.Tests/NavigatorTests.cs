@@ -750,6 +750,7 @@ public sealed class NavigatorTests
 
         var backupPath = Path.Combine(folder.Path, "renamed backup.json");
         Assert.True(exporter.ExportProfile(backupPath), exporter.Message);
+        Assert.True(ParameterSchemaJson.LoadFile(backupPath).HasErrors);
         Assert.True(exporter.IsDirty);
         Assert.Equal(original.ToJson(), sourceStore.LoadProfile("phases")!.Profile!.ToJson());
 
@@ -778,7 +779,7 @@ public sealed class NavigatorTests
 
     [Theory]
     [InlineData("{")]
-    [InlineData("{\"version\":1,\"parameters\":[],\"enums\":[],\"templates\":[]}")]
+    [InlineData("{\"format\":\"BobrovXDATA.schema\",\"version\":1,\"parameters\":[],\"enums\":[],\"templates\":[]}")]
     [InlineData("{\"version\":2,\"id\":\"backup\",\"name\":\"Backup\",\"tree\":{\"expression\":\"+Phase\"}}")]
     [InlineData("{\"version\":1,\"id\":\"../backup\",\"name\":\"Backup\",\"tree\":{\"expression\":\"+Phase|\"}}")]
     public void InvalidProfileImportKeepsTheActiveProfileAndItsChanges(string json)

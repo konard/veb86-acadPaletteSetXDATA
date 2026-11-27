@@ -80,7 +80,7 @@ internal static class Program
             VerifyEntityProperties(view, model, tabs, output);
             VerifyNavigator(view, model, tabs, navigatorFolder, output);
             source.Select(SampleSelection());
-            VerifyMinimum(window, view, model, tabs, output);
+            VerifyMinimum(window, view, model, tabs, source, output);
             Check(bindingErrors.Messages.Count == 0, "WPF binding failures: " + string.Join("\n", bindingErrors.Messages));
             window.Close();
             view.Dispose();
@@ -218,6 +218,14 @@ internal static class Program
         Check(OpenPointerMenu(editor, view) && menu.IsOpen && copyValue.IsEnabled,
             "An active value editor must offer the property menu.");
         menu.IsOpen = false;
+        list.SelectedItem = mixed;
+        Pump(view);
+        var choice = Editor<ComboBox>(list, mixed);
+        var choiceText = (TextBox)choice.Template.FindName("PART_EditableTextBox", choice);
+        Check(OpenPointerMenu(choiceText, view) && menu.IsOpen && !copyValue.IsEnabled,
+            "The text of an active enum editor must offer the property menu.");
+        Click(copyId, menu, view);
+        Check(Clipboard.GetText() == "Phase", "An active editor must copy the ID of its parameter.");
         list.SelectedItem = null;
         Pump(view);
     }
@@ -949,7 +957,7 @@ internal static class Program
         Check(source.Snapshots().Count == 3 && source.Snapshots().All(snapshot => SelectionGroups.SystemType(snapshot.XData) == "Опора"),
             "The buttons must not change XDATA.");
 
-        // «Все» + − clears the selection; the list and buttons stay visible and are disabled.
+        // «Все» + − clears the selection; the selector stays visible with its prompt.
         source.Select(GroupSelection());
         Pump(view);
         Check(((SelectionGroup)field.SelectedItem).Text == "Опора (3)", "The chosen group must stay chosen after the selection changes.");
@@ -958,7 +966,7 @@ internal static class Program
         Check(((SelectionGroup)field.SelectedItem).IsAll, "«Все» must be the first item.");
         Invoke(exclude, view);
         Check(source.Handles().Length == 0 && model.Selection.Groups.Count == 0 &&
-              field.IsVisible && !field.IsEnabled && keep.IsVisible && !keep.IsEnabled && !exclude.IsEnabled,
+              field.IsVisible && !field.IsEnabled && !keep.IsVisible && !exclude.IsVisible,
             "«Все» + − must clear the selection.");
         Check(source.Changes == changes + 3, "Every change must go through the drawing selection.");
     }
@@ -1729,7 +1737,7 @@ internal static class Program
         return result;
     }
 
-    private static void VerifyMinimum(Window window, PaletteView view, PaletteViewModel model, TabControl tabs, string output)
+    private static void VerifyMinimum(Window window, PaletteView view, PaletteViewModel model, TabControl tabs, MemorySelection source, string output)
     {
         // Exercise the minimum supported palette size as well as the normal render.
         window.Width = 280;
@@ -1746,6 +1754,13 @@ internal static class Program
         Check(scroll.HorizontalOffset > 0, "The last VST column must be reachable.");
         Save(view, Path.Combine(output, "tzxdata-stage6-minimum.png"));
         scroll.ScrollToLeftEnd();
+        source.Select(Array.Empty<EntityDataSnapshot>());
+        Pump(view);
+        var prompt = (TextBlock)view.FindName("SelectionPlaceholder");
+        var availableWidth = prompt.ActualWidth + prompt.Margin.Left + prompt.Margin.Right;
+        prompt.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Check(prompt.IsVisible && prompt.DesiredSize.Width <= availableWidth, "The full selection prompt must fit at minimum width.");
+        source.Select(SampleSelection());
         window.Width = 520;
         window.Height = 760;
         Pump(view);

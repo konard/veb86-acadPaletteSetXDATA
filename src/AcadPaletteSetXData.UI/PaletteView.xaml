@@ -63,6 +63,11 @@
                 <Setter Property="Margin" Value="3,0,0,0" />
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Selection.HasSelection}" Value="False">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
             <Style TargetType="TabItem">
                 <Setter Property="Foreground" Value="{DynamicResource PaletteForeground}" />
@@ -108,7 +113,7 @@
         <StackPanel Margin="6,6,6,4">
             <!-- Issue #41: the selection grouped by SYSTEMTYPE or by the AutoCAD name of the object type, «Все (N)» for
                  more than one group; * keeps only the chosen group selected, − removes it from the selection. -->
-            <Grid x:Name="GroupBar">
+            <Grid x:Name="GroupBar" Height="31">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <ComboBox x:Name="SelectedGroupField" ItemsSource="{Binding Selection.Groups}" DisplayMemberPath="Text"
                           SelectedItem="{Binding Selection.SelectedGroup, Mode=TwoWay}"

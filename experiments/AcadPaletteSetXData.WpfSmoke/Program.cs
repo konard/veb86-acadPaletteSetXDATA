@@ -227,7 +227,8 @@ internal static class Program
         // Use WPF's popup service to exercise hit target resolution without moving the runner's mouse.
         const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
         var service = typeof(FrameworkElement).GetProperty("PopupControlService", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
-        var open = service.GetType().GetMethod("RaiseContextMenuOpeningEvent", flags)!;
+        var open = service.GetType().GetMethod("RaiseContextMenuOpeningEvent", flags, null,
+            new[] { typeof(IInputElement), typeof(double), typeof(double), typeof(bool) }, null)!;
         var opened = (bool)open.Invoke(service, new object[] { target, 0.0, 0.0, false })!;
         Pump(view);
         return opened;
